@@ -1968,6 +1968,20 @@ const { requireAuth } = require('../middleware/auth');
 const router = Router();
 router.use(requireAuth);
 
+// Parent's own submissions (for parent dashboard)
+// IMPORTANT: This route MUST be defined BEFORE /:id/pdf to prevent Express from matching "mine" as an :id parameter
+router.get('/mine', (req, res) => {
+  const db = req.app.locals.db;
+  const submissions = db.prepare(`
+    SELECT s.id, s.participant_name, s.submitted_at, s.pdf_path, e.event_name
+    FROM submissions s
+    JOIN events e ON s.event_id = e.id
+    WHERE s.submitted_by = ?
+    ORDER BY s.submitted_at DESC
+  `).all(req.user.id);
+  res.json({ submissions });
+});
+
 router.get('/:id/pdf', (req, res) => {
   const db = req.app.locals.db;
   const submission = db.prepare('SELECT * FROM submissions WHERE id = ?').get(req.params.id);
@@ -1988,19 +2002,6 @@ router.get('/:id/pdf', (req, res) => {
 
   const fileName = `permission-form-${submission.participant_name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
   res.download(submission.pdf_path, fileName);
-});
-
-// Parent's own submissions (for parent dashboard)
-router.get('/mine', (req, res) => {
-  const db = req.app.locals.db;
-  const submissions = db.prepare(`
-    SELECT s.id, s.participant_name, s.submitted_at, s.pdf_path, e.event_name
-    FROM submissions s
-    JOIN events e ON s.event_id = e.id
-    WHERE s.submitted_by = ?
-    ORDER BY s.submitted_at DESC
-  `).all(req.user.id);
-  res.json({ submissions });
 });
 
 module.exports = router;
@@ -2129,6 +2130,8 @@ export const api = {
   submitForm: (eventId: string, data: any) => apiFetch(`/api/events/${eventId}/submit`, { method: 'POST', body: JSON.stringify(data) }),
 
   // PDF
+  // Submissions
+  getMySubmissions: () => apiFetch('/api/submissions/mine'),
   getPdfUrl: (submissionId: string) => `${API_URL}/api/submissions/${submissionId}/pdf`,
 };
 ```
