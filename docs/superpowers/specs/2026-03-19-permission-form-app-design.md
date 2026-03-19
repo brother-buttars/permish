@@ -13,8 +13,8 @@ A mobile-friendly web app that digitizes the LDS Church "Parental or Guardian Pe
 - **Database:** SQLite (file-based, no separate container)
 - **PDF Generation:** Puppeteer (HTML template rendered to PDF)
 - **Email:** Nodemailer (Gmail SMTP default, Resend-ready abstraction)
-- **SMS:** Carrier email gateways via Nodemailer
-- **Auth:** JWT via HttpOnly cookies (bcrypt password hashing)
+- **SMS:** Carrier email gateways via Nodemailer (see Known Limitations)
+- **Auth:** JWT via HttpOnly, SameSite=Strict cookies (bcrypt password hashing)
 - **Deployment:** Docker Compose on local server
 
 ### Containers (Docker Compose)
@@ -40,6 +40,43 @@ SQLite runs inside the backend container. No separate DB container.
 | Frontend | 3000 | 3000 |
 | Backend | 3001 | 3001 |
 
+### Backup Strategy
+
+SQLite is a single file. Recommend periodic file copy (e.g., cron job copying the DB file to a backup location). The Docker volume should be backed up regularly since it contains medical records that planners may need for liability purposes.
+
+## Security
+
+### CSRF Protection
+
+- JWT cookies use `SameSite=Strict` and `HttpOnly` flags
+- All state-changing requests (POST, PUT, DELETE) are protected by the SameSite cookie policy
+
+### JWT Token Strategy
+
+- Access tokens expire after **24 hours**
+- On expiry, users must re-authenticate (no refresh tokens — keeps it simple)
+- Logout clears the cookie
+
+### Rate Limiting
+
+Public endpoints are rate-limited using `express-rate-limit`:
+
+| Endpoint | Limit |
+|----------|-------|
+| `POST /api/auth/register` | 5 requests per hour per IP |
+| `POST /api/auth/login` | 10 requests per 15 minutes per IP |
+| `POST /api/events/:id/submit` | 20 requests per hour per IP |
+| `GET /api/events/:id/form` | 60 requests per minute per IP |
+
+### Input Validation
+
+- `participant_dob`: ISO 8601 date format (YYYY-MM-DD)
+- `participant_phone`, `emergency_phone_*`: Validated as phone numbers (digits, dashes, parentheses, spaces; 7-15 characters)
+- Text fields: Maximum 500 characters (1000 for `event_description`, `activity_limitations`, `other_accommodations`)
+- Drawn signatures (base64): Maximum 500KB
+- Email fields: Validated as email format
+- All inputs sanitized to prevent XSS
+
 ## User Roles & Authentication
 
 ### Roles
@@ -53,7 +90,7 @@ SQLite runs inside the backend container. No separate DB container.
 
 ### Auth Flow
 
-- JWT stored in HttpOnly, Secure cookies
+- JWT stored in HttpOnly, Secure, SameSite=Strict cookies
 - bcrypt for password hashing
 - Planner endpoints require authentication
 - Parent form submission is public (no auth required)
@@ -79,7 +116,7 @@ SQLite runs inside the backend container. No separate DB container.
 | id | TEXT (UUID) | Primary key, used in form URL |
 | created_by | TEXT (FK) | User who created the event |
 | event_name | TEXT | Event name |
-| event_dates | TEXT | Date(s) of event |
+| event_dates | TEXT | Freeform text — date(s) of event (e.g., "March 20-22, 2026" or "Every Tuesday in April") |
 | event_description | TEXT | Description of event and activities |
 | ward | TEXT | Ward name |
 | stake | TEXT | Stake name |
@@ -89,7 +126,10 @@ SQLite runs inside the backend container. No separate DB container.
 | notify_email | TEXT (nullable) | Where to send completed form notifications |
 | notify_phone | TEXT (nullable) | Phone number for SMS delivery |
 | notify_carrier | TEXT (nullable) | Carrier for SMS gateway |
+| is_active | BOOLEAN | Whether the form is accepting submissions (default: true) |
 | created_at | DATETIME | When the event was created |
+
+Planners can deactivate an event to stop accepting submissions. The form URL will show a "This form is no longer accepting submissions" message when `is_active` is false.
 
 ### `child_profiles`
 
@@ -98,8 +138,7 @@ SQLite runs inside the backend container. No separate DB container.
 | id | TEXT (UUID) | Primary key |
 | user_id | TEXT (FK) | Owner of the profile |
 | participant_name | TEXT | Child's name |
-| participant_dob | TEXT | Date of birth |
-| participant_age | INTEGER | Age |
+| participant_dob | TEXT | Date of birth (YYYY-MM-DD). Age is computed dynamically from this. |
 | participant_phone | TEXT | Phone |
 | address | TEXT | Address |
 | city | TEXT | City |
@@ -123,15 +162,18 @@ SQLite runs inside the backend container. No separate DB container.
 | guardian_signature_type | TEXT (nullable) | "drawn" or "typed" |
 | updated_at | DATETIME | Last updated |
 
+Note: `participant_age` is **not stored** on profiles. It is computed dynamically from `participant_dob` to avoid stale data after birthdays.
+
 ### `submissions`
 
 | Column | Type | Description |
 |--------|------|-------------|
 | id | TEXT (UUID) | Primary key |
 | event_id | TEXT (FK) | Links to the event |
+| submitted_by | TEXT (FK, nullable) | User who submitted (null for anonymous) |
 | participant_name | TEXT | Participant's full name |
-| participant_dob | TEXT | Date of birth |
-| participant_age | INTEGER | Age |
+| participant_dob | TEXT | Date of birth (YYYY-MM-DD) |
+| participant_age | INTEGER | Age at time of submission (snapshot) |
 | participant_phone | TEXT | Telephone number |
 | address | TEXT | Street address |
 | city | TEXT | City |
@@ -152,13 +194,15 @@ SQLite runs inside the backend container. No separate DB container.
 | activity_limitations | TEXT (nullable) | Limits, restrictions, disabilities |
 | other_accommodations | TEXT (nullable) | Other needs/considerations |
 | participant_signature | TEXT | Signature data (base64 or typed) |
+| participant_signature_type | TEXT | "drawn" or "typed" |
 | participant_signature_date | TEXT | Date signed |
 | guardian_signature | TEXT (nullable) | Guardian signature |
+| guardian_signature_type | TEXT (nullable) | "drawn" or "typed" |
 | guardian_signature_date | TEXT (nullable) | Date signed |
 | submitted_at | DATETIME | When submitted |
 | pdf_path | TEXT | Path to generated PDF |
 
-Submissions are **immutable snapshots**. Profile edits do not retroactively change past submissions.
+Submissions are **immutable snapshots**. Profile edits do not retroactively change past submissions. `participant_age` is stored as a snapshot here (unlike profiles where it is computed) since the submission records the age at time of the event.
 
 ## API Endpoints
 
@@ -178,8 +222,13 @@ Submissions are **immutable snapshots**. Profile edits do not retroactively chan
 | POST | `/api/events` | Create event |
 | GET | `/api/events` | List planner's events |
 | GET | `/api/events/:id` | Get event details |
-| DELETE | `/api/events/:id` | Delete event |
+| PUT | `/api/events/:id` | Update event details (owner only) |
+| DELETE | `/api/events/:id` | Soft-delete event (see Deletion Semantics) |
 | GET | `/api/events/:id/submissions` | List submissions for event |
+
+#### Event Deletion Semantics
+
+Events are **soft-deleted** (marked inactive, hidden from planner dashboard). Associated submissions and PDFs are preserved. This protects immutable submission records containing medical information. A soft-deleted event's form URL returns "This form is no longer available."
 
 ### Child Profiles (auth required)
 
@@ -196,7 +245,14 @@ Submissions are **immutable snapshots**. Profile edits do not retroactively chan
 |--------|-------|-------------|
 | GET | `/api/events/:id/form` | Get event details for form display |
 | POST | `/api/events/:id/submit` | Submit completed form |
-| GET | `/api/submissions/:id/pdf` | Download PDF |
+
+### Submissions (auth required)
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/submissions/:id/pdf` | Required | Download PDF (planner who owns event OR parent who submitted) |
+
+PDF downloads require authentication. Access is restricted to the planner who owns the event or the authenticated parent who submitted the form.
 
 ### Health
 
@@ -211,28 +267,42 @@ Submissions are **immutable snapshots**. Profile edits do not retroactively chan
 | `/` | Landing page — login/register or quick links | Public |
 | `/login` | Login form | Public |
 | `/register` | Register form (choose planner or parent role) | Public |
-| `/dashboard` | Planner: events + submission counts. Parent: child profiles + past submissions | Required |
+| `/dashboard` | Role-specific dashboard (see below) | Required |
 | `/create` | Event creation form — Event Details + delivery settings | Planner only |
 | `/event/:id` | Event dashboard — details, shareable URL, submissions list with PDF actions | Planner only |
 | `/form/:id` | Parent-facing form — pre-filled event details (read-only), contact/medical/signature | Public |
 | `/form/:id/success` | Confirmation page after submission | Public |
 | `/profiles` | Manage child profiles (CRUD) | Required |
 
+### Planner Dashboard
+
+- List of created events with submission counts
+- Quick link to create a new event
+- Each event links to `/event/:id`
+
+### Parent Dashboard
+
+- List of child profiles with edit/delete actions
+- Past submissions table: event name, participant name, date submitted, download PDF link
+- Submissions are queried via the `submitted_by` foreign key
+
 ## Parent Form Flow
 
 1. Parent opens `/form/:id` (shared link)
-2. Sees event details at top (read-only, styled like the original form header)
-3. If logged in, sees dropdown: "Select a child profile" to pre-fill, or "Fill out manually"
-4. If not logged in, sees empty form with subtle prompt: "Have an account? Log in to auto-fill from saved profiles"
-5. Fills out contact info, medical info, conditions, accommodations
-6. Signs — chooses draw or type-to-sign for participant and guardian signatures
-7. Submits
-8. If logged in and no profile exists for this child, prompts: "Save this as a profile for next time?"
-9. Sees success confirmation page
+2. If event is inactive, sees "This form is no longer accepting submissions" message
+3. Sees event details at top (read-only, styled like the original form header)
+4. If logged in, sees dropdown: "Select a child profile" to pre-fill, or "Fill out manually"
+5. If not logged in, sees empty form with subtle prompt: "Have an account? Log in to auto-fill from saved profiles"
+6. Fills out contact info, medical info, conditions, accommodations
+7. Signs — chooses draw or type-to-sign for participant and guardian signatures
+8. Submits
+9. If logged in and no profile exists for this child, prompts: "Save this as a profile for next time?"
+10. Sees success confirmation page
 
 ## Event Dashboard Features
 
 - Event details summary + shareable form URL with copy button
+- Toggle to activate/deactivate the form
 - Submissions table: participant name, emergency contact, date submitted
 - Per-submission actions: View PDF, Download PDF, Print
 - Bulk actions: Download all PDFs as ZIP, Print all
@@ -252,11 +322,18 @@ Selected by `EMAIL_PROVIDER` env var:
 | AT&T | @txt.att.net |
 | Verizon | @vtext.com |
 | T-Mobile | @tmomail.net |
-| Sprint | @messaging.sprintpcs.com |
 | US Cellular | @email.uscc.net |
 | Cricket | @sms.cricketwireless.net |
 | Boost | @smsmyboostmobile.com |
 | Metro PCS | @mymetropcs.com |
+
+#### Known Limitations
+
+- Carrier email gateways are **US-only** and may not cover all carriers (MVNOs like Google Fi, Mint Mobile, Visible are not supported)
+- Some carriers are deprecating or throttling these gateways
+- The planner must know their carrier, which can be error-prone
+- Sprint has been merged into T-Mobile (use T-Mobile gateway)
+- This is a best-effort, zero-cost approach. If reliability becomes an issue, a proper SMS API (e.g., Twilio) can be added as another transport option, similar to the Resend email option
 
 ### Notification Content
 
@@ -268,7 +345,8 @@ Both are **optional** — the planner dashboard is the primary way to track and 
 ## PDF Generation
 
 - Puppeteer renders an HTML template to PDF
-- Template mirrors the official church form layout: logo, section headers, checkbox styling, signature images, "Conduct at Church Activities" second page
+- Template mirrors the official church form layout: logo, section headers, checkbox styling, signature images
+- The "Conduct at Church Activities" second page is **static boilerplate** — identical content on every PDF, not interactive during form fill-out. It is included as a reference page per the original form.
 - Populated with submitted data
 - Stored on disk (`pdf-storage` volume), path saved in `submissions.pdf_path`
 
@@ -279,6 +357,7 @@ Both are **optional** — the planner dashboard is the primary way to track and 
 - Parent chooses either method
 - Guardian signature can be saved to child profile for re-use
 - Participant signature is always fresh (not saved to profiles)
+- Signature type ("drawn" or "typed") is stored on both profiles and submissions for correct PDF rendering
 
 ## Mobile-First Design
 
@@ -294,6 +373,7 @@ Both are **optional** — the planner dashboard is the primary way to track and 
 # App
 NODE_ENV=production
 JWT_SECRET=your-secret-here
+JWT_EXPIRY=24h
 FRONTEND_URL=http://yourserver:3000
 
 # Email provider
