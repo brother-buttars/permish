@@ -174,7 +174,7 @@
 		<Button
 			variant={type === 'drawn' ? "default" : "outline"}
 			size="sm"
-			class="flex-1 {type !== 'drawn' ? 'bg-background text-foreground/60 border-border shadow-sm hover:bg-background hover:text-foreground hover:shadow-md' : ''}"
+			class="flex-1 {type !== 'drawn' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
 			onclick={() => switchMode("drawn")}
 		>
 			Draw
@@ -182,7 +182,7 @@
 		<Button
 			variant={type === 'typed' ? "default" : "outline"}
 			size="sm"
-			class="flex-1 {type !== 'typed' ? 'bg-background text-foreground/60 border-border shadow-sm hover:bg-background hover:text-foreground hover:shadow-md' : ''}"
+			class="flex-1 {type !== 'typed' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
 			onclick={() => switchMode("typed")}
 		>
 			Type
