@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Permission and Medical Release Form</title>
+<style>
+  @page {
+    size: letter;
+    margin: 0;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #000;
+  }
+
+  .page {
+    width: 8.5in;
+    min-height: 11in;
+    padding: 0.5in;
+  }
+
+  .page-2 {
+    page-break-before: always;
+  }
+
+  h1 {
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 8px;
+    font-weight: bold;
+  }
+
+  h2 {
+    font-size: 13px;
+    font-weight: bold;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #000;
+    padding-bottom: 2px;
+  }
+
+  .intro {
+    font-size: 10px;
+    margin-bottom: 10px;
+    line-height: 1.3;
+  }
+
+  .form-grid {
+    display: table;
+    width: 100%;
+    margin-bottom: 4px;
+  }
+
+  .form-row {
+    display: table-row;
+  }
+
+  .form-label {
+    display: table-cell;
+    font-weight: bold;
+    padding: 2px 8px 2px 0;
+    white-space: nowrap;
+    vertical-align: top;
+    width: 1%;
+  }
+
+  .form-value {
+    display: table-cell;
+    padding: 2px 0;
+    border-bottom: 1px dotted #999;
+    vertical-align: top;
+  }
+
+  .inline-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .inline-item {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .inline-item .label {
+    font-weight: bold;
+    white-space: nowrap;
+  }
+
+  .inline-item .value {
+    border-bottom: 1px dotted #999;
+    min-width: 80px;
+    padding: 0 4px;
+  }
+
+  .checkbox-row {
+    margin: 4px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .checkbox-mark {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .details-line {
+    margin-left: 24px;
+    margin-bottom: 4px;
+  }
+
+  .details-line .label {
+    font-weight: bold;
+  }
+
+  .details-line .value {
+    border-bottom: 1px dotted #999;
+    padding: 0 4px;
+  }
+
+  .permission-text {
+    font-size: 10px;
+    margin: 10px 0;
+    line-height: 1.35;
+    text-align: justify;
+  }
+
+  .signature-block {
+    margin-top: 16px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+  }
+
+  .signature-area {
+    flex: 1;
+  }
+
+  .signature-area .sig-label {
+    font-weight: bold;
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+
+  .signature-area .sig-line {
+    border-bottom: 1px solid #000;
+    min-height: 30px;
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 2px;
+  }
+
+  .signature-area .sig-line img {
+    max-height: 40px;
+    max-width: 200px;
+  }
+
+  .typed-signature {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-style: italic;
+    font-size: 16px;
+  }
+
+  .date-area {
+    width: 140px;
+  }
+
+  .date-area .sig-label {
+    font-weight: bold;
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+
+  .date-area .sig-line {
+    border-bottom: 1px solid #000;
+    min-height: 30px;
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 2px;
+  }
+
+  .conduct-text {
+    font-size: 10px;
+    line-height: 1.35;
+    text-align: justify;
+  }
+
+  .conduct-text p {
+    margin-bottom: 8px;
+  }
+
+  .conduct-text ul {
+    margin: 4px 0 8px 20px;
+  }
+
+  .conduct-text ul li {
+    margin-bottom: 3px;
+  }
+
+  .footer {
+    margin-top: 20px;
+    font-size: 9px;
+    text-align: center;
+    color: #666;
+    border-top: 1px solid #ccc;
+    padding-top: 4px;
+  }
+
+  .two-col {
+    display: flex;
+    gap: 16px;
+  }
+
+  .two-col > div {
+    flex: 1;
+  }
+</style>
+</head>
+<body>
+
+<!-- PAGE 1 -->
+<div class="page page-1">
+  <h1>Permission and Medical Release Form</h1>
+
+  <p class="intro">
+    Each participant (including leaders) completes this form separately for each event or activity involving an overnight stay,
+    travel outside the local area, or higher than ordinary risks. For activities that include more than one event (such as a
+    weeklong camp), one form may cover all events. This form provides important information to leaders and may be required for
+    medical treatment in the event of an accident or illness. Please complete all sections. Keep this form confidential.
+  </p>
+
+  <h2>Event Details</h2>
+  <div class="two-col">
+    <div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Event Name:</span>
+        <span class="value">{{event_name}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Event Dates:</span>
+        <span class="value">{{event_dates}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Description:</span>
+        <span class="value">{{event_description}}</span>
+      </div>
+    </div>
+    <div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Ward/Branch:</span>
+        <span class="value">{{ward}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Stake/District:</span>
+        <span class="value">{{stake}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Leader:</span>
+        <span class="value">{{leader_name}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Leader Phone:</span>
+        <span class="value">{{leader_phone}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Leader Email:</span>
+        <span class="value">{{leader_email}}</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Contact Information</h2>
+  <div class="two-col">
+    <div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Participant Name:</span>
+        <span class="value">{{participant_name}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Date of Birth:</span>
+        <span class="value">{{participant_dob}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Age:</span>
+        <span class="value">{{participant_age}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Phone:</span>
+        <span class="value">{{participant_phone}}</span>
+      </div>
+    </div>
+    <div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Address:</span>
+        <span class="value">{{address}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">City:</span>
+        <span class="value">{{city}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">State/Province:</span>
+        <span class="value">{{state_province}}</span>
+      </div>
+    </div>
+  </div>
+  <div class="two-col" style="margin-top:4px">
+    <div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Emergency Contact:</span>
+        <span class="value">{{emergency_contact}}</span>
+      </div>
+    </div>
+    <div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Primary Phone:</span>
+        <span class="value">{{emergency_phone_primary}}</span>
+      </div>
+      <div class="inline-item" style="margin-bottom:4px">
+        <span class="label">Secondary Phone:</span>
+        <span class="value">{{emergency_phone_secondary}}</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Medical Information</h2>
+
+  <div class="checkbox-row">
+    <span class="checkbox-mark">{{{checked special_diet}}}</span>
+    <span><strong>Special dietary needs</strong></span>
+  </div>
+  {{#if special_diet}}
+  <div class="details-line">
+    <span class="label">Details:</span>
+    <span class="value">{{special_diet_details}}</span>
+  </div>
+  {{/if}}
+
+  <div class="checkbox-row">
+    <span class="checkbox-mark">{{{checked allergies}}}</span>
+    <span><strong>Allergies (food, medication, insect stings, etc.)</strong></span>
+  </div>
+  {{#if allergies}}
+  <div class="details-line">
+    <span class="label">Details:</span>
+    <span class="value">{{allergies_details}}</span>
+  </div>
+  {{/if}}
+
+  <div class="inline-item" style="margin:4px 0">
+    <span class="label">Current medications:</span>
+    <span class="value">{{medications}}</span>
+  </div>
+
+  <div class="checkbox-row">
+    <span class="checkbox-mark">{{{checked can_self_administer_meds}}}</span>
+    <span>Participant can self-administer medications</span>
+  </div>
+
+  <h2>Conditions That Limit Activity</h2>
+
+  <div class="checkbox-row">
+    <span class="checkbox-mark">{{{checked chronic_illness}}}</span>
+    <span><strong>Chronic or recurring illness</strong></span>
+  </div>
+  {{#if chronic_illness}}
+  <div class="details-line">
+    <span class="label">Details:</span>
+    <span class="value">{{chronic_illness_details}}</span>
+  </div>
+  {{/if}}
+
+  <div class="checkbox-row">
+    <span class="checkbox-mark">{{{checked recent_surgery}}}</span>
+    <span><strong>Recent surgery, serious illness, or hospital stay</strong></span>
+  </div>
+  {{#if recent_surgery}}
+  <div class="details-line">
+    <span class="label">Details:</span>
+    <span class="value">{{recent_surgery_details}}</span>
+  </div>
+  {{/if}}
+
+  {{#if activity_limitations}}
+  <div class="inline-item" style="margin:4px 0">
+    <span class="label">Activity limitations:</span>
+    <span class="value">{{activity_limitations}}</span>
+  </div>
+  {{/if}}
+
+  <h2>Other Accommodations</h2>
+  <p style="margin:4px 0">{{#if other_accommodations}}{{other_accommodations}}{{else}}None{{/if}}</p>
+
+  <h2>Permission and Medical Release</h2>
+  <div class="permission-text">
+    <p>
+      I give permission for my child or youth to participate in the activity described above, including transportation
+      to and from the activity. I understand that The Church of Jesus Christ of Latter-day Saints, its affiliated
+      organizations, and the leaders and volunteers serving in this activity do not provide medical or accident insurance
+      for participants. I am responsible for providing my own insurance. In the event of an emergency, I authorize the
+      adult leaders of this activity to administer or arrange first aid and, if necessary, to arrange for emergency
+      medical treatment, including but not limited to doctor visits, X-rays, lab work, and emergency surgery. I will be
+      responsible for the costs of any such medical care.
+    </p>
+  </div>
+
+  <!-- Participant Signature -->
+  <div class="signature-block">
+    <div class="signature-area">
+      <div class="sig-label">Participant Signature</div>
+      <div class="sig-line">
+        {{#if (eq participant_signature_type "drawn")}}
+          <img src="{{participant_signature}}" alt="Participant Signature">
+        {{else}}
+          <span class="typed-signature">{{participant_signature}}</span>
+        {{/if}}
+      </div>
+    </div>
+    <div class="date-area">
+      <div class="sig-label">Date</div>
+      <div class="sig-line">{{participant_signature_date}}</div>
+    </div>
+  </div>
+
+  <!-- Guardian Signature -->
+  <div class="signature-block" style="margin-top:12px">
+    <div class="signature-area">
+      <div class="sig-label">Parent/Guardian Signature</div>
+      <div class="sig-line">
+        {{#if (eq guardian_signature_type "drawn")}}
+          <img src="{{guardian_signature}}" alt="Guardian Signature">
+        {{else}}
+          <span class="typed-signature">{{guardian_signature}}</span>
+        {{/if}}
+      </div>
+    </div>
+    <div class="date-area">
+      <div class="sig-label">Date</div>
+      <div class="sig-line">{{guardian_signature_date}}</div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page page-2">
+  <h1>Conduct at Church Activities</h1>
+
+  <div class="conduct-text">
+    <p>
+      Church activities should be uplifting and should help participants draw closer to Jesus Christ. All participants
+      are expected to follow Church standards during activities, whether or not they are members of the Church.
+    </p>
+
+    <p>
+      Those who participate in Church activities should:
+    </p>
+
+    <ul>
+      <li>Follow Church standards of conduct, including the Word of Wisdom, the law of chastity, and other principles of righteous living.</li>
+      <li>Refrain from the use of language or conduct that is vulgar, crude, or demeaning to others.</li>
+      <li>Respect the property of others and of the Church.</li>
+      <li>Refrain from the use of alcohol, tobacco, vaping, and drugs, and from the misuse of any substance.</li>
+      <li>Refrain from possessing or using weapons, fireworks, or other dangerous materials.</li>
+      <li>Comply with all applicable laws.</li>
+    </ul>
+
+    <p>
+      Leaders should explain these standards to participants before the activity begins. Those who violate these
+      standards will be sent home at their own expense and may not be allowed to participate in future activities.
+    </p>
+
+    <p>
+      <strong>Reporting Abuse:</strong> If a participant becomes aware of any abuse, neglect, or other conduct that may
+      endanger others, he or she should report it immediately to a leader, parent, or other trusted adult. Leaders
+      should follow the instructions in the Church's abuse help line and report to local authorities as required by law.
+    </p>
+
+    <p>
+      <strong>Two-Deep Leadership:</strong> At least two responsible adult leaders (age 21 or older) should be present
+      at all activities involving youth. Both male and female leaders should be present at activities that include both
+      young men and young women. A leader should never be alone with a youth.
+    </p>
+
+    <p>
+      <strong>Safety:</strong> Leaders should ensure that activities are conducted safely. They should be aware of
+      potential hazards and take steps to prevent injuries. Leaders should be prepared to respond to emergencies and
+      should have a plan for contacting emergency services. Leaders should also be aware of the medical conditions of
+      participants and should have access to the medical information provided on this form.
+    </p>
+
+    <p>
+      By signing this form, I acknowledge that I have read, understand, and agree to abide by the standards of conduct
+      described above during the activity. I understand that failure to comply with these standards may result in my
+      being sent home from the activity at my own expense.
+    </p>
+  </div>
+
+  <div class="footer">
+    &copy; 2024 by Intellectual Reserve, Inc. All rights reserved.
+  </div>
+</div>
+
+</body>
+</html>
