@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const config = require('./config');
 const { extractUser } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
+const { registerLimiter, loginLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
@@ -22,6 +23,8 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.use('/api/auth/register', registerLimiter);
+app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRoutes);
 
 if (require.main === module) {
