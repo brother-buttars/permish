@@ -170,25 +170,23 @@
 	<Label>{label}</Label>
 
 	<!-- Mode toggle -->
-	<div class="flex gap-1 rounded-md border border-input p-1">
-		<button
-			type="button"
-			class="flex-1 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors {type === 'drawn'
-				? 'bg-primary text-primary-foreground'
-				: 'text-muted-foreground hover:text-foreground'}"
+	<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
+		<Button
+			variant={type === 'drawn' ? "default" : "outline"}
+			size="sm"
+			class="flex-1 {type !== 'drawn' ? 'bg-transparent text-muted-foreground border-transparent hover:bg-accent hover:text-accent-foreground hover:border-border' : ''}"
 			onclick={() => switchMode("drawn")}
 		>
 			Draw
-		</button>
-		<button
-			type="button"
-			class="flex-1 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors {type === 'typed'
-				? 'bg-primary text-primary-foreground'
-				: 'text-muted-foreground hover:text-foreground'}"
+		</Button>
+		<Button
+			variant={type === 'typed' ? "default" : "outline"}
+			size="sm"
+			class="flex-1 {type !== 'typed' ? 'bg-transparent text-muted-foreground border-transparent hover:bg-accent hover:text-accent-foreground hover:border-border' : ''}"
 			onclick={() => switchMode("typed")}
 		>
 			Type
-		</button>
+		</Button>
 	</div>
 
 	<!-- Draw mode -->
