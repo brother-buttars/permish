@@ -122,6 +122,12 @@
 	function isYW(label: string): boolean {
 		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
 	}
+
+	function isPastEvent(event: any): boolean {
+		const endStr = event.event_end || event.event_start;
+		if (!endStr) return false;
+		return new Date(endStr) < new Date();
+	}
 </script>
 
 <svelte:head>
@@ -195,11 +201,14 @@
 												</div>
 											{/if}
 										</div>
-										<span class="text-sm">
+										<span class="flex gap-1 text-sm">
 											{#if event.is_active}
 												<span class="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Active</span>
 											{:else}
 												<span class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Inactive</span>
+											{/if}
+											{#if isPastEvent(event)}
+												<span class="rounded-full border border-muted-foreground/20 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Past</span>
 											{/if}
 										</span>
 									</div>

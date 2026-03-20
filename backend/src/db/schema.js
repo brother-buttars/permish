@@ -20,6 +20,14 @@ function migrate(db) {
   if (!eventCols.includes('organizations')) {
     db.exec("ALTER TABLE events ADD COLUMN organizations TEXT DEFAULT '[]'");
   }
+
+  // Add structured date columns to events if missing
+  if (!eventCols.includes('event_start')) {
+    db.exec("ALTER TABLE events ADD COLUMN event_start TEXT");
+  }
+  if (!eventCols.includes('event_end')) {
+    db.exec("ALTER TABLE events ADD COLUMN event_end TEXT");
+  }
 }
 
 function createTables(db) {
@@ -44,6 +52,8 @@ function createTables(db) {
       created_by TEXT NOT NULL REFERENCES users(id),
       event_name TEXT NOT NULL,
       event_dates TEXT NOT NULL,
+      event_start TEXT,
+      event_end TEXT,
       event_description TEXT NOT NULL,
       ward TEXT NOT NULL,
       stake TEXT NOT NULL,

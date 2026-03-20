@@ -184,6 +184,12 @@
 		return 'border-border bg-muted text-muted-foreground';
 	}
 
+	function isPastEvent(ev: any): boolean {
+		const endStr = ev.event_end || ev.event_start;
+		if (!endStr) return false;
+		return new Date(endStr) < new Date();
+	}
+
 	function getFormUrl() {
 		return `${typeof window !== 'undefined' ? window.location.origin : ''}/form/${data.eventId}`;
 	}
@@ -241,7 +247,12 @@
 		<!-- Header -->
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div>
-				<h1 class="text-3xl font-bold">{event.event_name}</h1>
+				<div class="flex items-center gap-2">
+					<h1 class="text-3xl font-bold">{event.event_name}</h1>
+					{#if isPastEvent(event)}
+						<span class="rounded-full border border-muted-foreground/20 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Past</span>
+					{/if}
+				</div>
 				<p class="text-muted-foreground">{event.event_dates}</p>
 			</div>
 			<div class="flex gap-2">

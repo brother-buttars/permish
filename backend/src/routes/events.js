@@ -10,14 +10,14 @@ router.use(requireAuth, requirePlanner);
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   const id = crypto.randomUUID();
-  const { event_name, event_dates, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations } = req.body;
+  const { event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations } = req.body;
 
   if (!event_name || !event_dates || !event_description || !ward || !stake || !leader_name || !leader_phone || !leader_email) {
     return res.status(400).json({ error: 'All event detail fields are required' });
   }
 
-  db.prepare(`INSERT INTO events (id, created_by, event_name, event_dates, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, req.user.id, sanitizeString(event_name), sanitizeString(event_dates), sanitizeString(event_description, 1000), sanitizeString(ward), sanitizeString(stake), sanitizeString(leader_name), sanitizeString(leader_phone), sanitizeString(leader_email), notify_email || null, notify_phone || null, notify_carrier || null, JSON.stringify(organizations || []));
+  db.prepare(`INSERT INTO events (id, created_by, event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, req.user.id, sanitizeString(event_name), sanitizeString(event_dates), event_start || null, event_end || null, sanitizeString(event_description, 1000), sanitizeString(ward), sanitizeString(stake), sanitizeString(leader_name), sanitizeString(leader_phone), sanitizeString(leader_email), notify_email || null, notify_phone || null, notify_carrier || null, JSON.stringify(organizations || []));
 
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
   const formUrl = `${config.frontendUrl}/form/${id}`;
@@ -30,9 +30,12 @@ router.get('/', (req, res) => {
   const events = showAll
     ? db.prepare('SELECT * FROM events WHERE created_by = ? ORDER BY created_at DESC').all(req.user.id)
     : db.prepare('SELECT * FROM events WHERE created_by = ? AND is_active = 1 ORDER BY created_at DESC').all(req.user.id);
+  const now = new Date();
   const eventsWithCounts = events.map(event => {
     const count = db.prepare('SELECT COUNT(*) as count FROM submissions WHERE event_id = ?').get(event.id);
-    return { ...event, submission_count: count.count };
+    const endStr = event.event_end || event.event_start;
+    const is_past = endStr ? new Date(endStr) < now : false;
+    return { ...event, submission_count: count.count, is_past };
   });
   res.json({ events: eventsWithCounts });
 });
@@ -64,11 +67,13 @@ router.put('/:id', (req, res) => {
   const event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
-  const { event_name, event_dates, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, is_active, organizations } = req.body;
+  const { event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, is_active, organizations } = req.body;
 
-  db.prepare(`UPDATE events SET event_name = ?, event_dates = ?, event_description = ?, ward = ?, stake = ?, leader_name = ?, leader_phone = ?, leader_email = ?, notify_email = ?, notify_phone = ?, notify_carrier = ?, is_active = ?, organizations = ? WHERE id = ?`)
+  db.prepare(`UPDATE events SET event_name = ?, event_dates = ?, event_start = ?, event_end = ?, event_description = ?, ward = ?, stake = ?, leader_name = ?, leader_phone = ?, leader_email = ?, notify_email = ?, notify_phone = ?, notify_carrier = ?, is_active = ?, organizations = ? WHERE id = ?`)
     .run(
       sanitizeString(event_name || event.event_name), sanitizeString(event_dates || event.event_dates),
+      event_start !== undefined ? (event_start || null) : event.event_start,
+      event_end !== undefined ? (event_end || null) : event.event_end,
       sanitizeString(event_description || event.event_description, 1000), sanitizeString(ward || event.ward),
       sanitizeString(stake || event.stake), sanitizeString(leader_name || event.leader_name),
       sanitizeString(leader_phone || event.leader_phone), sanitizeString(leader_email || event.leader_email),

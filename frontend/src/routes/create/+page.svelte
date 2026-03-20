@@ -12,6 +12,7 @@
 	import { carriers } from "$lib/utils/carriers";
 	import { orgGroups } from "$lib/utils/organizations";
 	import { toastSuccess } from "$lib/stores/toast";
+	import { formatEventDates } from "$lib/utils/formatDate";
 
 	let currentUser: any = $state(null);
 
@@ -39,7 +40,9 @@
 
 	// Form fields
 	let eventName = $state("");
-	let eventDates = $state("");
+	let eventStart = $state("");
+	let eventEnd = $state("");
+	let isMultiDay = $state(false);
 	let description = $state("");
 	let ward = $state("");
 	let stake = $state("");
@@ -84,7 +87,11 @@
 		const newErrors: Record<string, string> = {};
 
 		if (!eventName.trim()) newErrors.eventName = "Event name is required";
-		if (!eventDates.trim()) newErrors.eventDates = "Event dates are required";
+		if (!eventStart) newErrors.eventStart = "Event date is required";
+		if (isMultiDay && !eventEnd) newErrors.eventEnd = "End date is required";
+		if (isMultiDay && eventStart && eventEnd && new Date(eventEnd) <= new Date(eventStart)) {
+			newErrors.eventEnd = "End date must be after start date";
+		}
 		if (!description.trim()) newErrors.description = "Description is required";
 		if (!ward.trim()) newErrors.ward = "Ward is required";
 		if (!stake.trim()) newErrors.stake = "Stake is required";
@@ -109,9 +116,12 @@
 
 		submitting = true;
 		try {
+			const eventDatesDisplay = formatEventDates(eventStart, isMultiDay ? eventEnd : null);
 			const data = await api.createEvent({
 				event_name: eventName,
-				event_dates: eventDates,
+				event_dates: eventDatesDisplay,
+				event_start: eventStart,
+				event_end: isMultiDay ? eventEnd : null,
 				event_description: description,
 				ward,
 				stake,
@@ -195,10 +205,25 @@
 						{#if errors.eventName}<p class="text-sm text-destructive">{errors.eventName}</p>{/if}
 					</div>
 
-					<div class="space-y-2">
-						<Label for="eventDates">Event Dates *</Label>
-						<Input id="eventDates" bind:value={eventDates} placeholder="e.g., June 15-18, 2026" />
-						{#if errors.eventDates}<p class="text-sm text-destructive">{errors.eventDates}</p>{/if}
+					<div class="space-y-4">
+						<div class="space-y-2">
+							<Label for="eventStart">{isMultiDay ? 'Event Start Date' : 'Event Date'} *</Label>
+							<Input id="eventStart" type="datetime-local" bind:value={eventStart} />
+							{#if errors.eventStart}<p class="text-sm text-destructive">{errors.eventStart}</p>{/if}
+						</div>
+
+						<label class="flex items-center gap-2">
+							<input type="checkbox" bind:checked={isMultiDay} class="h-4 w-4 rounded border-input" />
+							<span class="text-sm font-medium">Multi-day event</span>
+						</label>
+
+						{#if isMultiDay}
+							<div class="space-y-2">
+								<Label for="eventEnd">Event End Date *</Label>
+								<Input id="eventEnd" type="datetime-local" bind:value={eventEnd} />
+								{#if errors.eventEnd}<p class="text-sm text-destructive">{errors.eventEnd}</p>{/if}
+							</div>
+						{/if}
 					</div>
 
 					<div class="space-y-2">

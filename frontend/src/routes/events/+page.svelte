@@ -16,7 +16,7 @@
 
 	// Filters
 	let search = $state("");
-	let statusFilter = $state<"active" | "inactive" | "all">("all");
+	let statusFilter = $state<"active" | "inactive" | "past" | "all">("all");
 	let orgFilter: string[] = $state([]);
 
 	const unsub = user.subscribe(u => { currentUser = u; });
@@ -49,7 +49,8 @@
 	let filteredEvents = $derived.by(() => {
 		return events.filter(event => {
 			// Status filter
-			if (statusFilter === 'active' && !event.is_active) return false;
+			if (statusFilter === 'past' && !isPastEvent(event)) return false;
+			if (statusFilter === 'active' && (!event.is_active || isPastEvent(event))) return false;
 			if (statusFilter === 'inactive' && event.is_active) return false;
 
 			// Search filter
@@ -78,6 +79,12 @@
 	function isYW(label: string): boolean {
 		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
 	}
+
+	function isPastEvent(event: any): boolean {
+		const endStr = event.event_end || event.event_start;
+		if (!endStr) return false;
+		return new Date(endStr) < new Date();
+	}
 </script>
 
 <!-- Template -->
@@ -97,7 +104,7 @@
 
 			<!-- Status tabs -->
 			<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
-				{#each [['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive']] as [val, label]}
+				{#each [['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive'], ['past', 'Past']] as [val, label]}
 					<Button
 						variant={statusFilter === val ? "default" : "outline"}
 						size="sm"
@@ -158,11 +165,14 @@
 								<CardTitle>{event.event_name}</CardTitle>
 								<CardDescription>{event.event_dates}</CardDescription>
 							</div>
-							<span class="text-sm">
+							<span class="flex gap-1 text-sm">
 								{#if event.is_active}
 									<span class="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Active</span>
 								{:else}
 									<span class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Inactive</span>
+								{/if}
+								{#if isPastEvent(event)}
+									<span class="rounded-full border border-muted-foreground/20 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Past</span>
 								{/if}
 							</span>
 						</div>
