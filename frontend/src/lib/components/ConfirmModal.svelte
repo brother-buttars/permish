@@ -38,7 +38,7 @@
 		tabindex="-1"
 	></div>
 	<!-- Modal content -->
-	<div class="relative z-10 mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+	<div class="relative z-10 mx-4 w-full max-w-md rounded-lg bg-popover p-6 shadow-xl">
 		<h3 class="text-lg font-semibold">{title}</h3>
 		<p class="mt-2 text-sm text-muted-foreground">{message}</p>
 		<div class="mt-6 flex justify-end gap-3">

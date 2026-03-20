@@ -72,10 +72,10 @@
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	<!-- Success Message -->
 	<div class="mb-6 text-center">
-		<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+		<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
-				class="h-8 w-8 text-green-600"
+				class="h-8 w-8 text-green-600 dark:text-green-400"
 				fill="none"
 				viewBox="0 0 24 24"
 				stroke="currentColor"

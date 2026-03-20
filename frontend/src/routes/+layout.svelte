@@ -2,11 +2,13 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import '../app.css';
 	import { user, authLoading, logout } from '$lib/stores/auth';
+	import '$lib/stores/theme';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SheetContent, SheetHeader, SheetTitle } from '$lib/components/ui/sheet/index.js';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	import { onMount } from 'svelte';
 
@@ -76,6 +78,7 @@
 						{/if}
 						<a href="/profiles" class={navClass('/profiles')}>Profiles</a>
 						<a href="/account" class={navClass('/account')}>Account</a>
+						<ThemeToggle />
 						<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 					{:else}
 						<a href="/login">
@@ -126,6 +129,9 @@
 						<Button size="sm" class="w-full">Register</Button>
 					</a>
 				{/if}
+				<div class="pt-2 border-t border-border">
+					<ThemeToggle />
+				</div>
 			{/if}
 		</nav>
 	</SheetContent>
