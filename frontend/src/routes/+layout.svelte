@@ -75,9 +75,6 @@
 							<a href="/events" class={navClass('/events')}>Events</a>
 						{/if}
 						<a href="/profiles" class={navClass('/profiles')}>Profiles</a>
-						{#if currentUser.role === 'planner'}
-							<a href="/create" class={navClass('/create')}>Create Event</a>
-						{/if}
 						<a href="/account" class={navClass('/account')}>Account</a>
 						<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 					{:else}
@@ -119,9 +116,6 @@
 						<a href="/events" class="{navClass('/events')} py-2" onclick={closeMobile}>Events</a>
 					{/if}
 					<a href="/profiles" class="{navClass('/profiles')} py-2" onclick={closeMobile}>Profiles</a>
-					{#if currentUser.role === 'planner'}
-						<a href="/create" class="{navClass('/create')} py-2" onclick={closeMobile}>Create Event</a>
-					{/if}
 					<a href="/account" class="{navClass('/account')} py-2" onclick={closeMobile}>Account</a>
 					<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 				{:else}
