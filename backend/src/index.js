@@ -6,6 +6,7 @@ const config = require('./config');
 const { extractUser } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const eventsRoutes = require('./routes/events');
+const profilesRoutes = require('./routes/profiles');
 const { registerLimiter, loginLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -28,6 +29,7 @@ app.use('/api/auth/register', registerLimiter);
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventsRoutes);
+app.use('/api/profiles', profilesRoutes);
 
 if (require.main === module) {
   app.listen(config.port, () => {
