@@ -33,6 +33,8 @@
 		return d.toISOString().split("T")[0];
 	}
 
+	let initialized = false;
+
 	onMount(() => {
 		if (!date) date = getToday();
 
@@ -44,14 +46,18 @@
 				typedName = initialValue;
 				value = initialValue;
 			} else {
-				// For drawn signatures, initialValue is a base64 data URL
-				loadImageToCanvas(initialValue);
 				value = initialValue;
 				hasDrawn = true;
 			}
 		}
+		initialized = true;
+	});
 
-		initCanvas();
+	// Re-init canvas whenever the canvas element appears (conditional rendering or late mount)
+	$effect(() => {
+		if (canvas && initialized) {
+			initCanvas();
+		}
 	});
 
 	function initCanvas() {
