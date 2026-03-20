@@ -1,8 +1,16 @@
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, PDFName } = require('pdf-lib');
 const fs = require('fs');
 const path = require('path');
 
 const templatePdfPath = path.join(__dirname, '../templates/permission-form.pdf');
+
+// Format date as "20 March 2026"
+function formatDateForPdf(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 async function embedSignatureImage(pdfDoc, page, fieldName, base64DataUrl, form) {
   if (!base64DataUrl || !base64DataUrl.startsWith('data:image')) return;
@@ -32,8 +40,8 @@ async function embedSignatureImage(pdfDoc, page, fieldName, base64DataUrl, form)
   const drawWidth = image.width * scale;
   const drawHeight = image.height * scale;
 
-  // Draw centered in the field area
-  const x = rect.x + (rect.width - drawWidth) / 2;
+  // Draw left-aligned in the field area, vertically centered
+  const x = rect.x + 2;
   const y = rect.y + (rect.height - drawHeight) / 2;
 
   page.drawImage(image, {
@@ -61,14 +69,17 @@ async function generatePdf({ event, submission }, pdfDir) {
     }
   }
 
-  // Helper to safely set checkboxes
-  function setCheck(fieldName, value) {
+  // Helper to safely set Yes/No checkbox pairs
+  // Each checkbox field has two widgets: widget 0 = Yes, widget 1 = No
+  function setYesNo(fieldName, value) {
     try {
       const field = form.getCheckBox(fieldName);
       if (value) {
+        // Select "Yes" - check() activates the first widget's onValue (/Yes)
         field.check();
       } else {
-        field.uncheck();
+        // Select "No" - need to set the field value to /No explicitly
+        field.acroField.setValue(PDFName.of('No'));
       }
     } catch {
       // Field not found, skip
@@ -87,7 +98,7 @@ async function generatePdf({ event, submission }, pdfDir) {
 
   // Contact Information
   setText('Participant', submission.participant_name);
-  setText('Date of birth', submission.participant_dob);
+  setText('Date of birth', formatDateForPdf(submission.participant_dob));
   setText('Age', submission.participant_age != null ? String(submission.participant_age) : '');
   setText('Telephone number', submission.participant_phone);
   setText('Address', submission.address);
@@ -98,17 +109,17 @@ async function generatePdf({ event, submission }, pdfDir) {
   setText('Secondary phone_1', submission.emergency_phone_secondary);
 
   // Medical Information
-  setCheck('Special diet', !!submission.special_diet);
+  setYesNo('Special diet', !!submission.special_diet);
   setText('diet explanation', submission.special_diet_details);
-  setCheck('Allergies', !!submission.allergies);
+  setYesNo('Allergies', !!submission.allergies);
   setText('Allergy explanation', submission.allergies_details);
   setText('List of Medications', submission.medications);
-  setCheck('Self Admin', !!submission.can_self_administer_meds);
+  setYesNo('Self Admin', !!submission.can_self_administer_meds);
 
   // Conditions
-  setCheck('Chronic illness', !!submission.chronic_illness);
+  setYesNo('Chronic illness', !!submission.chronic_illness);
   setText('illness explanation', submission.chronic_illness_details);
-  setCheck('Surgery', !!submission.recent_surgery);
+  setYesNo('Surgery', !!submission.recent_surgery);
   setText('If yes please explain_2', submission.recent_surgery_details);
   setText('Other limitations', submission.activity_limitations);
 
@@ -121,7 +132,7 @@ async function generatePdf({ event, submission }, pdfDir) {
   } else {
     setText('Participants signature', '');
   }
-  setText('Date', submission.participant_signature_date);
+  setText('Date', formatDateForPdf(submission.participant_signature_date));
 
   if (submission.guardian_signature) {
     if (submission.guardian_signature_type === 'typed') {
@@ -132,7 +143,7 @@ async function generatePdf({ event, submission }, pdfDir) {
   } else {
     setText('Parent or guardians signature if participant is a minor', '');
   }
-  setText('Date_2', submission.guardian_signature_date);
+  setText('Date_2', formatDateForPdf(submission.guardian_signature_date));
 
   // Embed drawn signatures as images before flattening
   const pages = pdfDoc.getPages();
