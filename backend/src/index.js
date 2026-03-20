@@ -5,8 +5,10 @@ const helmet = require('helmet');
 const config = require('./config');
 const { extractUser } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
+const formRoutes = require('./routes/form');
 const eventsRoutes = require('./routes/events');
 const profilesRoutes = require('./routes/profiles');
+const submissionsRoutes = require('./routes/submissions');
 const { registerLimiter, loginLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -25,11 +27,22 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Auth rate limiters + auth routes
 app.use('/api/auth/register', registerLimiter);
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRoutes);
+
+// Form routes FIRST (public: /:id/form, /:id/submit)
+app.use('/api/events', formRoutes);
+
+// Events routes SECOND (planner-only: uses requireAuth + requirePlanner)
 app.use('/api/events', eventsRoutes);
+
+// Profiles routes
 app.use('/api/profiles', profilesRoutes);
+
+// Submissions routes
+app.use('/api/submissions', submissionsRoutes);
 
 if (require.main === module) {
   app.listen(config.port, () => {
