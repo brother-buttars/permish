@@ -6,6 +6,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
+	import { formatDate } from "$lib/utils/formatDate";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
 
@@ -19,6 +20,12 @@
 	let downloading = $state(false);
 	let toggling = $state(false);
 	let deleting = $state<string | null>(null);
+
+	// PDF preview modal state
+	let pdfModalOpen = $state(false);
+	let pdfModalUrl = $state('');
+	let pdfModalName = $state('');
+	let pdfLoading = $state(false);
 
 	const unsubAuth = user.subscribe((u) => {
 		currentUser = u;
@@ -124,11 +131,43 @@
 		return `${typeof window !== 'undefined' ? window.location.origin : ''}/form/${data.eventId}`;
 	}
 
-	function formatDate(dateStr: string) {
-		if (!dateStr) return "—";
-		const d = new Date(dateStr);
-		if (isNaN(d.getTime())) return dateStr;
-		return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	async function openPdfPreview(submissionId: string, participantName: string) {
+		pdfModalName = participantName;
+		pdfLoading = true;
+		pdfModalOpen = true;
+		try {
+			const res = await fetch(api.getPdfUrl(submissionId), { credentials: 'include' });
+			const blob = await res.blob();
+			pdfModalUrl = URL.createObjectURL(blob);
+		} catch {
+			alert('Failed to load PDF');
+			pdfModalOpen = false;
+		} finally {
+			pdfLoading = false;
+		}
+	}
+
+	function closePdfModal() {
+		pdfModalOpen = false;
+		if (pdfModalUrl) {
+			URL.revokeObjectURL(pdfModalUrl);
+			pdfModalUrl = '';
+		}
+	}
+
+	function printPdf() {
+		const iframe = document.getElementById('pdf-preview-iframe') as HTMLIFrameElement;
+		if (iframe?.contentWindow) {
+			iframe.contentWindow.print();
+		}
+	}
+
+	function downloadPdf() {
+		if (!pdfModalUrl) return;
+		const a = document.createElement('a');
+		a.href = pdfModalUrl;
+		a.download = `permission-form-${pdfModalName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+		a.click();
 	}
 </script>
 
@@ -240,19 +279,23 @@
 							<tbody>
 								{#each submissions as sub}
 									<tr class="border-b">
-										<td class="px-4 py-3">{sub.participant_name || "—"}</td>
-										<td class="px-4 py-3">{sub.emergency_contact || "—"}</td>
-										<td class="px-4 py-3">{formatDate(sub.submitted_at)}</td>
+										<td class="px-4 py-3">{sub.participant_name || "\u2014"}</td>
+										<td class="px-4 py-3">{sub.emergency_contact || "\u2014"}</td>
+										<td class="px-4 py-3">{formatDate(sub.submitted_at) || "\u2014"}</td>
 										<td class="px-4 py-3">
 											<div class="flex gap-2">
-												<a
-													href={api.getPdfUrl(sub.id)}
-													target="_blank"
-													rel="noopener noreferrer"
+												<button
+													onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
 													class="text-primary underline hover:no-underline"
 												>
 													PDF
-												</a>
+												</button>
+												<button
+													onclick={() => goto(`/form/${data.eventId}/edit/${sub.id}`)}
+													class="text-primary underline hover:no-underline"
+												>
+													Edit
+												</button>
 												<button
 													onclick={() => deleteSubmission(sub.id, sub.participant_name)}
 													disabled={deleting === sub.id}
@@ -272,3 +315,34 @@
 		</Card>
 	{/if}
 </div>
+
+{#if pdfModalOpen}
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" onclick={closePdfModal}>
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="mx-4 flex h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
+		<div class="flex items-center justify-between border-b px-4 py-3">
+			<h3 class="font-semibold">{pdfModalName} — Permission Form</h3>
+			<div class="flex gap-2">
+				<Button variant="outline" size="sm" onclick={printPdf}>Print</Button>
+				<Button variant="outline" size="sm" onclick={downloadPdf}>Download</Button>
+				<Button variant="ghost" size="sm" onclick={closePdfModal}>Close</Button>
+			</div>
+		</div>
+		<div class="flex-1 overflow-hidden">
+			{#if pdfLoading}
+				<div class="flex h-full items-center justify-center">
+					<p class="text-muted-foreground">Loading PDF...</p>
+				</div>
+			{:else}
+				<iframe
+					id="pdf-preview-iframe"
+					src={pdfModalUrl}
+					class="h-full w-full"
+					title="PDF Preview"
+				></iframe>
+			{/if}
+		</div>
+	</div>
+</div>
+{/if}

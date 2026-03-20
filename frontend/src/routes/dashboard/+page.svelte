@@ -6,6 +6,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
+	import { formatDate } from "$lib/utils/formatDate";
 
 	let events: any[] = $state([]);
 	let profiles: any[] = $state([]);
@@ -159,7 +160,7 @@
 								<tr class="border-b">
 									<td class="px-4 py-3">{sub.event_name || "—"}</td>
 									<td class="px-4 py-3">{sub.participant_name || "—"}</td>
-									<td class="px-4 py-3">{sub.submitted_at ? new Date(sub.submitted_at).toLocaleDateString() : "—"}</td>
+									<td class="px-4 py-3">{formatDate(sub.submitted_at) || "—"}</td>
 									<td class="px-4 py-3">
 										<a
 											href={api.getPdfUrl(sub.id)}

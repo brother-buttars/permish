@@ -4,6 +4,46 @@ const path = require('path');
 
 const templatePdfPath = path.join(__dirname, '../templates/permission-form.pdf');
 
+async function embedSignatureImage(pdfDoc, page, fieldName, base64DataUrl, form) {
+  if (!base64DataUrl || !base64DataUrl.startsWith('data:image')) return;
+
+  // Extract base64 data
+  const base64Data = base64DataUrl.replace(/^data:image\/\w+;base64,/, '');
+  const imageBytes = Buffer.from(base64Data, 'base64');
+
+  // Embed the image
+  const image = await pdfDoc.embedPng(imageBytes);
+
+  // Get the field widget to find its position
+  const field = form.getTextField(fieldName);
+  const widgets = field.acroField.getWidgets();
+  if (widgets.length === 0) return;
+
+  const widget = widgets[0];
+  const rect = widget.getRectangle();
+
+  // Clear the field text
+  field.setText('');
+
+  // Scale image to fit within the field bounds
+  const maxWidth = rect.width;
+  const maxHeight = rect.height;
+  const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1);
+  const drawWidth = image.width * scale;
+  const drawHeight = image.height * scale;
+
+  // Draw centered in the field area
+  const x = rect.x + (rect.width - drawWidth) / 2;
+  const y = rect.y + (rect.height - drawHeight) / 2;
+
+  page.drawImage(image, {
+    x,
+    y,
+    width: drawWidth,
+    height: drawHeight,
+  });
+}
+
 async function generatePdf({ event, submission }, pdfDir) {
   fs.mkdirSync(pdfDir, { recursive: true });
 
@@ -75,20 +115,45 @@ async function generatePdf({ event, submission }, pdfDir) {
   // Other Accommodations
   setText('Special needs', submission.other_accommodations);
 
-  // Signatures — for typed signatures, set the text; for drawn, set the text representation
-  const participantSig = submission.participant_signature_type === 'typed'
-    ? submission.participant_signature
-    : '[Signed]';
-  setText('Participants signature', participantSig);
+  // Signatures — for typed signatures, set the text; for drawn, we'll embed images below
+  if (submission.participant_signature_type === 'typed') {
+    setText('Participants signature', submission.participant_signature);
+  } else {
+    setText('Participants signature', '');
+  }
   setText('Date', submission.participant_signature_date);
 
-  const guardianSig = submission.guardian_signature
-    ? (submission.guardian_signature_type === 'typed'
-      ? submission.guardian_signature
-      : '[Signed]')
-    : '';
-  setText('Parent or guardians signature if participant is a minor', guardianSig);
+  if (submission.guardian_signature) {
+    if (submission.guardian_signature_type === 'typed') {
+      setText('Parent or guardians signature if participant is a minor', submission.guardian_signature);
+    } else {
+      setText('Parent or guardians signature if participant is a minor', '');
+    }
+  } else {
+    setText('Parent or guardians signature if participant is a minor', '');
+  }
   setText('Date_2', submission.guardian_signature_date);
+
+  // Embed drawn signatures as images before flattening
+  const pages = pdfDoc.getPages();
+  const firstPage = pages[0];
+
+  if (submission.participant_signature_type === 'drawn' && submission.participant_signature) {
+    try {
+      await embedSignatureImage(pdfDoc, firstPage, 'Participants signature', submission.participant_signature, form);
+    } catch (err) {
+      // If image embedding fails, set text fallback
+      setText('Participants signature', '[Signed]');
+    }
+  }
+  if (submission.guardian_signature_type === 'drawn' && submission.guardian_signature) {
+    try {
+      await embedSignatureImage(pdfDoc, firstPage, 'Parent or guardians signature if participant is a minor', submission.guardian_signature, form);
+    } catch (err) {
+      // If image embedding fails, set text fallback
+      setText('Parent or guardians signature if participant is a minor', '[Signed]');
+    }
+  }
 
   // Flatten the form so fields appear as static text
   form.flatten();
