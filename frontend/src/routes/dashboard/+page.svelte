@@ -106,12 +106,11 @@
 		return ev.organizations;
 	}
 
-	function getOrgBadgeColor(label: string): string {
-		const ymLabels = ['Young Men', 'Deacons', 'Teachers', 'Priests'];
-		const ywLabels = ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'];
-		if (ymLabels.includes(label)) return 'bg-blue-100 text-blue-800';
-		if (ywLabels.includes(label)) return 'bg-purple-100 text-purple-800';
-		return 'bg-gray-100 text-gray-800';
+	function isYM(label: string): boolean {
+		return ['Young Men', 'Deacons', 'Teachers', 'Priests'].includes(label);
+	}
+	function isYW(label: string): boolean {
+		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
 	}
 
 	function downloadPdf() {
@@ -165,16 +164,16 @@
 											{#if parseOrgs(event).length > 0}
 												<div class="flex flex-wrap gap-1">
 													{#each getOrgDisplayLabels(parseOrgs(event)) as label}
-														<span class="rounded-full px-2 py-0.5 text-xs font-medium {getOrgBadgeColor(label)}">{label}</span>
+														<span class="rounded-full border px-2 py-0.5 text-xs font-medium {isYM(label) ? 'border-primary/30 bg-primary/10 text-primary' : isYW(label) ? 'border-accent-foreground/20 bg-accent text-accent-foreground' : 'border-border bg-muted text-muted-foreground'}">{label}</span>
 													{/each}
 												</div>
 											{/if}
 										</div>
 										<span class="text-sm">
 											{#if event.is_active}
-												<span class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Active</span>
+												<span class="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Active</span>
 											{:else}
-												<span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Inactive</span>
+												<span class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Inactive</span>
 											{/if}
 										</span>
 									</div>

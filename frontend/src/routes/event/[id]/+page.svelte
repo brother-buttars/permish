@@ -153,12 +153,16 @@
 		return ev.organizations;
 	}
 
-	function getOrgBadgeColor(label: string): string {
-		const ymLabels = ['Young Men', 'Deacons', 'Teachers', 'Priests'];
-		const ywLabels = ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'];
-		if (ymLabels.includes(label)) return 'bg-blue-100 text-blue-800';
-		if (ywLabels.includes(label)) return 'bg-purple-100 text-purple-800';
-		return 'bg-gray-100 text-gray-800';
+	function isYM(label: string): boolean {
+		return ['Young Men', 'Deacons', 'Teachers', 'Priests'].includes(label);
+	}
+	function isYW(label: string): boolean {
+		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
+	}
+	function orgBadgeClass(label: string): string {
+		if (isYM(label)) return 'border-primary/30 bg-primary/10 text-primary';
+		if (isYW(label)) return 'border-accent-foreground/20 bg-accent text-accent-foreground';
+		return 'border-border bg-muted text-muted-foreground';
 	}
 
 	function getFormUrl() {
@@ -266,7 +270,7 @@
 						<p class="mb-2 text-sm font-medium">Organizations</p>
 						<div class="flex flex-wrap gap-1">
 							{#each getOrgDisplayLabels(parseOrgs(event)) as label}
-								<span class="rounded-full px-2 py-0.5 text-xs font-medium {getOrgBadgeColor(label)}">{label}</span>
+								<span class="rounded-full border px-2 py-0.5 text-xs font-medium {orgBadgeClass(label)}">{label}</span>
 							{/each}
 						</div>
 					</div>

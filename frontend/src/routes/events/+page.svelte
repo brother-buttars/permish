@@ -71,13 +71,12 @@
 		}
 	}
 
-	function getOrgBadgeColor(label: string): string {
-		// Young Men family = blue, Young Women family = purple
-		const ymLabels = ['Young Men', 'Deacons', 'Teachers', 'Priests'];
-		const ywLabels = ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'];
-		if (ymLabels.includes(label)) return 'bg-blue-100 text-blue-800';
-		if (ywLabels.includes(label)) return 'bg-purple-100 text-purple-800';
-		return 'bg-gray-100 text-gray-800';
+	function isYM(label: string): boolean {
+		return ['Young Men', 'Deacons', 'Teachers', 'Priests'].includes(label);
+	}
+
+	function isYW(label: string): boolean {
+		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
 	}
 </script>
 
@@ -97,15 +96,16 @@
 			<Input type="text" placeholder="Search events..." bind:value={search} />
 
 			<!-- Status tabs -->
-			<div class="flex gap-1 rounded-md border border-input p-1">
+			<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
 				{#each [['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive']] as [val, label]}
-					<button
-						type="button"
-						class="flex-1 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors {statusFilter === val ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}"
+					<Button
+						variant={statusFilter === val ? "default" : "ghost"}
+						size="sm"
+						class="flex-1 {statusFilter !== val ? 'text-muted-foreground hover:text-foreground' : ''}"
 						onclick={() => statusFilter = val as any}
 					>
 						{label}
-					</button>
+					</Button>
 				{/each}
 			</div>
 
@@ -114,21 +114,23 @@
 				<p class="mb-2 text-sm font-medium">Filter by Organization</p>
 				<div class="flex flex-wrap gap-2">
 					{#each orgGroups as group}
-						<button
-							type="button"
-							class="rounded-full px-3 py-1 text-xs font-medium transition-colors {orgFilter.includes(group.key) ? getOrgBadgeColor(group.label) + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
+						<Button
+							variant={orgFilter.includes(group.key) ? "default" : "outline"}
+							size="sm"
+							class="rounded-full text-xs h-7 {orgFilter.includes(group.key) ? '' : 'text-muted-foreground'}"
 							onclick={() => toggleOrgFilter(group.key)}
 						>
 							{group.label}
-						</button>
+						</Button>
 						{#each group.children as child}
-							<button
-								type="button"
-								class="rounded-full px-3 py-1 text-xs font-medium transition-colors {orgFilter.includes(child.key) ? getOrgBadgeColor(child.label) + ' ring-2 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
+							<Button
+								variant={orgFilter.includes(child.key) ? "secondary" : "outline"}
+								size="sm"
+								class="rounded-full text-xs h-7 {orgFilter.includes(child.key) ? '' : 'text-muted-foreground'}"
 								onclick={() => toggleOrgFilter(child.key)}
 							>
 								{child.label}
-							</button>
+							</Button>
 						{/each}
 					{/each}
 				</div>
@@ -158,9 +160,9 @@
 							</div>
 							<span class="text-sm">
 								{#if event.is_active}
-									<span class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Active</span>
+									<span class="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Active</span>
 								{:else}
-									<span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Inactive</span>
+									<span class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Inactive</span>
 								{/if}
 							</span>
 						</div>
@@ -169,7 +171,7 @@
 						<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 							<div class="flex flex-wrap gap-1">
 								{#each getOrgDisplayLabels(parseOrgs(event)) as label}
-									<span class="rounded-full px-2 py-0.5 text-xs font-medium {getOrgBadgeColor(label)}">{label}</span>
+									<span class="rounded-full border px-2 py-0.5 text-xs font-medium {isYM(label) ? 'border-primary/30 bg-primary/10 text-primary' : isYW(label) ? 'border-accent-foreground/20 bg-accent text-accent-foreground' : 'border-border bg-muted text-muted-foreground'}">{label}</span>
 								{/each}
 								{#if parseOrgs(event).length === 0}
 									<span class="text-xs text-muted-foreground">No organizations</span>
