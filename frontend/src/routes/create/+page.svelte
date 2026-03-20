@@ -40,8 +40,10 @@
 
 	// Form fields
 	let eventName = $state("");
-	let eventStart = $state("");
-	let eventEnd = $state("");
+	let startDate = $state("");
+	let startTime = $state("");
+	let endDate = $state("");
+	let endTime = $state("");
 	let isMultiDay = $state(false);
 	let description = $state("");
 	let ward = $state("");
@@ -83,14 +85,25 @@
 		return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 	}
 
+	function buildDatetime(date: string, time: string): string {
+		if (!date) return '';
+		return time ? `${date}T${time}` : `${date}T00:00`;
+	}
+
 	function validate(): boolean {
 		const newErrors: Record<string, string> = {};
 
 		if (!eventName.trim()) newErrors.eventName = "Event name is required";
-		if (!eventStart) newErrors.eventStart = "Event date is required";
-		if (isMultiDay && !eventEnd) newErrors.eventEnd = "End date is required";
-		if (isMultiDay && eventStart && eventEnd && new Date(eventEnd) <= new Date(eventStart)) {
-			newErrors.eventEnd = "End date must be after start date";
+		if (!startDate) newErrors.startDate = "Event date is required";
+		if (!startTime) newErrors.startTime = "Start time is required";
+		if (!endTime) newErrors.endTime = "End time is required";
+		if (isMultiDay && !endDate) newErrors.endDate = "End date is required";
+		if (isMultiDay && startDate && endDate) {
+			const start = buildDatetime(startDate, startTime);
+			const end = buildDatetime(endDate, endTime);
+			if (new Date(end) <= new Date(start)) {
+				newErrors.endDate = "End date/time must be after start";
+			}
 		}
 		if (!description.trim()) newErrors.description = "Description is required";
 		if (!ward.trim()) newErrors.ward = "Ward is required";
@@ -116,12 +129,14 @@
 
 		submitting = true;
 		try {
-			const eventDatesDisplay = formatEventDates(eventStart, isMultiDay ? eventEnd : null);
+			const eventStartDt = buildDatetime(startDate, startTime);
+			const eventEndDt = isMultiDay ? buildDatetime(endDate, endTime) : buildDatetime(startDate, endTime);
+			const eventDatesDisplay = formatEventDates(eventStartDt, isMultiDay ? eventEndDt : buildDatetime(startDate, endTime));
 			const data = await api.createEvent({
 				event_name: eventName,
 				event_dates: eventDatesDisplay,
-				event_start: eventStart,
-				event_end: isMultiDay ? eventEnd : null,
+				event_start: eventStartDt,
+				event_end: eventEndDt,
 				event_description: description,
 				ward,
 				stake,
@@ -206,22 +221,45 @@
 					</div>
 
 					<div class="space-y-4">
-						<div class="space-y-2">
-							<Label for="eventStart">{isMultiDay ? 'Event Start Date' : 'Event Date'} *</Label>
-							<Input id="eventStart" type="datetime-local" bind:value={eventStart} />
-							{#if errors.eventStart}<p class="text-sm text-destructive">{errors.eventStart}</p>{/if}
+						<div class="grid gap-4 sm:grid-cols-2">
+							<div class="space-y-2">
+								<Label for="startDate">{isMultiDay ? 'Start Date' : 'Event Date'} *</Label>
+								<Input id="startDate" type="date" bind:value={startDate} />
+								{#if errors.startDate}<p class="text-sm text-destructive">{errors.startDate}</p>{/if}
+							</div>
+							<div class="space-y-2">
+								<Label for="startTime">Start Time *</Label>
+								<Input id="startTime" type="time" bind:value={startTime} />
+								{#if errors.startTime}<p class="text-sm text-destructive">{errors.startTime}</p>{/if}
+							</div>
 						</div>
 
-						<label class="flex items-center gap-2">
+						<label class="flex items-center gap-2 cursor-pointer">
 							<input type="checkbox" bind:checked={isMultiDay} class="h-4 w-4 rounded border-input" />
 							<span class="text-sm font-medium">Multi-day event</span>
 						</label>
 
 						{#if isMultiDay}
-							<div class="space-y-2">
-								<Label for="eventEnd">Event End Date *</Label>
-								<Input id="eventEnd" type="datetime-local" bind:value={eventEnd} />
-								{#if errors.eventEnd}<p class="text-sm text-destructive">{errors.eventEnd}</p>{/if}
+							<div class="grid gap-4 sm:grid-cols-2">
+								<div class="space-y-2">
+									<Label for="endDate">End Date *</Label>
+									<Input id="endDate" type="date" bind:value={endDate} />
+									{#if errors.endDate}<p class="text-sm text-destructive">{errors.endDate}</p>{/if}
+								</div>
+								<div class="space-y-2">
+									<Label for="endTime">End Time *</Label>
+									<Input id="endTime" type="time" bind:value={endTime} />
+									{#if errors.endTime}<p class="text-sm text-destructive">{errors.endTime}</p>{/if}
+								</div>
+							</div>
+						{:else}
+							<div class="grid gap-4 sm:grid-cols-2">
+								<div></div>
+								<div class="space-y-2">
+									<Label for="endTime">End Time *</Label>
+									<Input id="endTimeSingle" type="time" bind:value={endTime} />
+									{#if errors.endTime}<p class="text-sm text-destructive">{errors.endTime}</p>{/if}
+								</div>
 							</div>
 						{/if}
 					</div>
