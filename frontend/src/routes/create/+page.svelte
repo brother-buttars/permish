@@ -88,15 +88,15 @@
 			const data = await api.createEvent({
 				event_name: eventName,
 				event_dates: eventDates,
-				description,
+				event_description: description,
 				ward,
 				stake,
 				leader_name: leaderName,
 				leader_phone: leaderPhone,
 				leader_email: leaderEmail,
-				notify_email: notifyEmail || undefined,
-				notify_phone: notifyPhone || undefined,
-				notify_carrier: notifyCarrier || undefined,
+				notify_email: notifyEmail || null,
+				notify_phone: notifyPhone || null,
+				notify_carrier: notifyCarrier || null,
 			});
 
 			formUrl = data.formUrl || data.form_url || "";
