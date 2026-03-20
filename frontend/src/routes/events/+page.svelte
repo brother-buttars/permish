@@ -99,9 +99,9 @@
 			<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
 				{#each [['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive']] as [val, label]}
 					<Button
-						variant={statusFilter === val ? "default" : "ghost"}
+						variant={statusFilter === val ? "default" : "outline"}
 						size="sm"
-						class="flex-1 {statusFilter !== val ? 'text-muted-foreground hover:text-foreground' : ''}"
+						class="flex-1 {statusFilter !== val ? 'bg-transparent text-muted-foreground border-transparent hover:bg-accent hover:text-accent-foreground hover:border-border' : ''}"
 						onclick={() => statusFilter = val as any}
 					>
 						{label}
