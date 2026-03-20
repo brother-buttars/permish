@@ -49,7 +49,33 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ user: req.user });
+  const db = req.app.locals.db;
+  const fullUser = db.prepare('SELECT id, email, name, role, phone, address, city, state_province, guardian_signature, guardian_signature_type FROM users WHERE id = ?').get(req.user.id);
+  res.json({ user: fullUser || req.user });
+});
+
+router.get('/profile', requireAuth, (req, res) => {
+  const db = req.app.locals.db;
+  const user = db.prepare('SELECT id, email, name, role, phone, address, city, state_province, guardian_signature, guardian_signature_type FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ profile: user });
+});
+
+router.put('/profile', requireAuth, (req, res) => {
+  const db = req.app.locals.db;
+  const { sanitizeString } = require('../middleware/validate');
+  const d = req.body;
+
+  db.prepare(`UPDATE users SET name = ?, phone = ?, address = ?, city = ?, state_province = ?,
+    guardian_signature = ?, guardian_signature_type = ? WHERE id = ?`)
+    .run(
+      sanitizeString(d.name || ''), sanitizeString(d.phone),
+      sanitizeString(d.address), sanitizeString(d.city), sanitizeString(d.state_province),
+      d.guardian_signature || null, d.guardian_signature_type || null,
+      req.user.id);
+
+  const updated = db.prepare('SELECT id, email, name, role, phone, address, city, state_province, guardian_signature, guardian_signature_type FROM users WHERE id = ?').get(req.user.id);
+  res.json({ profile: updated });
 });
 
 module.exports = router;

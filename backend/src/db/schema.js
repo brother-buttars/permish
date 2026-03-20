@@ -1,3 +1,21 @@
+function migrate(db) {
+  // Add user profile fields if they don't exist
+  const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  const newUserCols = {
+    phone: 'TEXT',
+    address: 'TEXT',
+    city: 'TEXT',
+    state_province: 'TEXT',
+    guardian_signature: 'TEXT',
+    guardian_signature_type: 'TEXT',
+  };
+  for (const [col, type] of Object.entries(newUserCols)) {
+    if (!userCols.includes(col)) {
+      db.exec(`ALTER TABLE users ADD COLUMN ${col} ${type}`);
+    }
+  }
+}
+
 function createTables(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -6,6 +24,12 @@ function createTables(db) {
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('planner', 'parent')),
+      phone TEXT,
+      address TEXT,
+      city TEXT,
+      state_province TEXT,
+      guardian_signature TEXT,
+      guardian_signature_type TEXT CHECK(guardian_signature_type IN ('drawn', 'typed', NULL)),
       created_at DATETIME DEFAULT (datetime('now'))
     );
 
@@ -94,4 +118,4 @@ function createTables(db) {
   `);
 }
 
-module.exports = { createTables };
+module.exports = { createTables, migrate };

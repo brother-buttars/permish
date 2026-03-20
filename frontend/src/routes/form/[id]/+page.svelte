@@ -100,6 +100,23 @@
 			loading = false;
 		}
 
+		// Auto-fill guardian signature from user profile if logged in
+		if (currentUser) {
+			try {
+				const data = await api.getUserProfile();
+				const p = data.profile;
+				if (p.guardian_signature) {
+					guardianInitialValue = p.guardian_signature;
+					guardianInitialType = p.guardian_signature_type || "typed";
+				}
+				// Pre-fill emergency contact from user profile if not already filled
+				if (!emergencyContact && p.name) emergencyContact = p.name;
+				if (!primaryPhone && p.phone) primaryPhone = p.phone;
+			} catch {
+				// User profile fetch is optional
+			}
+		}
+
 		return () => unsub();
 	});
 

@@ -54,6 +54,7 @@
 						{#if currentUser.role === 'planner'}
 							<a href="/create" class="text-sm font-medium hover:underline">Create Event</a>
 						{/if}
+						<a href="/account" class="text-sm font-medium hover:underline">Account</a>
 						<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 					{:else}
 						<a href="/login">
@@ -94,6 +95,7 @@
 					{#if currentUser.role === 'planner'}
 						<a href="/create" class="text-sm font-medium hover:underline" onclick={closeMobile}>Create Event</a>
 					{/if}
+					<a href="/account" class="text-sm font-medium hover:underline" onclick={closeMobile}>Account</a>
 					<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 				{:else}
 					<a href="/login" onclick={closeMobile}>

@@ -140,7 +140,7 @@
 										<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
 									{/if}
 								</div>
-								<Button variant="outline" size="sm" onclick={() => goto("/profiles")}>Edit</Button>
+								<Button variant="outline" size="sm" onclick={() => goto(`/profiles?edit=${profile.id}`)}>Edit</Button>
 							</CardContent>
 						</Card>
 					{/each}

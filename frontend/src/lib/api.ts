@@ -21,6 +21,8 @@ export const api = {
 		apiFetch('/api/auth/login', { method: 'POST', body: JSON.stringify(data) }),
 	logout: () => apiFetch('/api/auth/logout', { method: 'POST' }),
 	me: () => apiFetch('/api/auth/me'),
+	getUserProfile: () => apiFetch('/api/auth/profile'),
+	updateUserProfile: (data: any) => apiFetch('/api/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
 	createEvent: (data: any) =>
 		apiFetch('/api/events', { method: 'POST', body: JSON.stringify(data) }),
 	listEvents: () => apiFetch('/api/events'),

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
+	import { page } from "$app/stores";
 	import { user, authLoading } from "$lib/stores/auth";
 	import { api } from "$lib/api";
 	import { Button } from "$lib/components/ui/button";
@@ -69,6 +70,13 @@
 				return;
 			}
 			await loadProfiles();
+
+			// Auto-open edit if ?edit=<id> is in URL
+			const editId = new URL(window.location.href).searchParams.get('edit');
+			if (editId) {
+				const profile = profiles.find((p) => p.id === editId);
+				if (profile) startEdit(profile);
+			}
 		});
 
 		return () => {

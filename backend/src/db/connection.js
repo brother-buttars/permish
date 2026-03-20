@@ -2,7 +2,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const config = require('../config');
-const { createTables } = require('./schema');
+const { createTables, migrate } = require('./schema');
 
 let db;
 
@@ -15,6 +15,7 @@ function getDb() {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   createTables(db);
+  migrate(db);
   return db;
 }
 
