@@ -3,6 +3,7 @@
 	import '../app.css';
 	import { user, authLoading, logout } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SheetContent, SheetHeader, SheetTitle } from '$lib/components/ui/sheet/index.js';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
@@ -24,6 +25,29 @@
 		unsub();
 		return val;
 	});
+
+	let pathname = $derived.by(() => {
+		let val = '/';
+		const unsub = page.subscribe((p) => (val = p.url?.pathname || '/'));
+		unsub();
+		return val;
+	});
+
+	function isActive(href: string): boolean {
+		if (href === '/dashboard') return pathname === '/dashboard';
+		if (href === '/events') return pathname === '/events' || pathname.startsWith('/event/');
+		if (href === '/profiles') return pathname === '/profiles';
+		if (href === '/create') return pathname === '/create';
+		if (href === '/account') return pathname === '/account';
+		return false;
+	}
+
+	function navClass(href: string): string {
+		const base = 'text-sm font-medium transition-colors';
+		return isActive(href)
+			? `${base} text-primary border-b-2 border-primary pb-0.5`
+			: `${base} text-muted-foreground hover:text-foreground`;
+	}
 
 	async function handleLogout() {
 		await logout();
@@ -50,15 +74,15 @@
 			<nav class="hidden md:flex items-center gap-4">
 				{#if !loading}
 					{#if currentUser}
-						<a href="/dashboard" class="text-sm font-medium hover:underline">Dashboard</a>
+						<a href="/dashboard" class={navClass('/dashboard')}>Dashboard</a>
 						{#if currentUser.role === 'planner'}
-							<a href="/events" class="text-sm font-medium hover:underline">Events</a>
+							<a href="/events" class={navClass('/events')}>Events</a>
 						{/if}
-						<a href="/profiles" class="text-sm font-medium hover:underline">Profiles</a>
+						<a href="/profiles" class={navClass('/profiles')}>Profiles</a>
 						{#if currentUser.role === 'planner'}
-							<a href="/create" class="text-sm font-medium hover:underline">Create Event</a>
+							<a href="/create" class={navClass('/create')}>Create Event</a>
 						{/if}
-						<a href="/account" class="text-sm font-medium hover:underline">Account</a>
+						<a href="/account" class={navClass('/account')}>Account</a>
 						<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 					{:else}
 						<a href="/login">
@@ -94,15 +118,15 @@
 		<nav class="flex flex-col gap-4 mt-6">
 			{#if !loading}
 				{#if currentUser}
-					<a href="/dashboard" class="text-sm font-medium hover:underline" onclick={closeMobile}>Dashboard</a>
+					<a href="/dashboard" class="{navClass('/dashboard')} py-2" onclick={closeMobile}>Dashboard</a>
 					{#if currentUser.role === 'planner'}
-						<a href="/events" class="text-sm font-medium hover:underline" onclick={closeMobile}>Events</a>
+						<a href="/events" class="{navClass('/events')} py-2" onclick={closeMobile}>Events</a>
 					{/if}
-					<a href="/profiles" class="text-sm font-medium hover:underline" onclick={closeMobile}>Profiles</a>
+					<a href="/profiles" class="{navClass('/profiles')} py-2" onclick={closeMobile}>Profiles</a>
 					{#if currentUser.role === 'planner'}
-						<a href="/create" class="text-sm font-medium hover:underline" onclick={closeMobile}>Create Event</a>
+						<a href="/create" class="{navClass('/create')} py-2" onclick={closeMobile}>Create Event</a>
 					{/if}
-					<a href="/account" class="text-sm font-medium hover:underline" onclick={closeMobile}>Account</a>
+					<a href="/account" class="{navClass('/account')} py-2" onclick={closeMobile}>Account</a>
 					<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 				{:else}
 					<a href="/login" onclick={closeMobile}>
