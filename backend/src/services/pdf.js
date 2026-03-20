@@ -70,16 +70,23 @@ async function generatePdf({ event, submission }, pdfDir) {
   }
 
   // Helper to safely set Yes/No checkbox pairs
-  // Each checkbox field has two widgets: widget 0 = Yes, widget 1 = No
+  // Each checkbox field has two widgets: widget 0 = Yes (/Yes), widget 1 = No (/No)
+  // pdf-lib's check()/uncheck() don't handle this dual-widget pattern correctly,
+  // so we manipulate the widget appearance states directly.
   function setYesNo(fieldName, value) {
     try {
       const field = form.getCheckBox(fieldName);
+      const widgets = field.acroField.getWidgets();
       if (value) {
-        // Select "Yes" - check() activates the first widget's onValue (/Yes)
-        field.check();
+        // Yes: activate widget 0, deactivate widget 1
+        widgets[0].dict.set(PDFName.of('AS'), PDFName.of('Yes'));
+        if (widgets[1]) widgets[1].dict.set(PDFName.of('AS'), PDFName.of('Off'));
+        field.acroField.dict.set(PDFName.of('V'), PDFName.of('Yes'));
       } else {
-        // Select "No" - need to set the field value to /No explicitly
-        field.acroField.setValue(PDFName.of('No'));
+        // No: deactivate widget 0, activate widget 1
+        widgets[0].dict.set(PDFName.of('AS'), PDFName.of('Off'));
+        if (widgets[1]) widgets[1].dict.set(PDFName.of('AS'), PDFName.of('No'));
+        field.acroField.dict.set(PDFName.of('V'), PDFName.of('No'));
       }
     } catch {
       // Field not found, skip
