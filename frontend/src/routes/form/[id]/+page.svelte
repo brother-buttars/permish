@@ -100,23 +100,22 @@
 
 	function fillFromProfile(profile: any) {
 		if (!profile) return;
-		participantName =
-			[profile.first_name, profile.last_name].filter(Boolean).join(" ") || "";
-		dateOfBirth = profile.date_of_birth || "";
-		phone = profile.phone || "";
+		participantName = profile.participant_name || "";
+		dateOfBirth = profile.participant_dob || "";
+		phone = profile.participant_phone || "";
 		address = profile.address || "";
 		city = profile.city || "";
 		stateProvince = profile.state_province || "";
-		emergencyContact = profile.emergency_contact_name || "";
-		primaryPhone = profile.emergency_contact_phone || "";
-		secondaryPhone = profile.emergency_contact_phone_secondary || "";
+		emergencyContact = profile.emergency_contact || "";
+		primaryPhone = profile.emergency_phone_primary || "";
+		secondaryPhone = profile.emergency_phone_secondary || "";
 
 		hasSpecialDiet = !!profile.special_diet;
 		specialDietDetails = profile.special_diet_details || "";
 		hasAllergies = !!profile.allergies;
-		allergyDetails = profile.allergy_details || "";
+		allergyDetails = profile.allergies_details || "";
 		medications = profile.medications || "";
-		canSelfAdminister = !!profile.can_self_administer;
+		canSelfAdminister = !!profile.can_self_administer_meds;
 
 		hasChronicIllness = !!profile.chronic_illness;
 		chronicIllnessDetails = profile.chronic_illness_details || "";
@@ -149,20 +148,20 @@
 		try {
 			const formData = {
 				participant_name: participantName,
-				date_of_birth: dateOfBirth,
-				phone,
+				participant_dob: dateOfBirth,
+				participant_phone: phone,
 				address,
 				city,
 				state_province: stateProvince,
-				emergency_contact_name: emergencyContact,
-				emergency_contact_phone: primaryPhone,
-				emergency_contact_phone_secondary: secondaryPhone,
+				emergency_contact: emergencyContact,
+				emergency_phone_primary: primaryPhone,
+				emergency_phone_secondary: secondaryPhone,
 				special_diet: hasSpecialDiet,
 				special_diet_details: hasSpecialDiet ? specialDietDetails : "",
 				allergies: hasAllergies,
-				allergy_details: hasAllergies ? allergyDetails : "",
+				allergies_details: hasAllergies ? allergyDetails : "",
 				medications,
-				can_self_administer: canSelfAdminister,
+				can_self_administer_meds: canSelfAdminister,
 				chronic_illness: hasChronicIllness,
 				chronic_illness_details: hasChronicIllness ? chronicIllnessDetails : "",
 				recent_surgery: hadRecentSurgery,
@@ -185,26 +184,22 @@
 				);
 				if (shouldSave) {
 					try {
-						const nameParts = participantName.trim().split(/\s+/);
-						const firstName = nameParts[0] || "";
-						const lastName = nameParts.slice(1).join(" ") || "";
 						await api.createProfile({
-							first_name: firstName,
-							last_name: lastName,
-							date_of_birth: dateOfBirth,
-							phone,
+							participant_name: participantName,
+							participant_dob: dateOfBirth,
+							participant_phone: phone,
 							address,
 							city,
 							state_province: stateProvince,
-							emergency_contact_name: emergencyContact,
-							emergency_contact_phone: primaryPhone,
-							emergency_contact_phone_secondary: secondaryPhone,
+							emergency_contact: emergencyContact,
+							emergency_phone_primary: primaryPhone,
+							emergency_phone_secondary: secondaryPhone,
 							special_diet: hasSpecialDiet,
 							special_diet_details: specialDietDetails,
 							allergies: hasAllergies,
-							allergy_details: allergyDetails,
+							allergies_details: allergyDetails,
 							medications,
-							can_self_administer: canSelfAdminister,
+							can_self_administer_meds: canSelfAdminister,
 							chronic_illness: hasChronicIllness,
 							chronic_illness_details: chronicIllnessDetails,
 							recent_surgery: hadRecentSurgery,
