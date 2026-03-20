@@ -28,16 +28,22 @@
 			}
 
 			try {
+				// Load all data for all roles
+				const promises: Promise<any>[] = [
+					api.listProfiles(),
+					api.getMySubmissions(),
+				];
+
 				if (currentUser.role === "planner") {
-					const data = await api.listEvents();
-					events = data.events || data || [];
-				} else {
-					const [profileData, submissionData] = await Promise.all([
-						api.listProfiles(),
-						api.getMySubmissions(),
-					]);
-					profiles = profileData.profiles || profileData || [];
-					submissions = submissionData.submissions || submissionData || [];
+					promises.push(api.listEvents());
+				}
+
+				const results = await Promise.all(promises);
+				profiles = results[0].profiles || results[0] || [];
+				submissions = results[1].submissions || results[1] || [];
+
+				if (currentUser.role === "planner" && results[2]) {
+					events = results[2].events || results[2] || [];
 				}
 			} catch (err) {
 				console.error("Failed to load dashboard data:", err);
@@ -60,56 +66,62 @@
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
 		<p class="text-center text-muted-foreground">Loading...</p>
-	{:else if currentUser?.role === "planner"}
-		<!-- Planner View -->
-		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<h1 class="text-3xl font-bold">My Events</h1>
-			<Button onclick={() => goto("/create")}>Create New Event</Button>
-		</div>
+	{:else}
+		<h1 class="mb-8 text-3xl font-bold">Dashboard</h1>
 
-		{#if events.length === 0}
-			<Card>
-				<CardContent class="py-12 text-center">
-					<p class="text-muted-foreground">You haven't created any events yet.</p>
-					<Button variant="link" onclick={() => goto("/create")}>Create your first event</Button>
-				</CardContent>
-			</Card>
-		{:else}
-			<div class="grid gap-4">
-				{#each events as event}
-					<Card class="cursor-pointer transition-shadow hover:shadow-md" onclick={() => goto(`/event/${event.id}`)}>
-						<CardHeader>
-							<CardTitle>{event.event_name}</CardTitle>
-							<CardDescription>{event.event_dates}</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-								<span class="text-sm text-muted-foreground">
-									{event.submission_count ?? 0} submission{(event.submission_count ?? 0) === 1 ? "" : "s"}
-								</span>
-								<span class="text-sm">
-									{#if event.is_active}
-										<span class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Active</span>
-									{:else}
-										<span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Inactive</span>
-									{/if}
-								</span>
-							</div>
+		<!-- ═══ Event Planner Section ═══ -->
+		{#if currentUser?.role === "planner"}
+			<section class="mb-10">
+				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<h2 class="text-xl font-semibold">My Events</h2>
+					<Button onclick={() => goto("/create")}>Create New Event</Button>
+				</div>
+
+				{#if events.length === 0}
+					<Card>
+						<CardContent class="py-8 text-center">
+							<p class="text-muted-foreground">You haven't created any events yet.</p>
+							<Button variant="link" onclick={() => goto("/create")}>Create your first event</Button>
 						</CardContent>
 					</Card>
-				{/each}
-			</div>
-		{/if}
-	{:else}
-		<!-- Parent View -->
-		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<h1 class="text-3xl font-bold">Dashboard</h1>
-			<Button onclick={() => goto("/profiles")}>Manage Profiles</Button>
-		</div>
+				{:else}
+					<div class="grid gap-4">
+						{#each events as event}
+							<Card class="cursor-pointer transition-shadow hover:shadow-md" onclick={() => goto(`/event/${event.id}`)}>
+								<CardHeader>
+									<CardTitle>{event.event_name}</CardTitle>
+									<CardDescription>{event.event_dates}</CardDescription>
+								</CardHeader>
+								<CardContent>
+									<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+										<span class="text-sm text-muted-foreground">
+											{event.submission_count ?? 0} submission{(event.submission_count ?? 0) === 1 ? "" : "s"}
+										</span>
+										<span class="text-sm">
+											{#if event.is_active}
+												<span class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Active</span>
+											{:else}
+												<span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">Inactive</span>
+											{/if}
+										</span>
+									</div>
+								</CardContent>
+							</Card>
+						{/each}
+					</div>
+				{/if}
+			</section>
 
-		<!-- Child Profiles -->
-		<section class="mb-8">
-			<h2 class="mb-4 text-xl font-semibold">Child Profiles</h2>
+			<Separator class="my-8" />
+		{/if}
+
+		<!-- ═══ Parent / Personal Section ═══ -->
+		<section class="mb-10">
+			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<h2 class="text-xl font-semibold">Child Profiles</h2>
+				<Button variant="outline" onclick={() => goto("/profiles")}>Manage Profiles</Button>
+			</div>
+
 			{#if profiles.length === 0}
 				<Card>
 					<CardContent class="py-8 text-center">
@@ -124,8 +136,11 @@
 							<CardContent class="flex items-center justify-between py-4">
 								<div>
 									<p class="font-medium">{profile.participant_name}</p>
-									<p class="text-sm text-muted-foreground">DOB: {profile.participant_dob}</p>
+									{#if profile.participant_dob}
+										<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
+									{/if}
 								</div>
+								<Button variant="outline" size="sm" onclick={() => goto("/profiles")}>Edit</Button>
 							</CardContent>
 						</Card>
 					{/each}
@@ -133,15 +148,14 @@
 			{/if}
 		</section>
 
-		<Separator class="my-6" />
+		<Separator class="my-8" />
 
-		<!-- Past Submissions -->
 		<section>
-			<h2 class="mb-4 text-xl font-semibold">Past Submissions</h2>
+			<h2 class="mb-4 text-xl font-semibold">My Submissions</h2>
 			{#if submissions.length === 0}
 				<Card>
 					<CardContent class="py-8 text-center">
-						<p class="text-muted-foreground">No submissions yet.</p>
+						<p class="text-muted-foreground">No form submissions yet.</p>
 					</CardContent>
 				</Card>
 			{:else}
@@ -151,7 +165,7 @@
 							<tr class="border-b">
 								<th class="px-4 py-3 text-left font-medium">Event</th>
 								<th class="px-4 py-3 text-left font-medium">Participant</th>
-								<th class="px-4 py-3 text-left font-medium">Date</th>
+								<th class="px-4 py-3 text-left font-medium">Submitted</th>
 								<th class="px-4 py-3 text-left font-medium">PDF</th>
 							</tr>
 						</thead>
@@ -160,7 +174,7 @@
 								<tr class="border-b">
 									<td class="px-4 py-3">{sub.event_name || "—"}</td>
 									<td class="px-4 py-3">{sub.participant_name || "—"}</td>
-									<td class="px-4 py-3">{formatDate(sub.submitted_at) || "—"}</td>
+									<td class="px-4 py-3">{formatDate(sub.submitted_at)}</td>
 									<td class="px-4 py-3">
 										<a
 											href={api.getPdfUrl(sub.id)}
