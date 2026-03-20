@@ -1,0 +1,22 @@
+require('dotenv').config();
+
+module.exports = {
+  port: process.env.PORT || 3001,
+  jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me',
+  jwtExpiry: process.env.JWT_EXPIRY || '24h',
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+  email: {
+    provider: process.env.EMAIL_PROVIDER || 'gmail',
+    smtp: {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      user: process.env.SMTP_USER || '',
+      pass: process.env.SMTP_PASS || '',
+    },
+    resendApiKey: process.env.RESEND_API_KEY || '',
+    fromName: process.env.EMAIL_FROM_NAME || 'Permission Forms',
+    fromAddress: process.env.EMAIL_FROM_ADDRESS || '',
+  },
+  dataDir: process.env.DATA_DIR || './data',
+  pdfDir: process.env.PDF_DIR || './pdfs',
+};

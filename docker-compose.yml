@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "3001:3001"
+    volumes:
+      - db-data:/app/data
+      - pdf-storage:/app/pdfs
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+      - PDF_DIR=/app/pdfs
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - PUBLIC_API_URL=http://backend:3001
+
+volumes:
+  db-data:
+  pdf-storage:
