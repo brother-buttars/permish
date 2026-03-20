@@ -4,17 +4,14 @@ const path = require('path');
 const Handlebars = require('handlebars');
 
 const templatePath = path.join(__dirname, '../templates/permission-form.html');
-let compiledTemplate;
-
 function getTemplate() {
-  if (!compiledTemplate) {
-    const html = fs.readFileSync(templatePath, 'utf-8');
-    compiledTemplate = Handlebars.compile(html);
-  }
-  return compiledTemplate;
+  // Always read fresh in development, cached in production
+  const html = fs.readFileSync(templatePath, 'utf-8');
+  return Handlebars.compile(html);
 }
 
 Handlebars.registerHelper('checked', (val) => val ? '&#9746;' : '&#9744;');
+Handlebars.registerHelper('unchecked', (val) => val ? '&#9744;' : '&#9746;');
 Handlebars.registerHelper('eq', (a, b) => a === b);
 
 async function generatePdf({ event, submission }, pdfDir) {
@@ -37,7 +34,7 @@ async function generatePdf({ event, submission }, pdfDir) {
       path: pdfPath,
       format: 'Letter',
       printBackground: true,
-      margin: { top: '0.5in', right: '0.5in', bottom: '0.5in', left: '0.5in' },
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
     return pdfPath;
   } finally {
