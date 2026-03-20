@@ -22,6 +22,12 @@ app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 app.use(extractUser);
 
+// Initialize database (tests override via app.locals.db)
+if (!app.locals.db) {
+  const { getDb } = require('./db/connection');
+  app.locals.db = getDb();
+}
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
