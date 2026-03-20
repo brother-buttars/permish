@@ -8,29 +8,25 @@
 	import { SheetContent, SheetHeader, SheetTitle } from '$lib/components/ui/sheet/index.js';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 
+	import { onMount } from 'svelte';
+
 	let { children } = $props();
 
 	let mobileMenuOpen = $state(false);
+	let currentUser: any = $state(null);
+	let loading = $state(true);
+	let pathname = $state('/');
 
-	let currentUser = $derived.by(() => {
-		let val: typeof $user = null;
-		const unsub = user.subscribe((v) => (val = v));
-		unsub();
-		return val;
-	});
+	onMount(() => {
+		const unsubUser = user.subscribe((v) => { currentUser = v; });
+		const unsubLoading = authLoading.subscribe((v) => { loading = v; });
+		const unsubPage = page.subscribe((p) => { pathname = p.url?.pathname || '/'; });
 
-	let loading = $derived.by(() => {
-		let val = true;
-		const unsub = authLoading.subscribe((v) => (val = v));
-		unsub();
-		return val;
-	});
-
-	let pathname = $derived.by(() => {
-		let val = '/';
-		const unsub = page.subscribe((p) => (val = p.url?.pathname || '/'));
-		unsub();
-		return val;
+		return () => {
+			unsubUser();
+			unsubLoading();
+			unsubPage();
+		};
 	});
 
 	function isActive(href: string): boolean {
