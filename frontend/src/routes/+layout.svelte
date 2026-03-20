@@ -50,6 +50,9 @@
 				{#if !loading}
 					{#if currentUser}
 						<a href="/dashboard" class="text-sm font-medium hover:underline">Dashboard</a>
+						{#if currentUser.role === 'planner'}
+							<a href="/events" class="text-sm font-medium hover:underline">Events</a>
+						{/if}
 						<a href="/profiles" class="text-sm font-medium hover:underline">Profiles</a>
 						{#if currentUser.role === 'planner'}
 							<a href="/create" class="text-sm font-medium hover:underline">Create Event</a>
@@ -91,6 +94,9 @@
 			{#if !loading}
 				{#if currentUser}
 					<a href="/dashboard" class="text-sm font-medium hover:underline" onclick={closeMobile}>Dashboard</a>
+					{#if currentUser.role === 'planner'}
+						<a href="/events" class="text-sm font-medium hover:underline" onclick={closeMobile}>Events</a>
+					{/if}
 					<a href="/profiles" class="text-sm font-medium hover:underline" onclick={closeMobile}>Profiles</a>
 					{#if currentUser.role === 'planner'}
 						<a href="/create" class="text-sm font-medium hover:underline" onclick={closeMobile}>Create Event</a>

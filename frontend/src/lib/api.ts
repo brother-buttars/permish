@@ -25,7 +25,7 @@ export const api = {
 	updateUserProfile: (data: any) => apiFetch('/api/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
 	createEvent: (data: any) =>
 		apiFetch('/api/events', { method: 'POST', body: JSON.stringify(data) }),
-	listEvents: () => apiFetch('/api/events'),
+	listEvents: (opts?: { all?: boolean }) => apiFetch(`/api/events${opts?.all ? '?all=1' : ''}`),
 	getEvent: (id: string) => apiFetch(`/api/events/${id}`),
 	updateEvent: (id: string, data: any) =>
 		apiFetch(`/api/events/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

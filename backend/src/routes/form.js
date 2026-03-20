@@ -19,7 +19,7 @@ function computeAge(dob) {
 
 router.get('/:id/form', (req, res) => {
   const db = req.app.locals.db;
-  const event = db.prepare('SELECT id, event_name, event_dates, event_description, ward, stake, leader_name, leader_phone, leader_email, is_active FROM events WHERE id = ?').get(req.params.id);
+  const event = db.prepare('SELECT id, event_name, event_dates, event_description, ward, stake, leader_name, leader_phone, leader_email, organizations, is_active FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
   if (!event.is_active) return res.status(410).json({ error: 'This form is no longer accepting submissions' });
   const { is_active, ...publicEvent } = event;

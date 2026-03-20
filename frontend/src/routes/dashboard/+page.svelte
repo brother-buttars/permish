@@ -8,6 +8,7 @@
 	import { Separator } from "$lib/components/ui/separator";
 	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+	import { getOrgDisplayLabels } from "$lib/utils/organizations";
 
 	let events: any[] = $state([]);
 	let profiles: any[] = $state([]);
@@ -96,6 +97,22 @@
 		}
 	}
 
+	function parseOrgs(ev: any): string[] {
+		if (!ev?.organizations) return [];
+		if (typeof ev.organizations === 'string') {
+			try { return JSON.parse(ev.organizations); } catch { return []; }
+		}
+		return ev.organizations;
+	}
+
+	function getOrgBadgeColor(label: string): string {
+		const ymLabels = ['Young Men', 'Deacons', 'Teachers', 'Priests'];
+		const ywLabels = ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'];
+		if (ymLabels.includes(label)) return 'bg-blue-100 text-blue-800';
+		if (ywLabels.includes(label)) return 'bg-purple-100 text-purple-800';
+		return 'bg-gray-100 text-gray-800';
+	}
+
 	function downloadPdf() {
 		if (!pdfModalUrl) return;
 		const a = document.createElement('a');
@@ -140,9 +157,18 @@
 								</CardHeader>
 								<CardContent>
 									<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-										<span class="text-sm text-muted-foreground">
-											{event.submission_count ?? 0} submission{(event.submission_count ?? 0) === 1 ? "" : "s"}
-										</span>
+										<div class="flex flex-col gap-1">
+											<span class="text-sm text-muted-foreground">
+												{event.submission_count ?? 0} submission{(event.submission_count ?? 0) === 1 ? "" : "s"}
+											</span>
+											{#if parseOrgs(event).length > 0}
+												<div class="flex flex-wrap gap-1">
+													{#each getOrgDisplayLabels(parseOrgs(event)) as label}
+														<span class="rounded-full px-2 py-0.5 text-xs font-medium {getOrgBadgeColor(label)}">{label}</span>
+													{/each}
+												</div>
+											{/if}
+										</div>
 										<span class="text-sm">
 											{#if event.is_active}
 												<span class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Active</span>

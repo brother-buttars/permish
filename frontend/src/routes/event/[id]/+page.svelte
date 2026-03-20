@@ -8,6 +8,7 @@
 	import { Separator } from "$lib/components/ui/separator";
 	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+	import { getOrgDisplayLabels } from "$lib/utils/organizations";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
 
@@ -140,6 +141,22 @@
 		}
 	}
 
+	function parseOrgs(ev: any): string[] {
+		if (!ev?.organizations) return [];
+		if (typeof ev.organizations === 'string') {
+			try { return JSON.parse(ev.organizations); } catch { return []; }
+		}
+		return ev.organizations;
+	}
+
+	function getOrgBadgeColor(label: string): string {
+		const ymLabels = ['Young Men', 'Deacons', 'Teachers', 'Priests'];
+		const ywLabels = ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'];
+		if (ymLabels.includes(label)) return 'bg-blue-100 text-blue-800';
+		if (ywLabels.includes(label)) return 'bg-purple-100 text-purple-800';
+		return 'bg-gray-100 text-gray-800';
+	}
+
 	function getFormUrl() {
 		return `${typeof window !== 'undefined' ? window.location.origin : ''}/form/${data.eventId}`;
 	}
@@ -238,6 +255,18 @@
 						<div><span class="font-medium">Email:</span> {event.leader_email}</div>
 					{/if}
 				</div>
+
+				<!-- Organization badges -->
+				{#if parseOrgs(event).length > 0}
+					<div>
+						<p class="mb-2 text-sm font-medium">Organizations</p>
+						<div class="flex flex-wrap gap-1">
+							{#each getOrgDisplayLabels(parseOrgs(event)) as label}
+								<span class="rounded-full px-2 py-0.5 text-xs font-medium {getOrgBadgeColor(label)}">{label}</span>
+							{/each}
+						</div>
+					</div>
+				{/if}
 
 				<Separator />
 

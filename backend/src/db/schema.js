@@ -14,6 +14,12 @@ function migrate(db) {
       db.exec(`ALTER TABLE users ADD COLUMN ${col} ${type}`);
     }
   }
+
+  // Add organizations column to events if missing
+  const eventCols = db.prepare("PRAGMA table_info(events)").all().map(c => c.name);
+  if (!eventCols.includes('organizations')) {
+    db.exec("ALTER TABLE events ADD COLUMN organizations TEXT DEFAULT '[]'");
+  }
 }
 
 function createTables(db) {
@@ -47,6 +53,7 @@ function createTables(db) {
       notify_email TEXT,
       notify_phone TEXT,
       notify_carrier TEXT,
+      organizations TEXT DEFAULT '[]',
       is_active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT (datetime('now'))
     );
