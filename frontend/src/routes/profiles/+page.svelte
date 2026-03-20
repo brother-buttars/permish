@@ -19,6 +19,7 @@
 	import SignaturePad from "$lib/components/SignaturePad.svelte";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { formatDate } from "$lib/utils/formatDate";
+	import { toastSuccess, toastError } from "$lib/stores/toast";
 
 	let profiles: any[] = $state([]);
 	let loading = $state(true);
@@ -196,7 +197,7 @@
 
 	async function saveProfile() {
 		if (!participantName.trim()) {
-			alert("Participant name is required.");
+			toastError("Participant name is required.");
 			return;
 		}
 		saving = true;
@@ -208,8 +209,9 @@
 			}
 			await loadProfiles();
 			cancelEdit();
+			toastSuccess("Profile saved successfully.");
 		} catch (err: any) {
-			alert(err.message || "Failed to save profile.");
+			toastError(err.message || "Failed to save profile.");
 		} finally {
 			saving = false;
 		}
@@ -221,8 +223,9 @@
 			await api.deleteProfile(deleteTargetId);
 			deleteModalOpen = false;
 			await loadProfiles();
+			toastSuccess("Profile deleted.");
 		} catch (err: any) {
-			alert(err.message || "Failed to delete profile.");
+			toastError(err.message || "Failed to delete profile.");
 		} finally {
 			deleteLoading = false;
 		}

@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { SheetContent, SheetHeader, SheetTitle } from '$lib/components/ui/sheet/index.js';
+	import ToastContainer from '$lib/components/ToastContainer.svelte';
 
 	let { children } = $props();
 
@@ -120,3 +121,5 @@
 		{@render children()}
 	</main>
 </div>
+
+<ToastContainer />

@@ -7,6 +7,7 @@
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
 
@@ -108,8 +109,9 @@
 			await api.deleteSubmission(deleteTargetId);
 			submissions = submissions.filter((s) => s.id !== deleteTargetId);
 			deleteModalOpen = false;
+			toastSuccess("Submission deleted.");
 		} catch (err: any) {
-			alert(err.message || "Failed to delete submission");
+			toastError(err.message || "Failed to delete submission");
 		} finally {
 			deleting = null;
 			deleteLoading = false;
@@ -153,7 +155,7 @@
 			const blob = await res.blob();
 			pdfModalUrl = URL.createObjectURL(blob);
 		} catch {
-			alert('Failed to load PDF');
+			toastError('Failed to load PDF');
 			pdfModalOpen = false;
 		} finally {
 			pdfLoading = false;

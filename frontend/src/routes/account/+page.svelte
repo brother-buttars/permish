@@ -9,11 +9,11 @@
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import SignaturePad from "$lib/components/SignaturePad.svelte";
+	import { toastSuccess, toastError } from "$lib/stores/toast";
 
 	let currentUser: any = $state(null);
 	let loading = $state(true);
 	let saving = $state(false);
-	let success = $state(false);
 
 	let name = $state("");
 	let phone = $state("");
@@ -59,7 +59,6 @@
 
 	async function handleSave() {
 		saving = true;
-		success = false;
 		try {
 			await api.updateUserProfile({
 				name,
@@ -70,10 +69,9 @@
 				guardian_signature: guardianSigValue,
 				guardian_signature_type: guardianSigType,
 			});
-			success = true;
-			setTimeout(() => (success = false), 3000);
+			toastSuccess("Profile saved successfully.");
 		} catch (err: any) {
-			alert(err.message || "Failed to save profile.");
+			toastError(err.message || "Failed to save profile.");
 		} finally {
 			saving = false;
 		}
@@ -148,12 +146,6 @@
 					/>
 				</CardContent>
 			</Card>
-
-			{#if success}
-				<div class="rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-800">
-					Profile saved successfully.
-				</div>
-			{/if}
 
 			<Button type="submit" class="w-full" disabled={saving}>
 				{saving ? "Saving..." : "Save Profile"}

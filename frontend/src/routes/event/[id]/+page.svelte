@@ -9,6 +9,7 @@
 	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { getOrgDisplayLabels } from "$lib/utils/organizations";
+	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
 
@@ -79,6 +80,7 @@
 		try {
 			await api.updateEvent(data.eventId, { is_active: !event.is_active });
 			event = { ...event, is_active: !event.is_active };
+			toastSuccess(event.is_active ? "Event activated." : "Event deactivated.");
 		} catch (err) {
 			console.error("Failed to toggle event:", err);
 		} finally {
@@ -93,6 +95,7 @@
 			await navigator.clipboard.writeText(url);
 			copySuccess = true;
 			setTimeout(() => (copySuccess = false), 2000);
+			toastSuccess("URL copied to clipboard.");
 		} catch {
 			// Fallback
 		}
@@ -105,8 +108,9 @@
 			await api.deleteSubmission(deleteTargetId);
 			submissions = submissions.filter((s) => s.id !== deleteTargetId);
 			deleteModalOpen = false;
+			toastSuccess("Submission deleted.");
 		} catch (err: any) {
-			alert(err.message || "Failed to delete submission");
+			toastError(err.message || "Failed to delete submission");
 		} finally {
 			deleting = null;
 			deleteLoading = false;
@@ -170,7 +174,7 @@
 			const blob = await res.blob();
 			pdfModalUrl = URL.createObjectURL(blob);
 		} catch {
-			alert('Failed to load PDF');
+			toastError('Failed to load PDF');
 			pdfModalOpen = false;
 		} finally {
 			pdfLoading = false;

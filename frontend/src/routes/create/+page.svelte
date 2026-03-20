@@ -11,6 +11,7 @@
 	import { Separator } from "$lib/components/ui/separator";
 	import { carriers } from "$lib/utils/carriers";
 	import { orgGroups } from "$lib/utils/organizations";
+	import { toastSuccess } from "$lib/stores/toast";
 
 	let currentUser: any = $state(null);
 
@@ -125,6 +126,7 @@
 
 			formUrl = data.formUrl || data.form_url || "";
 			createdEventId = data.event?.id || data.id || "";
+			toastSuccess("Event created successfully!");
 		} catch (err: any) {
 			errors = { form: err.message || "Failed to create event" };
 		} finally {

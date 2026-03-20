@@ -9,6 +9,7 @@
 	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { getOrgDisplayLabels } from "$lib/utils/organizations";
+	import { toastError } from "$lib/stores/toast";
 
 	let events: any[] = $state([]);
 	let profiles: any[] = $state([]);
@@ -75,7 +76,7 @@
 			const blob = await res.blob();
 			pdfModalUrl = URL.createObjectURL(blob);
 		} catch {
-			alert('Failed to load PDF');
+			toastError('Failed to load PDF');
 			pdfModalOpen = false;
 		} finally {
 			pdfLoading = false;
