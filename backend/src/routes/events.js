@@ -37,6 +37,21 @@ router.get('/', (req, res) => {
   res.json({ events: eventsWithCounts });
 });
 
+// All submissions across all planner's events
+router.get('/all-submissions', (req, res) => {
+  const db = req.app.locals.db;
+  const submissions = db.prepare(`
+    SELECT s.id, s.participant_name, s.participant_dob, s.participant_age,
+           s.emergency_contact, s.emergency_phone_primary, s.submitted_at, s.pdf_path,
+           s.event_id, e.event_name, e.event_dates, e.organizations
+    FROM submissions s
+    JOIN events e ON s.event_id = e.id
+    WHERE e.created_by = ?
+    ORDER BY s.submitted_at DESC
+  `).all(req.user.id);
+  res.json({ submissions });
+});
+
 router.get('/:id', (req, res) => {
   const db = req.app.locals.db;
   const event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);

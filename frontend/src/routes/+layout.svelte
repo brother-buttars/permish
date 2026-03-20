@@ -34,6 +34,7 @@
 	function isActive(href: string): boolean {
 		if (href === '/dashboard') return pathname === '/dashboard';
 		if (href === '/events') return pathname === '/events' || pathname.startsWith('/event/');
+		if (href === '/submissions') return pathname === '/submissions';
 		if (href === '/profiles') return pathname === '/profiles';
 		if (href === '/create') return pathname === '/create';
 		if (href === '/account') return pathname === '/account';
@@ -76,6 +77,7 @@
 						{#if currentUser.role === 'planner'}
 							<a href="/events" class={navClass('/events')}>Events</a>
 						{/if}
+						<a href="/submissions" class={navClass('/submissions')}>Submissions</a>
 						<a href="/profiles" class={navClass('/profiles')}>Profiles</a>
 						<a href="/account" class={navClass('/account')}>Account</a>
 						<ThemeToggle />
@@ -118,6 +120,7 @@
 					{#if currentUser.role === 'planner'}
 						<a href="/events" class="{navClass('/events')} py-2" onclick={closeMobile}>Events</a>
 					{/if}
+					<a href="/submissions" class="{navClass('/submissions')} py-2" onclick={closeMobile}>Submissions</a>
 					<a href="/profiles" class="{navClass('/profiles')} py-2" onclick={closeMobile}>Profiles</a>
 					<a href="/account" class="{navClass('/account')} py-2" onclick={closeMobile}>Account</a>
 					<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>

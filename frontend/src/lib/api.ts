@@ -31,6 +31,7 @@ export const api = {
 		apiFetch(`/api/events/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 	deleteEvent: (id: string) => apiFetch(`/api/events/${id}`, { method: 'DELETE' }),
 	getSubmissions: (eventId: string) => apiFetch(`/api/events/${eventId}/submissions`),
+	getAllSubmissions: () => apiFetch('/api/events/all-submissions'),
 	listProfiles: () => apiFetch('/api/profiles'),
 	createProfile: (data: any) =>
 		apiFetch('/api/profiles', { method: 'POST', body: JSON.stringify(data) }),
