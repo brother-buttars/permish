@@ -464,23 +464,26 @@
 
 {#if qrModalOpen}
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div
-	class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer"
-	role="dialog"
-	aria-modal="true"
-	onclick={() => qrModalOpen = false}
->
+<div class="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
+	<div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick={() => qrModalOpen = false}></div>
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="flex flex-col items-center gap-6" onclick={(e) => e.stopPropagation()}>
-		<h2 class="text-2xl font-bold text-white">{event?.event_name}</h2>
-		<p class="text-white/70 text-sm">Scan to open the permission form</p>
-		<div class="rounded-2xl bg-white p-6 shadow-2xl">
-			<img src={qrDataUrl} alt="QR Code" class="h-72 w-72 sm:h-96 sm:w-96" />
+	<div class="relative z-10 mx-4 w-full max-w-md rounded-lg bg-popover p-6 shadow-xl" onclick={(e) => e.stopPropagation()}>
+		<div class="flex items-center justify-between mb-4">
+			<h3 class="text-lg font-semibold">QR Code</h3>
+			<Button variant="ghost" size="sm" onclick={() => qrModalOpen = false}>
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</Button>
 		</div>
-		<p class="max-w-md text-center text-sm text-white/60 break-all">{getFormUrl()}</p>
-		<Button variant="outline" class="text-white border-white/30 bg-white/10 hover:bg-white/20" onclick={() => qrModalOpen = false}>
-			Close
-		</Button>
+		<div class="flex flex-col items-center gap-4">
+			<p class="text-sm text-muted-foreground">{event?.event_name}</p>
+			<div class="rounded-xl border border-border bg-white p-4">
+				<img src={qrDataUrl} alt="QR Code" class="h-64 w-64 sm:h-72 sm:w-72" />
+			</div>
+			<p class="text-xs text-muted-foreground text-center break-all">{getFormUrl()}</p>
+			<p class="text-sm text-muted-foreground">Scan to open the permission form</p>
+		</div>
 	</div>
 </div>
 {/if}
