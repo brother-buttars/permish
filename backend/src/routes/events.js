@@ -76,7 +76,7 @@ router.get('/:id/submissions', (req, res) => {
   const db = req.app.locals.db;
   const event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
-  const submissions = db.prepare('SELECT id, participant_name, emergency_contact, emergency_phone_primary, submitted_at FROM submissions WHERE event_id = ? ORDER BY submitted_at DESC').all(req.params.id);
+  const submissions = db.prepare('SELECT id, participant_name, participant_dob, participant_age, emergency_contact, emergency_phone_primary, submitted_at, pdf_path FROM submissions WHERE event_id = ? ORDER BY submitted_at DESC').all(req.params.id);
   res.json({ submissions });
 });
 

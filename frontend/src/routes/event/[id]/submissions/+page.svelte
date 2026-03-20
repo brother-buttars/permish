@@ -4,8 +4,7 @@
 	import { user, authLoading } from "$lib/stores/auth";
 	import { api } from "$lib/api";
 	import { Button } from "$lib/components/ui/button";
-	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
-	import { Separator } from "$lib/components/ui/separator";
+	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import JSZip from "jszip";
@@ -17,19 +16,18 @@
 	let submissions: any[] = $state([]);
 	let loading = $state(true);
 	let currentUser: any = $state(null);
-	let copySuccess = $state(false);
 	let downloading = $state(false);
-	let toggling = $state(false);
 	let deleting = $state<string | null>(null);
+
+	// Search and sort
+	let searchQuery = $state('');
+	let sortOption = $state('date-newest');
 
 	// Delete submission modal state
 	let deleteModalOpen = $state(false);
 	let deleteTargetId = $state('');
 	let deleteTargetName = $state('');
 	let deleteLoading = $state(false);
-
-	// Toggle active modal state
-	let toggleModalOpen = $state(false);
 
 	// PDF preview modal state
 	let pdfModalOpen = $state(false);
@@ -39,6 +37,37 @@
 
 	const unsubAuth = user.subscribe((u) => {
 		currentUser = u;
+	});
+
+	let filteredSubmissions = $derived.by(() => {
+		let result = submissions;
+
+		// Filter by search query
+		if (searchQuery.trim()) {
+			const q = searchQuery.trim().toLowerCase();
+			result = result.filter(
+				(s) =>
+					(s.participant_name || '').toLowerCase().includes(q) ||
+					(s.emergency_contact || '').toLowerCase().includes(q)
+			);
+		}
+
+		// Sort
+		result = [...result].sort((a, b) => {
+			switch (sortOption) {
+				case 'name-az':
+					return (a.participant_name || '').localeCompare(b.participant_name || '');
+				case 'name-za':
+					return (b.participant_name || '').localeCompare(a.participant_name || '');
+				case 'date-oldest':
+					return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+				case 'date-newest':
+				default:
+					return new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime();
+			}
+		});
+
+		return result;
 	});
 
 	async function loadData() {
@@ -71,31 +100,6 @@
 			unsubAuth();
 		};
 	});
-
-	async function toggleActive() {
-		if (!event) return;
-		toggling = true;
-		try {
-			await api.updateEvent(data.eventId, { is_active: !event.is_active });
-			event = { ...event, is_active: !event.is_active };
-		} catch (err) {
-			console.error("Failed to toggle event:", err);
-		} finally {
-			toggling = false;
-			toggleModalOpen = false;
-		}
-	}
-
-	async function copyUrl() {
-		const url = getFormUrl();
-		try {
-			await navigator.clipboard.writeText(url);
-			copySuccess = true;
-			setTimeout(() => (copySuccess = false), 2000);
-		} catch {
-			// Fallback
-		}
-	}
 
 	async function confirmDeleteSubmission() {
 		deleteLoading = true;
@@ -140,10 +144,6 @@
 		}
 	}
 
-	function getFormUrl() {
-		return `${typeof window !== 'undefined' ? window.location.origin : ''}/form/${data.eventId}`;
-	}
-
 	async function openPdfPreview(submissionId: string, participantName: string) {
 		pdfModalName = participantName;
 		pdfLoading = true;
@@ -185,10 +185,10 @@
 </script>
 
 <svelte:head>
-	<title>{event?.event_name || "Event Dashboard"}</title>
+	<title>Submissions — {event?.event_name || "Event"}</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
+<div class="container mx-auto max-w-5xl px-4 py-8">
 	{#if loading}
 		<p class="text-center text-muted-foreground">Loading...</p>
 	{:else if !event}
@@ -198,139 +198,113 @@
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div>
 				<h1 class="text-3xl font-bold">{event.event_name}</h1>
-				<p class="text-muted-foreground">{event.event_dates}</p>
+				<p class="text-muted-foreground">
+					{submissions.length} submission{submissions.length === 1 ? '' : 's'}
+				</p>
 			</div>
 			<div class="flex gap-2">
-				<Button variant="outline" onclick={() => goto("/dashboard")}>Back</Button>
-				<Button
-					variant={event.is_active ? "destructive" : "default"}
-					onclick={() => toggleModalOpen = true}
-					disabled={toggling}
-				>
-					{toggling ? "..." : event.is_active ? "Deactivate" : "Activate"}
-				</Button>
+				<Button variant="outline" onclick={() => goto(`/event/${data.eventId}`)}>Back to Event</Button>
+				{#if submissions.length > 0}
+					<Button variant="outline" onclick={downloadAllZip} disabled={downloading}>
+						{downloading ? "Creating ZIP..." : "Download All as ZIP"}
+					</Button>
+				{/if}
 			</div>
 		</div>
 
-		<!-- Event Details Card -->
+		<!-- Filters Bar -->
 		<Card class="mb-6">
-			<CardHeader>
-				<CardTitle>Event Details</CardTitle>
-			</CardHeader>
-			<CardContent class="space-y-3">
-				{#if event.event_description}
-					<p class="text-sm">{event.event_description}</p>
-				{/if}
-				<div class="grid gap-2 text-sm sm:grid-cols-2">
-					{#if event.ward}
-						<div><span class="font-medium">Ward:</span> {event.ward}</div>
-					{/if}
-					{#if event.stake}
-						<div><span class="font-medium">Stake:</span> {event.stake}</div>
-					{/if}
-					{#if event.leader_name}
-						<div><span class="font-medium">Leader:</span> {event.leader_name}</div>
-					{/if}
-					{#if event.leader_phone}
-						<div><span class="font-medium">Phone:</span> {event.leader_phone}</div>
-					{/if}
-					{#if event.leader_email}
-						<div><span class="font-medium">Email:</span> {event.leader_email}</div>
-					{/if}
+			<CardContent class="flex flex-col gap-4 py-4 sm:flex-row sm:items-center">
+				<div class="flex-1">
+					<input
+						type="text"
+						placeholder="Search by participant or emergency contact..."
+						bind:value={searchQuery}
+						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					/>
 				</div>
-
-				<Separator />
-
 				<div>
-					<p class="mb-2 text-sm font-medium">Shareable Form URL</p>
-					<div class="flex flex-col gap-2 sm:flex-row">
-						<input
-							type="text"
-							readonly
-							value={getFormUrl()}
-							class="flex h-10 flex-1 rounded-md border border-input bg-muted px-3 py-2 text-sm"
-						/>
-						<Button variant="outline" onclick={copyUrl}>
-							{copySuccess ? "Copied!" : "Copy URL"}
-						</Button>
-						<a href={getFormUrl()} target="_blank" rel="noopener noreferrer">
-							<Button variant="outline">Open Form</Button>
-						</a>
-					</div>
+					<select
+						bind:value={sortOption}
+						class="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						<option value="date-newest">Date (newest)</option>
+						<option value="date-oldest">Date (oldest)</option>
+						<option value="name-az">Name (A-Z)</option>
+						<option value="name-za">Name (Z-A)</option>
+					</select>
 				</div>
 			</CardContent>
 		</Card>
 
-		<!-- Submissions -->
-		<Card>
-			<CardHeader>
-				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-					<CardTitle>Submissions ({submissions.length})</CardTitle>
-					<div class="flex gap-2">
-						<Button variant="outline" onclick={() => goto(`/event/${data.eventId}/submissions`)}>
-							View All Submissions
-						</Button>
-						{#if submissions.length > 0}
-							<Button variant="outline" onclick={downloadAllZip} disabled={downloading}>
-								{downloading ? "Creating ZIP..." : "Download All as ZIP"}
-							</Button>
-						{/if}
-					</div>
-				</div>
-			</CardHeader>
-			<CardContent>
-				{#if submissions.length === 0}
-					<div class="py-8 text-center">
-						<p class="text-muted-foreground">No submissions yet. Share the form URL with parents to get started.</p>
-					</div>
-				{:else}
-					<div class="overflow-x-auto">
-						<table class="w-full text-sm">
-							<thead>
-								<tr class="border-b">
-									<th class="px-4 py-3 text-left font-medium">Participant</th>
-									<th class="px-4 py-3 text-left font-medium">Emergency Contact</th>
-									<th class="px-4 py-3 text-left font-medium">Submitted</th>
-									<th class="px-4 py-3 text-left font-medium">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each submissions as sub}
-									<tr class="border-b">
-										<td class="px-4 py-3">{sub.participant_name || "\u2014"}</td>
-										<td class="px-4 py-3">{sub.emergency_contact || "\u2014"}</td>
-										<td class="px-4 py-3">{formatDate(sub.submitted_at) || "\u2014"}</td>
-										<td class="px-4 py-3">
-											<div class="flex gap-2">
-												<button
-													onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
-													class="text-primary underline hover:no-underline"
-												>
-													PDF
-												</button>
-												<button
-													onclick={() => goto(`/form/${data.eventId}/edit/${sub.id}`)}
-													class="text-primary underline hover:no-underline"
-												>
-													Edit
-												</button>
-												<button
-													onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
-													disabled={deleting === sub.id}
-													class="text-destructive underline hover:no-underline disabled:opacity-50"
-												>
-													{deleting === sub.id ? "..." : "Delete"}
-												</button>
-											</div>
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-				{/if}
-			</CardContent>
-		</Card>
+		<!-- Results info -->
+		{#if searchQuery.trim() && filteredSubmissions.length !== submissions.length}
+			<p class="mb-4 text-sm text-muted-foreground">
+				Showing {filteredSubmissions.length} of {submissions.length} submissions
+			</p>
+		{/if}
+
+		<!-- Table -->
+		{#if filteredSubmissions.length === 0}
+			<Card>
+				<CardContent class="py-8 text-center">
+					{#if submissions.length === 0}
+						<p class="text-muted-foreground">No submissions yet.</p>
+					{:else}
+						<p class="text-muted-foreground">No submissions match your search.</p>
+					{/if}
+				</CardContent>
+			</Card>
+		{:else}
+			<div class="overflow-x-auto rounded-lg border">
+				<table class="w-full text-sm">
+					<thead>
+						<tr class="border-b bg-muted/50">
+							<th class="px-4 py-3 text-left font-medium">Participant Name</th>
+							<th class="px-4 py-3 text-left font-medium">Age</th>
+							<th class="px-4 py-3 text-left font-medium">Emergency Contact</th>
+							<th class="px-4 py-3 text-left font-medium">Emergency Phone</th>
+							<th class="px-4 py-3 text-left font-medium">Submitted</th>
+							<th class="px-4 py-3 text-left font-medium">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each filteredSubmissions as sub}
+							<tr class="border-b">
+								<td class="px-4 py-3">{sub.participant_name || "\u2014"}</td>
+								<td class="px-4 py-3">{sub.participant_age || "\u2014"}</td>
+								<td class="px-4 py-3">{sub.emergency_contact || "\u2014"}</td>
+								<td class="px-4 py-3">{sub.emergency_phone_primary || "\u2014"}</td>
+								<td class="px-4 py-3">{formatDate(sub.submitted_at) || "\u2014"}</td>
+								<td class="px-4 py-3">
+									<div class="flex gap-2">
+										<button
+											onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+											class="text-primary underline hover:no-underline"
+										>
+											PDF
+										</button>
+										<button
+											onclick={() => goto(`/form/${data.eventId}/edit/${sub.id}`)}
+											class="text-primary underline hover:no-underline"
+										>
+											Edit
+										</button>
+										<button
+											onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
+											disabled={deleting === sub.id}
+											class="text-destructive underline hover:no-underline disabled:opacity-50"
+										>
+											{deleting === sub.id ? "..." : "Delete"}
+										</button>
+									</div>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -374,15 +348,3 @@
 	onConfirm={confirmDeleteSubmission}
 	loading={deleteLoading}
 />
-
-{#if event}
-<ConfirmModal
-	bind:open={toggleModalOpen}
-	title={event.is_active ? "Deactivate Event" : "Activate Event"}
-	message={event.is_active ? "Are you sure you want to deactivate this event? The form will no longer accept new submissions." : "Are you sure you want to activate this event? The form will start accepting submissions."}
-	confirmLabel={event.is_active ? "Deactivate" : "Activate"}
-	confirmVariant={event.is_active ? "destructive" : "default"}
-	onConfirm={toggleActive}
-	loading={toggling}
-/>
-{/if}
