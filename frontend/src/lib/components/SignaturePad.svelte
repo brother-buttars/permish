@@ -11,6 +11,7 @@
 		date = $bindable(""),
 		initialValue = "",
 		initialType = undefined,
+		showDate = true,
 	}: {
 		label: string;
 		value: string;
@@ -18,6 +19,7 @@
 		date: string;
 		initialValue?: string;
 		initialType?: "drawn" | "typed";
+		showDate?: boolean;
 	} = $props();
 
 	let canvas: HTMLCanvasElement | undefined = $state();
@@ -210,8 +212,10 @@
 	{/if}
 
 	<!-- Date -->
-	<div class="flex items-center gap-3">
-		<Label class="shrink-0">Date:</Label>
-		<Input type="date" bind:value={date} class="max-w-[200px]" />
-	</div>
+	{#if showDate}
+		<div class="flex items-center gap-3">
+			<Label class="shrink-0">Date:</Label>
+			<Input type="date" bind:value={date} class="max-w-[200px]" />
+		</div>
+	{/if}
 </div>

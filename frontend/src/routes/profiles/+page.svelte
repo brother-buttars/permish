@@ -26,8 +26,7 @@
 	let deleteConfirmId: string | null = $state(null);
 
 	// Form state
-	let firstName = $state("");
-	let lastName = $state("");
+	let participantName = $state("");
 	let dateOfBirth = $state("");
 	let phone = $state("");
 	let address = $state("");
@@ -50,7 +49,6 @@
 	let otherAccommodations = $state("");
 	let guardianSigValue = $state("");
 	let guardianSigType = $state<"drawn" | "typed">("typed");
-	let guardianSigDate = $state("");
 
 	const unsub = user.subscribe((u) => {
 		currentUser = u;
@@ -84,8 +82,7 @@
 	}
 
 	function resetForm() {
-		firstName = "";
-		lastName = "";
+		participantName = "";
 		dateOfBirth = "";
 		phone = "";
 		address = "";
@@ -108,26 +105,24 @@
 		otherAccommodations = "";
 		guardianSigValue = "";
 		guardianSigType = "typed";
-		guardianSigDate = "";
 	}
 
 	function fillForm(profile: any) {
-		firstName = profile.first_name || "";
-		lastName = profile.last_name || "";
-		dateOfBirth = profile.date_of_birth || "";
-		phone = profile.phone || "";
+		participantName = profile.participant_name || "";
+		dateOfBirth = profile.participant_dob || "";
+		phone = profile.participant_phone || "";
 		address = profile.address || "";
 		city = profile.city || "";
 		stateProvince = profile.state_province || "";
-		emergencyContact = profile.emergency_contact_name || "";
-		primaryPhone = profile.emergency_contact_phone || "";
-		secondaryPhone = profile.emergency_contact_phone_secondary || "";
+		emergencyContact = profile.emergency_contact || "";
+		primaryPhone = profile.emergency_phone_primary || "";
+		secondaryPhone = profile.emergency_phone_secondary || "";
 		hasSpecialDiet = !!profile.special_diet;
 		specialDietDetails = profile.special_diet_details || "";
 		hasAllergies = !!profile.allergies;
-		allergyDetails = profile.allergy_details || "";
+		allergyDetails = profile.allergies_details || "";
 		medications = profile.medications || "";
-		canSelfAdminister = !!profile.can_self_administer;
+		canSelfAdminister = !!profile.can_self_administer_meds;
 		hasChronicIllness = !!profile.chronic_illness;
 		chronicIllnessDetails = profile.chronic_illness_details || "";
 		hadRecentSurgery = !!profile.recent_surgery;
@@ -136,7 +131,6 @@
 		otherAccommodations = profile.other_accommodations || "";
 		guardianSigValue = profile.guardian_signature || "";
 		guardianSigType = profile.guardian_signature_type || "typed";
-		guardianSigDate = profile.guardian_signature_date || "";
 	}
 
 	function startEdit(profile: any) {
@@ -159,22 +153,21 @@
 
 	function getFormData() {
 		return {
-			first_name: firstName,
-			last_name: lastName,
-			date_of_birth: dateOfBirth,
-			phone,
+			participant_name: participantName,
+			participant_dob: dateOfBirth,
+			participant_phone: phone,
 			address,
 			city,
 			state_province: stateProvince,
-			emergency_contact_name: emergencyContact,
-			emergency_contact_phone: primaryPhone,
-			emergency_contact_phone_secondary: secondaryPhone,
+			emergency_contact: emergencyContact,
+			emergency_phone_primary: primaryPhone,
+			emergency_phone_secondary: secondaryPhone,
 			special_diet: hasSpecialDiet,
 			special_diet_details: hasSpecialDiet ? specialDietDetails : "",
 			allergies: hasAllergies,
-			allergy_details: hasAllergies ? allergyDetails : "",
+			allergies_details: hasAllergies ? allergyDetails : "",
 			medications,
-			can_self_administer: canSelfAdminister,
+			can_self_administer_meds: canSelfAdminister,
 			chronic_illness: hasChronicIllness,
 			chronic_illness_details: hasChronicIllness ? chronicIllnessDetails : "",
 			recent_surgery: hadRecentSurgery,
@@ -183,13 +176,12 @@
 			other_accommodations: otherAccommodations,
 			guardian_signature: guardianSigValue,
 			guardian_signature_type: guardianSigType,
-			guardian_signature_date: guardianSigDate,
 		};
 	}
 
 	async function saveProfile() {
-		if (!firstName.trim()) {
-			alert("First name is required.");
+		if (!participantName.trim()) {
+			alert("Participant name is required.");
 			return;
 		}
 		saving = true;
@@ -244,13 +236,9 @@
 					<form onsubmit={(e) => { e.preventDefault(); saveProfile(); }} class="space-y-6">
 						<!-- Basic Info -->
 						<div class="grid gap-4 sm:grid-cols-2">
-							<div class="space-y-2">
-								<Label for="firstName">First Name *</Label>
-								<Input id="firstName" bind:value={firstName} placeholder="First name" required />
-							</div>
-							<div class="space-y-2">
-								<Label for="lastName">Last Name</Label>
-								<Input id="lastName" bind:value={lastName} placeholder="Last name" />
+							<div class="space-y-2 sm:col-span-2">
+								<Label for="participantName">Participant Name *</Label>
+								<Input id="participantName" bind:value={participantName} placeholder="Full name" required />
 							</div>
 							<div class="space-y-2">
 								<Label for="dob">Date of Birth</Label>
@@ -375,7 +363,7 @@
 							label="Guardian Signature"
 							bind:value={guardianSigValue}
 							bind:type={guardianSigType}
-							bind:date={guardianSigDate}
+							showDate={false}
 						/>
 
 						<div class="flex gap-3">
@@ -404,15 +392,15 @@
 						<Card>
 							<CardContent class="flex items-center justify-between py-4">
 								<div>
-									<p class="font-medium">{profile.first_name} {profile.last_name}</p>
-									{#if profile.date_of_birth}
-										<p class="text-sm text-muted-foreground">DOB: {profile.date_of_birth}</p>
+									<p class="font-medium">{profile.participant_name}</p>
+									{#if profile.participant_dob}
+										<p class="text-sm text-muted-foreground">DOB: {profile.participant_dob}</p>
 									{/if}
-									{#if profile.emergency_contact_name}
+									{#if profile.emergency_contact}
 										<p class="text-sm text-muted-foreground">
-											Emergency: {profile.emergency_contact_name}
-											{#if profile.emergency_contact_phone}
-												— {profile.emergency_contact_phone}
+											Emergency: {profile.emergency_contact}
+											{#if profile.emergency_phone_primary}
+												— {profile.emergency_phone_primary}
 											{/if}
 										</p>
 									{/if}

@@ -78,8 +78,8 @@
 				{#each events as event}
 					<Card class="cursor-pointer transition-shadow hover:shadow-md" onclick={() => goto(`/event/${event.id}`)}>
 						<CardHeader>
-							<CardTitle>{event.event_name || event.name}</CardTitle>
-							<CardDescription>{event.event_dates || event.dates}</CardDescription>
+							<CardTitle>{event.event_name}</CardTitle>
+							<CardDescription>{event.event_dates}</CardDescription>
 						</CardHeader>
 						<CardContent>
 							<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

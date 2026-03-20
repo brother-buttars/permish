@@ -242,12 +242,12 @@
 		<!-- Event Details Header -->
 		<Card class="mb-8">
 			<CardHeader>
-				<CardTitle class="text-2xl">{event.event_name || event.name}</CardTitle>
-				<CardDescription>{event.event_dates || event.dates || ""}</CardDescription>
+				<CardTitle class="text-2xl">{event.event_name}</CardTitle>
+				<CardDescription>{event.event_dates}</CardDescription>
 			</CardHeader>
 			<CardContent class="space-y-2 text-sm">
-				{#if event.description}
-					<p>{event.description}</p>
+				{#if event.event_description}
+					<p>{event.event_description}</p>
 				{/if}
 				{#if event.ward}
 					<p><span class="font-medium">Ward:</span> {event.ward}</p>

@@ -59,8 +59,7 @@
 				<option value="">Select a profile...</option>
 				{#each profiles as profile}
 					<option value={profile.id}>
-						{profile.first_name}
-						{profile.last_name}
+						{profile.participant_name}
 					</option>
 				{/each}
 				<option value="manual">Fill out manually</option>
