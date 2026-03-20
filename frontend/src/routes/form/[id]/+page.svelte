@@ -74,6 +74,9 @@
 	let guardianInitialValue = $state("");
 	let guardianInitialType = $state<"drawn" | "typed" | undefined>(undefined);
 
+	// Track whether an existing profile was used
+	let usedExistingProfile = $state(false);
+
 	// Save profile modal state
 	let saveProfileModalOpen = $state(false);
 	let saveProfileLoading = $state(false);
@@ -121,7 +124,11 @@
 	});
 
 	function fillFromProfile(profile: any) {
-		if (!profile) return;
+		if (!profile) {
+			usedExistingProfile = false;
+			return;
+		}
+		usedExistingProfile = true;
 		participantName = profile.participant_name || "";
 		dateOfBirth = profile.participant_dob || "";
 		phone = profile.participant_phone || "";
@@ -201,7 +208,7 @@
 			const result = await api.submitForm(data.eventId, formData);
 			const submissionId = result.submission?.id || '';
 
-			if (currentUser) {
+			if (currentUser && !usedExistingProfile) {
 				saveProfileModalOpen = true;
 				// Store submissionId for redirect after modal
 				(window as any).__submissionId = submissionId;
@@ -522,8 +529,8 @@
 
 <ConfirmModal
 	bind:open={saveProfileModalOpen}
-	title="Save as Profile?"
-	message="Your form has been submitted! Would you like to save this information as a profile for future use?"
+	title="Save Profile for {participantName}?"
+	message="Your form has been submitted! Would you like to save {participantName}'s information as a profile so you can quickly fill out future forms?"
 	confirmLabel="Save Profile"
 	confirmVariant="default"
 	onConfirm={saveProfileAndRedirect}
