@@ -50,11 +50,9 @@
 				{#if !loading}
 					{#if currentUser}
 						<a href="/dashboard" class="text-sm font-medium hover:underline">Dashboard</a>
-						{#if currentUser.role === 'parent'}
-							<a href="/profiles" class="text-sm font-medium hover:underline">Profiles</a>
-						{/if}
+						<a href="/profiles" class="text-sm font-medium hover:underline">Profiles</a>
 						{#if currentUser.role === 'planner'}
-							<a href="/events/new" class="text-sm font-medium hover:underline">Create Event</a>
+							<a href="/create" class="text-sm font-medium hover:underline">Create Event</a>
 						{/if}
 						<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 					{:else}
@@ -92,11 +90,9 @@
 			{#if !loading}
 				{#if currentUser}
 					<a href="/dashboard" class="text-sm font-medium hover:underline" onclick={closeMobile}>Dashboard</a>
-					{#if currentUser.role === 'parent'}
-						<a href="/profiles" class="text-sm font-medium hover:underline" onclick={closeMobile}>Profiles</a>
-					{/if}
+					<a href="/profiles" class="text-sm font-medium hover:underline" onclick={closeMobile}>Profiles</a>
 					{#if currentUser.role === 'planner'}
-						<a href="/events/new" class="text-sm font-medium hover:underline" onclick={closeMobile}>Create Event</a>
+						<a href="/create" class="text-sm font-medium hover:underline" onclick={closeMobile}>Create Event</a>
 					{/if}
 					<Button variant="outline" size="sm" onclick={handleLogout}>Logout</Button>
 				{:else}
