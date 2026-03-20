@@ -18,6 +18,7 @@
 	let copySuccess = $state(false);
 	let downloading = $state(false);
 	let toggling = $state(false);
+	let deleting = $state<string | null>(null);
 
 	const unsubAuth = user.subscribe((u) => {
 		currentUser = u;
@@ -68,13 +69,26 @@
 	}
 
 	async function copyUrl() {
-		const url = event?.form_url || `${window.location.origin}/form/${data.eventId}`;
+		const url = getFormUrl();
 		try {
 			await navigator.clipboard.writeText(url);
 			copySuccess = true;
 			setTimeout(() => (copySuccess = false), 2000);
 		} catch {
 			// Fallback
+		}
+	}
+
+	async function deleteSubmission(id: string, name: string) {
+		if (!confirm(`Delete the submission for "${name}"? This cannot be undone.`)) return;
+		deleting = id;
+		try {
+			await api.deleteSubmission(id);
+			submissions = submissions.filter((s) => s.id !== id);
+		} catch (err: any) {
+			alert(err.message || "Failed to delete submission");
+		} finally {
+			deleting = null;
 		}
 	}
 
@@ -97,7 +111,7 @@
 			);
 
 			const content = await zip.generateAsync({ type: "blob" });
-			const eventName = (event?.event_name || event?.name || "event").replace(/[^a-zA-Z0-9]/g, "_");
+			const eventName = (event?.event_name || "event").replace(/[^a-zA-Z0-9]/g, "_");
 			saveAs(content, `${eventName}_submissions.zip`);
 		} catch (err) {
 			console.error("Failed to create ZIP:", err);
@@ -107,12 +121,19 @@
 	}
 
 	function getFormUrl() {
-		return event?.form_url || `${typeof window !== 'undefined' ? window.location.origin : ''}/form/${data.eventId}`;
+		return `${typeof window !== 'undefined' ? window.location.origin : ''}/form/${data.eventId}`;
+	}
+
+	function formatDate(dateStr: string) {
+		if (!dateStr) return "—";
+		const d = new Date(dateStr);
+		if (isNaN(d.getTime())) return dateStr;
+		return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 	}
 </script>
 
 <svelte:head>
-	<title>{event?.event_name || event?.name || "Event Dashboard"}</title>
+	<title>{event?.event_name || "Event Dashboard"}</title>
 </svelte:head>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
@@ -124,8 +145,8 @@
 		<!-- Header -->
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div>
-				<h1 class="text-3xl font-bold">{event.event_name || event.name}</h1>
-				<p class="text-muted-foreground">{event.event_dates || event.dates}</p>
+				<h1 class="text-3xl font-bold">{event.event_name}</h1>
+				<p class="text-muted-foreground">{event.event_dates}</p>
 			</div>
 			<div class="flex gap-2">
 				<Button variant="outline" onclick={() => goto("/dashboard")}>Back</Button>
@@ -145,8 +166,8 @@
 				<CardTitle>Event Details</CardTitle>
 			</CardHeader>
 			<CardContent class="space-y-3">
-				{#if event.description}
-					<p class="text-sm">{event.description}</p>
+				{#if event.event_description}
+					<p class="text-sm">{event.event_description}</p>
 				{/if}
 				<div class="grid gap-2 text-sm sm:grid-cols-2">
 					{#if event.ward}
@@ -217,17 +238,26 @@
 								{#each submissions as sub}
 									<tr class="border-b">
 										<td class="px-4 py-3">{sub.participant_name || "—"}</td>
-										<td class="px-4 py-3">{sub.emergency_contact_name || sub.emergency_contact || "—"}</td>
-										<td class="px-4 py-3">{sub.created_at ? new Date(sub.created_at).toLocaleDateString() : "—"}</td>
+										<td class="px-4 py-3">{sub.emergency_contact || "—"}</td>
+										<td class="px-4 py-3">{formatDate(sub.submitted_at)}</td>
 										<td class="px-4 py-3">
-											<a
-												href={api.getPdfUrl(sub.id)}
-												target="_blank"
-												rel="noopener noreferrer"
-												class="text-primary underline hover:no-underline"
-											>
-												Download PDF
-											</a>
+											<div class="flex gap-2">
+												<a
+													href={api.getPdfUrl(sub.id)}
+													target="_blank"
+													rel="noopener noreferrer"
+													class="text-primary underline hover:no-underline"
+												>
+													PDF
+												</a>
+												<button
+													onclick={() => deleteSubmission(sub.id, sub.participant_name)}
+													disabled={deleting === sub.id}
+													class="text-destructive underline hover:no-underline disabled:opacity-50"
+												>
+													{deleting === sub.id ? "..." : "Delete"}
+												</button>
+											</div>
 										</td>
 									</tr>
 								{/each}

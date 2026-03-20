@@ -39,5 +39,6 @@ export const api = {
 	submitForm: (eventId: string, data: any) =>
 		apiFetch(`/api/events/${eventId}/submit`, { method: 'POST', body: JSON.stringify(data) }),
 	getMySubmissions: () => apiFetch('/api/submissions/mine'),
+	deleteSubmission: (id: string) => apiFetch(`/api/submissions/${id}`, { method: 'DELETE' }),
 	getPdfUrl: (submissionId: string) => `${API_URL}/api/submissions/${submissionId}/pdf`,
 };

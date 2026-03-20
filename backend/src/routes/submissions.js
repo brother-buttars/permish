@@ -39,4 +39,24 @@ router.get('/:id/pdf', (req, res) => {
   res.download(submission.pdf_path, fileName);
 });
 
+// Delete a submission (planner who owns the event only)
+router.delete('/:id', (req, res) => {
+  const db = req.app.locals.db;
+  const submission = db.prepare('SELECT * FROM submissions WHERE id = ?').get(req.params.id);
+  if (!submission) return res.status(404).json({ error: 'Submission not found' });
+
+  const event = db.prepare('SELECT created_by FROM events WHERE id = ?').get(submission.event_id);
+  if (!event || event.created_by !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  // Delete the PDF file if it exists
+  if (submission.pdf_path && fs.existsSync(submission.pdf_path)) {
+    fs.unlinkSync(submission.pdf_path);
+  }
+
+  db.prepare('DELETE FROM submissions WHERE id = ?').run(req.params.id);
+  res.json({ message: 'Submission deleted' });
+});
+
 module.exports = router;

@@ -122,8 +122,8 @@
 						<Card>
 							<CardContent class="flex items-center justify-between py-4">
 								<div>
-									<p class="font-medium">{profile.first_name} {profile.last_name}</p>
-									<p class="text-sm text-muted-foreground">DOB: {profile.date_of_birth}</p>
+									<p class="font-medium">{profile.participant_name}</p>
+									<p class="text-sm text-muted-foreground">DOB: {profile.participant_dob}</p>
 								</div>
 							</CardContent>
 						</Card>
@@ -159,7 +159,7 @@
 								<tr class="border-b">
 									<td class="px-4 py-3">{sub.event_name || "—"}</td>
 									<td class="px-4 py-3">{sub.participant_name || "—"}</td>
-									<td class="px-4 py-3">{sub.created_at ? new Date(sub.created_at).toLocaleDateString() : "—"}</td>
+									<td class="px-4 py-3">{sub.submitted_at ? new Date(sub.submitted_at).toLocaleDateString() : "—"}</td>
 									<td class="px-4 py-3">
 										<a
 											href={api.getPdfUrl(sub.id)}
