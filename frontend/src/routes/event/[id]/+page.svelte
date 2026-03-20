@@ -12,6 +12,7 @@
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
+	import QRCode from "qrcode";
 
 	let { data } = $props();
 
@@ -32,6 +33,24 @@
 
 	// Toggle active modal state
 	let toggleModalOpen = $state(false);
+
+	// QR code modal state
+	let qrModalOpen = $state(false);
+	let qrDataUrl = $state('');
+
+	async function showQrCode() {
+		const url = getFormUrl();
+		try {
+			qrDataUrl = await QRCode.toDataURL(url, {
+				width: 600,
+				margin: 2,
+				color: { dark: '#000000', light: '#ffffff' },
+			});
+			qrModalOpen = true;
+		} catch {
+			toastError('Failed to generate QR code');
+		}
+	}
 
 	// PDF preview modal state
 	let pdfModalOpen = $state(false);
@@ -294,6 +313,18 @@
 						<a href={getFormUrl()} target="_blank" rel="noopener noreferrer">
 							<Button variant="outline">Open Form</Button>
 						</a>
+						<Button variant="outline" onclick={showQrCode}>
+							<svg xmlns="http://www.w3.org/2000/svg" class="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<rect x="3" y="3" width="7" height="7" />
+								<rect x="14" y="3" width="7" height="7" />
+								<rect x="3" y="14" width="7" height="7" />
+								<rect x="14" y="14" width="3" height="3" />
+								<rect x="18" y="14" width="3" height="3" />
+								<rect x="14" y="18" width="3" height="3" />
+								<rect x="18" y="18" width="3" height="3" />
+							</svg>
+							QR Code
+						</Button>
 					</div>
 				</div>
 			</CardContent>
@@ -429,4 +460,27 @@
 	onConfirm={toggleActive}
 	loading={toggling}
 />
+{/if}
+
+{#if qrModalOpen}
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div
+	class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer"
+	role="dialog"
+	aria-modal="true"
+	onclick={() => qrModalOpen = false}
+>
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="flex flex-col items-center gap-6" onclick={(e) => e.stopPropagation()}>
+		<h2 class="text-2xl font-bold text-white">{event?.event_name}</h2>
+		<p class="text-white/70 text-sm">Scan to open the permission form</p>
+		<div class="rounded-2xl bg-white p-6 shadow-2xl">
+			<img src={qrDataUrl} alt="QR Code" class="h-72 w-72 sm:h-96 sm:w-96" />
+		</div>
+		<p class="max-w-md text-center text-sm text-white/60 break-all">{getFormUrl()}</p>
+		<Button variant="outline" class="text-white border-white/30 bg-white/10 hover:bg-white/20" onclick={() => qrModalOpen = false}>
+			Close
+		</Button>
+	</div>
+</div>
 {/if}
