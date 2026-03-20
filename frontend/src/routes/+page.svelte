@@ -1,19 +1,22 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { user, authLoading } from '$lib/stores/auth';
 	import { Button } from '$lib/components/ui/button/index.js';
 
-	let currentUser = $derived.by(() => {
-		let val: any = null;
-		const unsub = user.subscribe((v) => (val = v));
-		unsub();
-		return val;
-	});
+	let currentUser: any = $state(null);
+	let loading = $state(true);
 
-	let loading = $derived.by(() => {
-		let val = true;
-		const unsub = authLoading.subscribe((v) => (val = v));
-		unsub();
-		return val;
+	onMount(() => {
+		const unsubUser = user.subscribe((v) => { currentUser = v; });
+		const unsubLoading = authLoading.subscribe((v) => {
+			loading = v;
+			if (!v && currentUser) {
+				goto('/dashboard');
+			}
+		});
+
+		return () => { unsubUser(); unsubLoading(); };
 	});
 </script>
 
@@ -25,23 +28,15 @@
 			parents, and keep everything organized in one place.
 		</p>
 
-		{#if !loading}
-			{#if currentUser}
-				<div>
-					<a href="/dashboard">
-						<Button size="lg">Go to Dashboard</Button>
-					</a>
-				</div>
-			{:else}
-				<div class="flex flex-col sm:flex-row gap-4 justify-center">
-					<a href="/login">
-						<Button variant="outline" size="lg" class="w-full sm:w-auto">Login</Button>
-					</a>
-					<a href="/register">
-						<Button size="lg" class="w-full sm:w-auto">Register</Button>
-					</a>
-				</div>
-			{/if}
+		{#if !loading && !currentUser}
+			<div class="flex flex-col sm:flex-row gap-4 justify-center">
+				<a href="/login">
+					<Button variant="outline" size="lg" class="w-full sm:w-auto">Login</Button>
+				</a>
+				<a href="/register">
+					<Button size="lg" class="w-full sm:w-auto">Register</Button>
+				</a>
+			</div>
 		{/if}
 	</div>
 </div>
