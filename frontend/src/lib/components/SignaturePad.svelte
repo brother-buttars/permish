@@ -34,10 +34,15 @@
 	}
 
 	let initialized = false;
+	let lastInitialValue = "";
 
 	onMount(() => {
 		if (!date) date = getToday();
+		applyInitialValues();
+		initialized = true;
+	});
 
+	function applyInitialValues() {
 		if (initialType) {
 			type = initialType;
 		}
@@ -48,15 +53,23 @@
 			} else {
 				value = initialValue;
 				hasDrawn = true;
+				if (canvas) loadImageToCanvas(initialValue);
 			}
 		}
-		initialized = true;
-	});
+		lastInitialValue = initialValue;
+	}
 
-	// Re-init canvas whenever the canvas element appears (conditional rendering or late mount)
+	// Re-init canvas whenever the canvas element appears
 	$effect(() => {
 		if (canvas && initialized) {
 			initCanvas();
+		}
+	});
+
+	// React to initialValue changes (e.g., profile selection after mount)
+	$effect(() => {
+		if (initialized && initialValue !== lastInitialValue) {
+			applyInitialValues();
 		}
 	});
 
