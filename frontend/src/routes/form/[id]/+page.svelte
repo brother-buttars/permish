@@ -18,6 +18,7 @@
 	import { Separator } from "$lib/components/ui/separator";
 	import SignaturePad from "$lib/components/SignaturePad.svelte";
 	import ProfileSelector from "$lib/components/ProfileSelector.svelte";
+	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 
 	let { data } = $props();
 
@@ -72,6 +73,10 @@
 	// Profile-based initial values for guardian sig
 	let guardianInitialValue = $state("");
 	let guardianInitialType = $state<"drawn" | "typed" | undefined>(undefined);
+
+	// Save profile modal state
+	let saveProfileModalOpen = $state(false);
+	let saveProfileLoading = $state(false);
 
 	let computedAge = $derived.by(() => {
 		if (!dateOfBirth) return "";
@@ -179,40 +184,8 @@
 			await api.submitForm(data.eventId, formData);
 
 			if (currentUser) {
-				const shouldSave = confirm(
-					"Your form has been submitted! Would you like to save this information as a profile for future use?"
-				);
-				if (shouldSave) {
-					try {
-						await api.createProfile({
-							participant_name: participantName,
-							participant_dob: dateOfBirth,
-							participant_phone: phone,
-							address,
-							city,
-							state_province: stateProvince,
-							emergency_contact: emergencyContact,
-							emergency_phone_primary: primaryPhone,
-							emergency_phone_secondary: secondaryPhone,
-							special_diet: hasSpecialDiet,
-							special_diet_details: specialDietDetails,
-							allergies: hasAllergies,
-							allergies_details: allergyDetails,
-							medications,
-							can_self_administer_meds: canSelfAdminister,
-							chronic_illness: hasChronicIllness,
-							chronic_illness_details: chronicIllnessDetails,
-							recent_surgery: hadRecentSurgery,
-							recent_surgery_details: recentSurgeryDetails,
-							activity_limitations: activityLimitations,
-							other_accommodations: otherAccommodations,
-							guardian_signature: guardianSigValue,
-							guardian_signature_type: guardianSigType,
-						});
-					} catch {
-						// Profile save is optional, don't block redirect
-					}
-				}
+				saveProfileModalOpen = true;
+				return; // Wait for modal interaction before redirecting
 			}
 
 			goto(`/form/${data.eventId}/success`);
@@ -221,6 +194,48 @@
 		} finally {
 			submitting = false;
 		}
+	}
+
+	async function saveProfileAndRedirect() {
+		saveProfileLoading = true;
+		try {
+			await api.createProfile({
+				participant_name: participantName,
+				participant_dob: dateOfBirth,
+				participant_phone: phone,
+				address,
+				city,
+				state_province: stateProvince,
+				emergency_contact: emergencyContact,
+				emergency_phone_primary: primaryPhone,
+				emergency_phone_secondary: secondaryPhone,
+				special_diet: hasSpecialDiet,
+				special_diet_details: specialDietDetails,
+				allergies: hasAllergies,
+				allergies_details: allergyDetails,
+				medications,
+				can_self_administer_meds: canSelfAdminister,
+				chronic_illness: hasChronicIllness,
+				chronic_illness_details: chronicIllnessDetails,
+				recent_surgery: hadRecentSurgery,
+				recent_surgery_details: recentSurgeryDetails,
+				activity_limitations: activityLimitations,
+				other_accommodations: otherAccommodations,
+				guardian_signature: guardianSigValue,
+				guardian_signature_type: guardianSigType,
+			});
+		} catch {
+			// Profile save is optional, don't block redirect
+		} finally {
+			saveProfileLoading = false;
+			saveProfileModalOpen = false;
+			goto(`/form/${data.eventId}/success`);
+		}
+	}
+
+	function skipSaveAndRedirect() {
+		saveProfileModalOpen = false;
+		goto(`/form/${data.eventId}/success`);
 	}
 </script>
 
@@ -482,3 +497,14 @@
 		</form>
 	{/if}
 </div>
+
+<ConfirmModal
+	bind:open={saveProfileModalOpen}
+	title="Save as Profile?"
+	message="Your form has been submitted! Would you like to save this information as a profile for future use?"
+	confirmLabel="Save Profile"
+	confirmVariant="default"
+	onConfirm={saveProfileAndRedirect}
+	onCancel={skipSaveAndRedirect}
+	loading={saveProfileLoading}
+/>

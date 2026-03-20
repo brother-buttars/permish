@@ -7,6 +7,7 @@
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import { formatDate } from "$lib/utils/formatDate";
+	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
 
@@ -20,6 +21,15 @@
 	let downloading = $state(false);
 	let toggling = $state(false);
 	let deleting = $state<string | null>(null);
+
+	// Delete submission modal state
+	let deleteModalOpen = $state(false);
+	let deleteTargetId = $state('');
+	let deleteTargetName = $state('');
+	let deleteLoading = $state(false);
+
+	// Toggle active modal state
+	let toggleModalOpen = $state(false);
 
 	// PDF preview modal state
 	let pdfModalOpen = $state(false);
@@ -72,6 +82,7 @@
 			console.error("Failed to toggle event:", err);
 		} finally {
 			toggling = false;
+			toggleModalOpen = false;
 		}
 	}
 
@@ -86,16 +97,18 @@
 		}
 	}
 
-	async function deleteSubmission(id: string, name: string) {
-		if (!confirm(`Delete the submission for "${name}"? This cannot be undone.`)) return;
-		deleting = id;
+	async function confirmDeleteSubmission() {
+		deleteLoading = true;
+		deleting = deleteTargetId;
 		try {
-			await api.deleteSubmission(id);
-			submissions = submissions.filter((s) => s.id !== id);
+			await api.deleteSubmission(deleteTargetId);
+			submissions = submissions.filter((s) => s.id !== deleteTargetId);
+			deleteModalOpen = false;
 		} catch (err: any) {
 			alert(err.message || "Failed to delete submission");
 		} finally {
 			deleting = null;
+			deleteLoading = false;
 		}
 	}
 
@@ -191,7 +204,7 @@
 				<Button variant="outline" onclick={() => goto("/dashboard")}>Back</Button>
 				<Button
 					variant={event.is_active ? "destructive" : "default"}
-					onclick={toggleActive}
+					onclick={() => toggleModalOpen = true}
 					disabled={toggling}
 				>
 					{toggling ? "..." : event.is_active ? "Deactivate" : "Activate"}
@@ -297,7 +310,7 @@
 													Edit
 												</button>
 												<button
-													onclick={() => deleteSubmission(sub.id, sub.participant_name)}
+													onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
 													disabled={deleting === sub.id}
 													class="text-destructive underline hover:no-underline disabled:opacity-50"
 												>
@@ -318,7 +331,7 @@
 
 {#if pdfModalOpen}
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" onclick={closePdfModal}>
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onclick={closePdfModal}>
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div class="mx-4 flex h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
 		<div class="flex items-center justify-between border-b px-4 py-3">
@@ -345,4 +358,26 @@
 		</div>
 	</div>
 </div>
+{/if}
+
+<ConfirmModal
+	bind:open={deleteModalOpen}
+	title="Delete Submission"
+	message="Delete the submission for &quot;{deleteTargetName}&quot;? This cannot be undone."
+	confirmLabel="Delete"
+	confirmVariant="destructive"
+	onConfirm={confirmDeleteSubmission}
+	loading={deleteLoading}
+/>
+
+{#if event}
+<ConfirmModal
+	bind:open={toggleModalOpen}
+	title={event.is_active ? "Deactivate Event" : "Activate Event"}
+	message={event.is_active ? "Are you sure you want to deactivate this event? The form will no longer accept new submissions." : "Are you sure you want to activate this event? The form will start accepting submissions."}
+	confirmLabel={event.is_active ? "Deactivate" : "Activate"}
+	confirmVariant={event.is_active ? "destructive" : "default"}
+	onConfirm={toggleActive}
+	loading={toggling}
+/>
 {/if}

@@ -16,6 +16,8 @@
 	} from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import SignaturePad from "$lib/components/SignaturePad.svelte";
+	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+	import { formatDate } from "$lib/utils/formatDate";
 
 	let profiles: any[] = $state([]);
 	let loading = $state(true);
@@ -23,7 +25,12 @@
 	let editingId: string | null = $state(null);
 	let showNewForm = $state(false);
 	let saving = $state(false);
-	let deleteConfirmId: string | null = $state(null);
+
+	// Delete modal state
+	let deleteModalOpen = $state(false);
+	let deleteTargetId = $state('');
+	let deleteTargetName = $state('');
+	let deleteLoading = $state(false);
 
 	// Form state
 	let participantName = $state("");
@@ -200,13 +207,16 @@
 		}
 	}
 
-	async function deleteProfile(id: string) {
+	async function confirmDeleteProfile() {
+		deleteLoading = true;
 		try {
-			await api.deleteProfile(id);
-			deleteConfirmId = null;
+			await api.deleteProfile(deleteTargetId);
+			deleteModalOpen = false;
 			await loadProfiles();
 		} catch (err: any) {
 			alert(err.message || "Failed to delete profile.");
+		} finally {
+			deleteLoading = false;
 		}
 	}
 </script>
@@ -394,7 +404,7 @@
 								<div>
 									<p class="font-medium">{profile.participant_name}</p>
 									{#if profile.participant_dob}
-										<p class="text-sm text-muted-foreground">DOB: {profile.participant_dob}</p>
+										<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
 									{/if}
 									{#if profile.emergency_contact}
 										<p class="text-sm text-muted-foreground">
@@ -406,21 +416,12 @@
 									{/if}
 								</div>
 								<div class="flex gap-2">
-									{#if deleteConfirmId === profile.id}
-										<Button variant="destructive" size="sm" onclick={() => deleteProfile(profile.id)}>
-											Confirm
-										</Button>
-										<Button variant="outline" size="sm" onclick={() => (deleteConfirmId = null)}>
-											Cancel
-										</Button>
-									{:else}
-										<Button variant="outline" size="sm" onclick={() => startEdit(profile)}>
-											Edit
-										</Button>
-										<Button variant="destructive" size="sm" onclick={() => (deleteConfirmId = profile.id)}>
-											Delete
-										</Button>
-									{/if}
+									<Button variant="outline" size="sm" onclick={() => startEdit(profile)}>
+										Edit
+									</Button>
+									<Button variant="destructive" size="sm" onclick={() => { deleteModalOpen = true; deleteTargetId = profile.id; deleteTargetName = profile.participant_name; }}>
+										Delete
+									</Button>
 								</div>
 							</CardContent>
 						</Card>
@@ -430,3 +431,13 @@
 		{/if}
 	{/if}
 </div>
+
+<ConfirmModal
+	bind:open={deleteModalOpen}
+	title="Delete Profile"
+	message="Are you sure you want to delete the profile for {deleteTargetName}? This cannot be undone."
+	confirmLabel="Delete"
+	confirmVariant="destructive"
+	onConfirm={confirmDeleteProfile}
+	loading={deleteLoading}
+/>
