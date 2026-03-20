@@ -1,0 +1,76 @@
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { login } from '$lib/stores/auth';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
+	import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+
+	let email = $state('');
+	let password = $state('');
+	let error = $state('');
+	let submitting = $state(false);
+
+	async function handleSubmit(e: Event) {
+		e.preventDefault();
+		error = '';
+		submitting = true;
+		try {
+			await login(email, password);
+			goto('/dashboard');
+		} catch (err: any) {
+			error = err.message || 'Login failed';
+		} finally {
+			submitting = false;
+		}
+	}
+</script>
+
+<div class="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4">
+	<Card class="w-full max-w-md">
+		<CardHeader>
+			<CardTitle>Login</CardTitle>
+			<CardDescription>Sign in to your account</CardDescription>
+		</CardHeader>
+		<form onsubmit={handleSubmit}>
+			<CardContent>
+				<div class="space-y-4">
+					{#if error}
+						<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+							{error}
+						</div>
+					{/if}
+					<div class="space-y-2">
+						<Label for="email">Email</Label>
+						<Input
+							id="email"
+							type="email"
+							placeholder="you@example.com"
+							bind:value={email}
+							required
+						/>
+					</div>
+					<div class="space-y-2">
+						<Label for="password">Password</Label>
+						<Input
+							id="password"
+							type="password"
+							placeholder="Your password"
+							bind:value={password}
+							required
+						/>
+					</div>
+				</div>
+			</CardContent>
+			<CardFooter class="flex flex-col gap-4">
+				<Button type="submit" class="w-full" disabled={submitting}>
+					{#if submitting}Signing in...{:else}Sign In{/if}
+				</Button>
+				<p class="text-sm text-muted-foreground text-center">
+					Don't have an account?
+					<a href="/register" class="text-primary underline hover:no-underline">Register</a>
+				</p>
+			</CardFooter>
+		</form>
+	</Card>
+</div>
