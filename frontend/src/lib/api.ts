@@ -1,10 +1,11 @@
 const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:3001';
 
 async function apiFetch(path: string, options: RequestInit = {}) {
+	const { headers: customHeaders, ...restOptions } = options;
 	const res = await fetch(`${API_URL}${path}`, {
 		credentials: 'include',
-		headers: { 'Content-Type': 'application/json', ...options.headers },
-		...options,
+		...restOptions,
+		headers: { 'Content-Type': 'application/json', ...customHeaders },
 	});
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({ error: res.statusText }));
