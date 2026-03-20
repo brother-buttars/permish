@@ -7,7 +7,6 @@
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import { formatDate } from "$lib/utils/formatDate";
-	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { getOrgDisplayLabels } from "$lib/utils/organizations";
 	import { toastError } from "$lib/stores/toast";
 
@@ -16,6 +15,7 @@
 	let submissions: any[] = $state([]);
 	let loading = $state(true);
 	let currentUser: any = $state(null);
+	let view = $state<'planner' | 'parent'>('planner');
 
 	// PDF preview modal state
 	let pdfModalOpen = $state(false);
@@ -36,8 +36,10 @@
 				return;
 			}
 
+			// Default view based on role
+			view = currentUser.role === 'planner' ? 'planner' : 'parent';
+
 			try {
-				// Load all data for all roles
 				const promises: Promise<any>[] = [
 					api.listProfiles(),
 					api.getMySubmissions(),
@@ -98,6 +100,14 @@
 		}
 	}
 
+	function downloadPdf() {
+		if (!pdfModalUrl) return;
+		const a = document.createElement('a');
+		a.href = pdfModalUrl;
+		a.download = `permission-form-${pdfModalName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+		a.click();
+	}
+
 	function parseOrgs(ev: any): string[] {
 		if (!ev?.organizations) return [];
 		if (typeof ev.organizations === 'string') {
@@ -112,14 +122,6 @@
 	function isYW(label: string): boolean {
 		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
 	}
-
-	function downloadPdf() {
-		if (!pdfModalUrl) return;
-		const a = document.createElement('a');
-		a.href = pdfModalUrl;
-		a.download = `permission-form-${pdfModalName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-		a.click();
-	}
 </script>
 
 <svelte:head>
@@ -130,10 +132,34 @@
 	{#if loading}
 		<p class="text-center text-muted-foreground">Loading...</p>
 	{:else}
-		<h1 class="mb-8 text-3xl font-bold">Dashboard</h1>
+		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+			<h1 class="text-3xl font-bold">Dashboard</h1>
 
-		<!-- ═══ Event Planner Section ═══ -->
-		{#if currentUser?.role === "planner"}
+			<!-- View toggle (only for planners who can see both) -->
+			{#if currentUser?.role === "planner"}
+				<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
+					<Button
+						variant={view === 'planner' ? 'default' : 'outline'}
+						size="sm"
+						class="flex-1 {view !== 'planner' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+						onclick={() => view = 'planner'}
+					>
+						Event Manager
+					</Button>
+					<Button
+						variant={view === 'parent' ? 'default' : 'outline'}
+						size="sm"
+						class="flex-1 {view !== 'parent' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+						onclick={() => view = 'parent'}
+					>
+						Parent
+					</Button>
+				</div>
+			{/if}
+		</div>
+
+		<!-- ═══════ Event Manager View ═══════ -->
+		{#if view === 'planner' && currentUser?.role === 'planner'}
 			<section class="mb-10">
 				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<h2 class="text-xl font-semibold">My Events</h2>
@@ -184,84 +210,85 @@
 				{/if}
 			</section>
 
+		<!-- ═══════ Parent View ═══════ -->
+		{:else}
+			<section class="mb-10">
+				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<h2 class="text-xl font-semibold">Child Profiles</h2>
+					<Button variant="outline" onclick={() => goto("/profiles")}>Manage Profiles</Button>
+				</div>
+
+				{#if profiles.length === 0}
+					<Card>
+						<CardContent class="py-8 text-center">
+							<p class="text-muted-foreground">No child profiles yet.</p>
+							<Button variant="link" onclick={() => goto("/profiles")}>Add a child profile</Button>
+						</CardContent>
+					</Card>
+				{:else}
+					<div class="grid gap-3">
+						{#each profiles as profile}
+							<Card>
+								<CardContent class="flex items-center justify-between py-4">
+									<div>
+										<p class="font-medium">{profile.participant_name}</p>
+										{#if profile.participant_dob}
+											<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
+										{/if}
+									</div>
+									<Button variant="outline" size="sm" onclick={() => goto(`/profiles?edit=${profile.id}`)}>Edit</Button>
+								</CardContent>
+							</Card>
+						{/each}
+					</div>
+				{/if}
+			</section>
+
 			<Separator class="my-8" />
-		{/if}
 
-		<!-- ═══ Parent / Personal Section ═══ -->
-		<section class="mb-10">
-			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<h2 class="text-xl font-semibold">Child Profiles</h2>
-				<Button variant="outline" onclick={() => goto("/profiles")}>Manage Profiles</Button>
-			</div>
-
-			{#if profiles.length === 0}
-				<Card>
-					<CardContent class="py-8 text-center">
-						<p class="text-muted-foreground">No child profiles yet.</p>
-						<Button variant="link" onclick={() => goto("/profiles")}>Add a child profile</Button>
-					</CardContent>
-				</Card>
-			{:else}
-				<div class="grid gap-3">
-					{#each profiles as profile}
-						<Card>
-							<CardContent class="flex items-center justify-between py-4">
-								<div>
-									<p class="font-medium">{profile.participant_name}</p>
-									{#if profile.participant_dob}
-										<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
-									{/if}
-								</div>
-								<Button variant="outline" size="sm" onclick={() => goto(`/profiles?edit=${profile.id}`)}>Edit</Button>
-							</CardContent>
-						</Card>
-					{/each}
-				</div>
-			{/if}
-		</section>
-
-		<Separator class="my-8" />
-
-		<section>
-			<h2 class="mb-4 text-xl font-semibold">My Submissions</h2>
-			{#if submissions.length === 0}
-				<Card>
-					<CardContent class="py-8 text-center">
-						<p class="text-muted-foreground">No form submissions yet.</p>
-					</CardContent>
-				</Card>
-			{:else}
-				<div class="overflow-x-auto">
-					<table class="w-full text-sm">
-						<thead>
-							<tr class="border-b">
-								<th class="px-4 py-3 text-left font-medium">Event</th>
-								<th class="px-4 py-3 text-left font-medium">Participant</th>
-								<th class="px-4 py-3 text-left font-medium">Submitted</th>
-								<th class="px-4 py-3 text-left font-medium">PDF</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each submissions as sub}
+			<section>
+				<h2 class="mb-4 text-xl font-semibold">My Submissions</h2>
+				{#if submissions.length === 0}
+					<Card>
+						<CardContent class="py-8 text-center">
+							<p class="text-muted-foreground">No form submissions yet.</p>
+						</CardContent>
+					</Card>
+				{:else}
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
 								<tr class="border-b">
-									<td class="px-4 py-3">{sub.event_name || "—"}</td>
-									<td class="px-4 py-3">{sub.participant_name || "—"}</td>
-									<td class="px-4 py-3">{formatDate(sub.submitted_at)}</td>
-									<td class="px-4 py-3">
-										<button
-											onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
-											class="text-primary underline hover:no-underline"
-										>
-											PDF
-										</button>
-									</td>
+									<th class="px-4 py-3 text-left font-medium">Event</th>
+									<th class="px-4 py-3 text-left font-medium">Participant</th>
+									<th class="px-4 py-3 text-left font-medium">Submitted</th>
+									<th class="px-4 py-3 text-left font-medium">Actions</th>
 								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			{/if}
-		</section>
+							</thead>
+							<tbody>
+								{#each submissions as sub}
+									<tr class="border-b">
+										<td class="px-4 py-3">{sub.event_name || "—"}</td>
+										<td class="px-4 py-3">{sub.participant_name || "—"}</td>
+										<td class="px-4 py-3">{formatDate(sub.submitted_at)}</td>
+										<td class="px-4 py-3">
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-7 text-xs"
+												onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+											>
+												PDF
+											</Button>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</section>
+		{/if}
 	{/if}
 </div>
 
