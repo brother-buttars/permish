@@ -279,26 +279,32 @@
 								<td class="px-4 py-3">{sub.emergency_phone_primary || "\u2014"}</td>
 								<td class="px-4 py-3">{formatDate(sub.submitted_at) || "\u2014"}</td>
 								<td class="px-4 py-3">
-									<div class="flex gap-2">
-										<button
+									<div class="flex gap-1">
+										<Button
+											variant="outline"
+											size="sm"
+											class="h-7 text-xs"
 											onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
-											class="text-primary underline hover:no-underline"
 										>
 											PDF
-										</button>
-										<button
+										</Button>
+										<Button
+											variant="outline"
+											size="sm"
+											class="h-7 text-xs"
 											onclick={() => goto(`/form/${data.eventId}/edit/${sub.id}`)}
-											class="text-primary underline hover:no-underline"
 										>
 											Edit
-										</button>
-										<button
+										</Button>
+										<Button
+											variant="destructive"
+											size="sm"
+											class="h-7 text-xs"
 											onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
 											disabled={deleting === sub.id}
-											class="text-destructive underline hover:no-underline disabled:opacity-50"
 										>
 											{deleting === sub.id ? "..." : "Delete"}
-										</button>
+										</Button>
 									</div>
 								</td>
 							</tr>

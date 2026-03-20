@@ -267,9 +267,9 @@
 													Edit
 												</Button>
 												<Button
-													variant="outline"
+													variant="destructive"
 													size="sm"
-													class="h-7 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground"
+													class="h-7 text-xs"
 													onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
 													disabled={deleting === sub.id}
 												>
