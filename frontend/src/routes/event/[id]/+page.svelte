@@ -201,6 +201,9 @@
 						<Button variant="outline" onclick={copyUrl}>
 							{copySuccess ? "Copied!" : "Copy URL"}
 						</Button>
+						<a href={getFormUrl()} target="_blank" rel="noopener noreferrer">
+							<Button variant="outline">Open Form</Button>
+						</a>
 					</div>
 				</div>
 			</CardContent>
