@@ -198,14 +198,17 @@
 				guardian_signature_date: guardianSigDate,
 			};
 
-			await api.submitForm(data.eventId, formData);
+			const result = await api.submitForm(data.eventId, formData);
+			const submissionId = result.submission?.id || '';
 
 			if (currentUser) {
 				saveProfileModalOpen = true;
-				return; // Wait for modal interaction before redirecting
+				// Store submissionId for redirect after modal
+				(window as any).__submissionId = submissionId;
+				return;
 			}
 
-			goto(`/form/${data.eventId}/success`);
+			goto(`/form/${data.eventId}/success?sid=${submissionId}`);
 		} catch (err: any) {
 			validationErrors = [err.message || "Failed to submit form. Please try again."];
 		} finally {
@@ -246,13 +249,15 @@
 		} finally {
 			saveProfileLoading = false;
 			saveProfileModalOpen = false;
-			goto(`/form/${data.eventId}/success`);
+			const sid = (window as any).__submissionId || '';
+			goto(`/form/${data.eventId}/success?sid=${sid}`);
 		}
 	}
 
 	function skipSaveAndRedirect() {
 		saveProfileModalOpen = false;
-		goto(`/form/${data.eventId}/success`);
+		const sid = (window as any).__submissionId || '';
+		goto(`/form/${data.eventId}/success?sid=${sid}`);
 	}
 </script>
 
