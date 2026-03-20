@@ -1,8 +1,8 @@
-import { browser } from '$app/environment';
 import { checkAuth } from '$lib/stores/auth';
 
+// Disable SSR — this is a client-side app with cookie-based auth
+export const ssr = false;
+
 export async function load() {
-	if (browser) {
-		await checkAuth();
-	}
+	await checkAuth();
 }
