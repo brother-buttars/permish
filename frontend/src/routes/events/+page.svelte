@@ -101,7 +101,7 @@
 					<Button
 						variant={statusFilter === val ? "default" : "outline"}
 						size="sm"
-						class="flex-1 {statusFilter !== val ? 'bg-transparent text-muted-foreground border-transparent hover:bg-accent hover:text-accent-foreground hover:border-border' : ''}"
+						class="flex-1 {statusFilter !== val ? 'bg-background text-foreground/60 border-border shadow-sm hover:bg-background hover:text-foreground hover:shadow-md' : ''}"
 						onclick={() => statusFilter = val as any}
 					>
 						{label}
