@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "initialized": "2026-03-22",
+  "migrated": "2026-03-29",
+  "projectName": "PermissionForm",
+  "framework": "sveltekit + express",
+  "language": "javascript/typescript",
+  "componentLibrary": "shadcn-svelte (hand-built)",
+  "testFramework": "jest",
+  "orm": "better-sqlite3 (raw)",
+  "styling": "tailwindcss v4",
+  "stateManagement": "svelte stores",
+  "packageManager": "pnpm",
+  "monorepo": false,
+  "srcDir": "frontend/src, backend/src",
+  "agents": {
+    "defaultModel": "claude-opus-4-6",
+    "maxParallelTasks": 3
+  }
+}

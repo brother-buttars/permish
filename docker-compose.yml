@@ -6,11 +6,13 @@ services:
     volumes:
       - db-data:/app/data
       - pdf-storage:/app/pdfs
+      - uploads-storage:/app/uploads
     env_file:
       - .env
     environment:
       - DATA_DIR=/app/data
       - PDF_DIR=/app/pdfs
+      - UPLOADS_DIR=/app/uploads
 
   frontend:
     build: ./frontend
@@ -24,3 +26,4 @@ services:
 volumes:
   db-data:
   pdf-storage:
+  uploads-storage:

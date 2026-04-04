@@ -3,9 +3,10 @@
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import { user } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
+	import PdfViewer from "$lib/components/PdfViewer.svelte";
 
 	let { data } = $props();
 
@@ -33,7 +34,8 @@
 
 	async function loadPdf() {
 		try {
-			const res = await fetch(api.getPdfUrl(submissionId), { credentials: 'include' });
+			const repo = getRepository();
+			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
 			if (res.ok) {
 				const blob = await res.blob();
 				pdfUrl = URL.createObjectURL(blob);
@@ -45,23 +47,26 @@
 		}
 	}
 
-	function printPdf() {
-		const iframe = document.getElementById('success-pdf-preview') as HTMLIFrameElement;
-		if (iframe?.contentWindow) {
-			iframe.contentWindow.print();
-		}
-	}
-
 	function downloadPdf() {
 		if (!pdfUrl) return;
 		const a = document.createElement('a');
 		a.href = pdfUrl;
-		a.download = `permission-form.pdf`;
+		a.download = `permish-form.pdf`;
 		a.click();
 	}
 
+	function printPdf() {
+		if (!pdfUrl) return;
+		const printWindow = window.open(pdfUrl);
+		if (printWindow) {
+			printWindow.addEventListener('load', () => {
+				printWindow.print();
+			});
+		}
+	}
+
 	function fillAnother() {
-		goto(`/form/${data.eventId}`);
+		goto(`/form/${data.eventId}`, { invalidateAll: true });
 	}
 </script>
 
@@ -86,7 +91,7 @@
 		</div>
 		<h1 class="text-2xl font-bold">Form Submitted Successfully!</h1>
 		<p class="mt-2 text-muted-foreground">
-			Your permission form has been submitted. The event organizer will be notified.
+			Your form has been submitted. The event organizer will be notified.
 		</p>
 	</div>
 
@@ -114,12 +119,7 @@
 						<p class="text-muted-foreground">Loading PDF preview...</p>
 					</div>
 				{:else if pdfUrl}
-					<iframe
-						id="success-pdf-preview"
-						src={pdfUrl}
-						class="h-[700px] w-full rounded border"
-						title="Permission Form PDF"
-					></iframe>
+					<PdfViewer src={pdfUrl} class="max-h-[700px]" />
 				{:else}
 					<div class="flex h-[200px] items-center justify-center">
 						<p class="text-muted-foreground">

@@ -2,17 +2,20 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
 	import { Textarea } from "$lib/components/ui/textarea";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
-	import { carriers } from "$lib/utils/carriers";
-	import { orgGroups } from "$lib/utils/organizations";
+	import OrganizationPicker from "$lib/components/OrganizationPicker.svelte";
+	import NotificationSettings from "$lib/components/NotificationSettings.svelte";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import { formatEventDates } from "$lib/utils/formatDate";
+	import { formatFileSize } from "$lib/utils/format";
+	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+	import LoadingState from "$lib/components/LoadingState.svelte";
 
 	let { data } = $props();
 
@@ -20,25 +23,6 @@
 	let loading = $state(true);
 
 	let selectedOrgs: string[] = $state([]);
-
-	function toggleOrg(key: string) {
-		if (selectedOrgs.includes(key)) {
-			selectedOrgs = selectedOrgs.filter(o => o !== key);
-		} else {
-			selectedOrgs = [...selectedOrgs, key];
-		}
-	}
-
-	function toggleGroup(groupKey: string, checked: boolean) {
-		const group = orgGroups.find(g => g.key === groupKey);
-		if (!group) return;
-		const childKeys = group.children.map(c => c.key);
-		if (checked) {
-			selectedOrgs = [...new Set([...selectedOrgs, ...childKeys])];
-		} else {
-			selectedOrgs = selectedOrgs.filter(o => !childKeys.includes(o));
-		}
-	}
 
 	// Form fields
 	let eventName = $state("");
@@ -53,6 +37,15 @@
 	let leaderName = $state("");
 	let leaderPhone = $state("");
 	let leaderEmail = $state("");
+	let additionalDetails = $state("");
+
+	// Attachments
+	let attachments: any[] = $state([]);
+	let pendingFiles: File[] = $state([]);
+	let deletingAttachment = $state<string | null>(null);
+	let deleteAttachmentModalOpen = $state(false);
+	let deleteAttachmentTarget = $state<any>(null);
+
 	let notifyEmail = $state("");
 	let notifyPhone = $state("");
 	let notifyCarrier = $state("");
@@ -60,18 +53,18 @@
 	let submitting = $state(false);
 	let errors: Record<string, string> = $state({});
 
+	const repo = getRepository();
 	const unsubAuth = user.subscribe((u) => { currentUser = u; });
 
 	onMount(() => {
 		const unsubLoading = authLoading.subscribe(async (isLoading) => {
 			if (isLoading) return;
-			if (!currentUser || currentUser.role !== "planner") {
+			if (!currentUser || (currentUser.role !== "planner" && currentUser.role !== "super")) {
 				goto("/login");
 				return;
 			}
 			try {
-				const result = await api.getEvent(data.eventId);
-				const event = result.event || result;
+				const event = await repo.events.getById(data.eventId);
 				eventName = event.event_name || "";
 				// Parse event_start/event_end into separate date and time
 				if (event.event_start) {
@@ -97,9 +90,16 @@
 				leaderName = event.leader_name || "";
 				leaderPhone = event.leader_phone || "";
 				leaderEmail = event.leader_email || "";
+				additionalDetails = event.additional_details || "";
 				notifyEmail = event.notify_email || "";
 				notifyPhone = event.notify_phone || "";
 				notifyCarrier = event.notify_carrier || "";
+
+				// Load attachments
+				try {
+					attachments = await repo.attachments.list(data.eventId);
+				} catch { /* ok if none */ }
+
 				// Parse organizations
 				if (event.organizations) {
 					try {
@@ -125,15 +125,13 @@
 
 	function buildDatetime(date: string, time: string): string {
 		if (!date) return '';
-		return time ? `${date}T${time}` : `${date}T00:00`;
+		return time ? `${date}T${time}` : date;
 	}
 
 	function validate(): boolean {
 		const newErrors: Record<string, string> = {};
 		if (!eventName.trim()) newErrors.eventName = "Event name is required";
 		if (!startDate) newErrors.startDate = "Event date is required";
-		if (!startTime) newErrors.startTime = "Start time is required";
-		if (!endTime) newErrors.endTime = "End time is required";
 		if (isMultiDay && !endDate) newErrors.endDate = "End date is required";
 		if (isMultiDay && startDate && endDate) {
 			const start = buildDatetime(startDate, startTime);
@@ -159,6 +157,22 @@
 		return Object.keys(newErrors).length === 0;
 	}
 
+	async function confirmDeleteAttachment() {
+		if (!deleteAttachmentTarget) return;
+		deletingAttachment = deleteAttachmentTarget.id;
+		try {
+			await repo.attachments.delete(data.eventId, deleteAttachmentTarget.id);
+			attachments = attachments.filter(a => a.id !== deleteAttachmentTarget.id);
+			toastSuccess("Attachment deleted.");
+		} catch (err: any) {
+			toastError(err.message || "Failed to delete attachment");
+		} finally {
+			deletingAttachment = null;
+			deleteAttachmentModalOpen = false;
+			deleteAttachmentTarget = null;
+		}
+	}
+
 	async function handleSubmit() {
 		if (!validate()) return;
 		submitting = true;
@@ -166,7 +180,7 @@
 			const eventStartDt = buildDatetime(startDate, startTime);
 			const eventEndDt = isMultiDay ? buildDatetime(endDate, endTime) : buildDatetime(startDate, endTime);
 			const eventDatesDisplay = formatEventDates(eventStartDt, isMultiDay ? eventEndDt : buildDatetime(startDate, endTime));
-			await api.updateEvent(data.eventId, {
+			await repo.events.update(data.eventId, {
 				event_name: eventName,
 				event_dates: eventDatesDisplay,
 				event_start: eventStartDt,
@@ -181,7 +195,18 @@
 				notify_phone: notifyPhone || null,
 				notify_carrier: notifyCarrier || null,
 				organizations: selectedOrgs,
+				additional_details: additionalDetails || null,
 			});
+
+			// Upload new attachments
+			for (const file of pendingFiles) {
+				try {
+					await repo.attachments.upload(data.eventId, file);
+				} catch (err: any) {
+					console.error('Failed to upload attachment:', err.message);
+				}
+			}
+
 			toastSuccess("Event updated successfully!");
 			goto(`/event/${data.eventId}`);
 		} catch (err: any) {
@@ -196,9 +221,9 @@
 	<title>Edit Event</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-2xl px-4 py-8">
+<div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading...</p>
+		<LoadingState />
 	{:else}
 		<div class="mb-6 flex items-center justify-between">
 			<h1 class="text-3xl font-bold">Edit Event</h1>
@@ -224,9 +249,8 @@
 								{#if errors.startDate}<p class="text-sm text-destructive">{errors.startDate}</p>{/if}
 							</div>
 							<div class="space-y-2">
-								<Label for="startTime">Start Time *</Label>
+								<Label for="startTime">Start Time</Label>
 								<Input id="startTime" type="time" bind:value={startTime} />
-								{#if errors.startTime}<p class="text-sm text-destructive">{errors.startTime}</p>{/if}
 							</div>
 						</div>
 
@@ -243,18 +267,16 @@
 									{#if errors.endDate}<p class="text-sm text-destructive">{errors.endDate}</p>{/if}
 								</div>
 								<div class="space-y-2">
-									<Label for="endTime">End Time *</Label>
+									<Label for="endTime">End Time</Label>
 									<Input id="endTime" type="time" bind:value={endTime} />
-									{#if errors.endTime}<p class="text-sm text-destructive">{errors.endTime}</p>{/if}
 								</div>
 							</div>
 						{:else}
 							<div class="grid gap-4 sm:grid-cols-2">
 								<div></div>
 								<div class="space-y-2">
-									<Label for="endTimeSingle">End Time *</Label>
+									<Label for="endTimeSingle">End Time</Label>
 									<Input id="endTimeSingle" type="time" bind:value={endTime} />
-									{#if errors.endTime}<p class="text-sm text-destructive">{errors.endTime}</p>{/if}
 								</div>
 							</div>
 						{/if}
@@ -275,6 +297,77 @@
 							<Input id="stake" bind:value={stake} placeholder="Stake name" />
 							{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
 						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			<!-- Additional Info & Attachments -->
+			<Card>
+				<CardHeader>
+					<CardTitle>Additional Information</CardTitle>
+					<p class="text-sm text-muted-foreground">Optional details and files visible to parents on the form</p>
+				</CardHeader>
+				<CardContent class="space-y-4">
+					<div class="space-y-2">
+						<Label for="additionalDetails">Additional Details</Label>
+						<Textarea id="additionalDetails" bind:value={additionalDetails} placeholder="Extra info, links to Google Docs, packing lists, etc..." rows={4} />
+						<p class="text-xs text-muted-foreground">URLs will be automatically linked.</p>
+					</div>
+
+					<Separator />
+
+					<div class="space-y-2">
+						<Label>Attachments</Label>
+						<p class="text-xs text-muted-foreground">PDFs, images, documents — max 10MB each, up to 10 files.</p>
+
+						{#if attachments.length > 0}
+							<ul class="space-y-1">
+								{#each attachments as att}
+									<li class="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+										<span class="truncate">{att.original_name} <span class="text-muted-foreground">({formatFileSize(att.size)})</span></span>
+										<button
+											type="button"
+											class="ml-2 text-destructive hover:text-destructive/80"
+											disabled={deletingAttachment === att.id}
+											onclick={() => { deleteAttachmentTarget = att; deleteAttachmentModalOpen = true; }}
+										>
+											{deletingAttachment === att.id ? '...' : 'Remove'}
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+
+						{#if pendingFiles.length > 0}
+							<ul class="space-y-1">
+								{#each pendingFiles as file, i}
+									<li class="flex items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-sm">
+										<span class="truncate">{file.name} <span class="text-muted-foreground">(new)</span></span>
+										<button
+											type="button"
+											class="ml-2 text-destructive hover:text-destructive/80"
+											onclick={() => { pendingFiles = pendingFiles.filter((_, idx) => idx !== i); }}
+										>
+											Remove
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+
+						<input
+							type="file"
+							accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt"
+							multiple
+							onchange={(e) => {
+								const input = e.currentTarget;
+								if (input.files) {
+									pendingFiles = [...pendingFiles, ...Array.from(input.files)];
+									input.value = '';
+								}
+							}}
+							class="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary-foreground hover:file:bg-primary/90"
+						/>
 					</div>
 				</CardContent>
 			</Card>
@@ -304,74 +397,9 @@
 				</CardContent>
 			</Card>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Organizations</CardTitle>
-					<p class="text-sm text-muted-foreground">Select which groups are included in this event</p>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					{#each orgGroups as group}
-						<div class="space-y-2">
-							<label class="flex items-center gap-2">
-								<input
-									type="checkbox"
-									checked={group.children.every(c => selectedOrgs.includes(c.key))}
-									onchange={(e) => toggleGroup(group.key, e.currentTarget.checked)}
-									class="h-4 w-4 rounded border-input"
-								/>
-								<span class="text-sm font-semibold">{group.label}</span>
-							</label>
-							<div class="ml-6 flex flex-wrap gap-4">
-								{#each group.children as child}
-									<label class="flex items-center gap-2">
-										<input
-											type="checkbox"
-											checked={selectedOrgs.includes(child.key)}
-											onchange={() => toggleOrg(child.key)}
-											class="h-4 w-4 rounded border-input"
-										/>
-										<span class="text-sm">{child.label}</span>
-									</label>
-								{/each}
-							</div>
-						</div>
-					{/each}
-				</CardContent>
-			</Card>
+			<OrganizationPicker bind:selectedOrgs />
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Notification Settings</CardTitle>
-					<p class="text-sm text-muted-foreground">Optional — get notified when forms are submitted</p>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					<div class="space-y-2">
-						<Label for="notifyEmail">Notification Email</Label>
-						<Input id="notifyEmail" type="email" bind:value={notifyEmail} placeholder="notify@example.com" />
-						{#if errors.notifyEmail}<p class="text-sm text-destructive">{errors.notifyEmail}</p>{/if}
-					</div>
-					<Separator />
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div class="space-y-2">
-							<Label for="notifyPhone">Notification Phone</Label>
-							<Input id="notifyPhone" type="tel" bind:value={notifyPhone} placeholder="(555) 123-4567" />
-						</div>
-						<div class="space-y-2">
-							<Label for="notifyCarrier">Carrier</Label>
-							<select
-								id="notifyCarrier"
-								bind:value={notifyCarrier}
-								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-							>
-								<option value="">Select carrier...</option>
-								{#each carriers as carrier}
-									<option value={carrier.value}>{carrier.label}</option>
-								{/each}
-							</select>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+			<NotificationSettings bind:notifyEmail bind:notifyPhone bind:notifyCarrier emailError={errors?.notifyEmail} />
 
 			<div class="flex gap-3">
 				<Button type="submit" class="flex-1" disabled={submitting}>
@@ -384,3 +412,13 @@
 		</form>
 	{/if}
 </div>
+
+<ConfirmModal
+	bind:open={deleteAttachmentModalOpen}
+	title="Remove Attachment"
+	message="Remove &quot;{deleteAttachmentTarget?.original_name}&quot;? This cannot be undone."
+	confirmLabel="Remove"
+	confirmVariant="destructive"
+	onConfirm={confirmDeleteAttachment}
+	loading={deletingAttachment !== null}
+/>

@@ -20,7 +20,7 @@ describe('Email service', () => {
       participantName: 'Jane Doe',
       eventName: 'Youth Camp',
       pdfPath: '/path/to/file.pdf',
-      fromName: 'Permission Forms',
+      fromName: 'Permish',
       fromAddress: 'noreply@test.com',
     });
     expect(sentOptions.to).toBe('recipient@test.com');

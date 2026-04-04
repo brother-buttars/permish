@@ -1,9 +1,12 @@
 const { Router } = require('express');
 const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs');
 const { sanitizeString } = require('../middleware/validate');
 const { generatePdf } = require('../services/pdf');
 const { createTransport, sendNotification } = require('../services/email');
 const { sendSmsNotification } = require('../services/sms');
+const { submitLimiter, formLoadLimiter } = require('../middleware/rateLimiter');
 const config = require('../config');
 
 const router = Router();
@@ -17,16 +20,42 @@ function computeAge(dob) {
   return age;
 }
 
-router.get('/:id/form', (req, res) => {
+router.get('/:id/form', formLoadLimiter, (req, res) => {
   const db = req.app.locals.db;
-  const event = db.prepare('SELECT id, event_name, event_dates, event_description, ward, stake, leader_name, leader_phone, leader_email, organizations, is_active FROM events WHERE id = ?').get(req.params.id);
+  const event = db.prepare('SELECT id, event_name, event_dates, event_description, additional_details, ward, stake, leader_name, leader_phone, leader_email, organizations, is_active FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
   if (!event.is_active) return res.status(410).json({ error: 'This form is no longer accepting submissions' });
   const { is_active, ...publicEvent } = event;
-  res.json({ event: publicEvent });
+  const attachments = db.prepare('SELECT id, original_name, mime_type, size FROM event_attachments WHERE event_id = ? ORDER BY display_order ASC').all(req.params.id);
+  res.json({ event: publicEvent, attachments });
 });
 
-router.post('/:id/submit', async (req, res) => {
+// Public: list attachments for an event
+router.get('/:id/attachments', (req, res) => {
+  const db = req.app.locals.db;
+  const event = db.prepare('SELECT id, is_active FROM events WHERE id = ?').get(req.params.id);
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  const attachments = db.prepare('SELECT id, original_name, mime_type, size FROM event_attachments WHERE event_id = ? ORDER BY display_order ASC').all(req.params.id);
+  res.json({ attachments });
+});
+
+// Public: download/serve an attachment
+router.get('/:id/attachments/:attachmentId', (req, res) => {
+  const db = req.app.locals.db;
+  const attachment = db.prepare('SELECT * FROM event_attachments WHERE id = ? AND event_id = ?').get(req.params.attachmentId, req.params.id);
+  if (!attachment) return res.status(404).json({ error: 'Attachment not found' });
+
+  const filePath = path.resolve(config.uploadsDir, attachment.filename);
+  if (!filePath.startsWith(path.resolve(config.uploadsDir))) return res.status(403).json({ error: 'Access denied' });
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+
+  const safeName = attachment.original_name.replace(/[^\w.\-]/g, '_');
+  res.setHeader('Content-Type', attachment.mime_type);
+  res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+  fs.createReadStream(filePath).pipe(res);
+});
+
+router.post('/:id/submit', submitLimiter, async (req, res) => {
   const db = req.app.locals.db;
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!event) return res.status(404).json({ error: 'Event not found' });
@@ -37,8 +66,11 @@ router.post('/:id/submit', async (req, res) => {
   const age = computeAge(d.participant_dob);
   const submittedBy = req.user?.id || null;
 
-  if (!d.participant_name || !d.participant_dob || !d.participant_signature || !d.participant_signature_type || !d.participant_signature_date) {
+  if (!d.participant_name || !d.participant_dob || !d.participant_signature_type || !d.participant_signature_date) {
     return res.status(400).json({ error: 'Missing required fields' });
+  }
+  if (d.participant_signature_type !== 'hand' && !d.participant_signature) {
+    return res.status(400).json({ error: 'Participant signature is required unless signing by hand' });
   }
 
   if (d.participant_signature && d.participant_signature.length > 700000) {

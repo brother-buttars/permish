@@ -48,6 +48,39 @@ export function getOrgDisplayLabels(keys: string[]): string[] {
   return labels;
 }
 
+// Determine if an org label belongs to Young Men or Young Women family
+export function isYMLabel(label: string): boolean {
+  return ['Young Men', 'Deacons', 'Teachers', 'Priests'].includes(label);
+}
+
+export function isYWLabel(label: string): boolean {
+  return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
+}
+
+// Badge CSS classes matching YouthIcon colors (blue for YM, pink for YW)
+export function orgBadgeClass(label: string): string {
+  if (isYMLabel(label)) return 'border-blue-300 bg-blue-100 text-blue-600 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+  if (isYWLabel(label)) return 'border-pink-300 bg-pink-100 text-pink-600 dark:border-pink-700 dark:bg-pink-900/30 dark:text-pink-400';
+  return 'border-border bg-muted text-muted-foreground';
+}
+
+// Infer youth program from org keys (for icon coloring)
+// Returns 'young_men' if only YM orgs, 'young_women' if only YW orgs, null if mixed/empty
+export function inferProgramFromOrgs(orgKeys: string[]): 'young_men' | 'young_women' | null {
+  if (!orgKeys || orgKeys.length === 0) return null;
+  const ymKeys = new Set(['deacons', 'teachers', 'priests']);
+  const ywKeys = new Set(['beehives', 'mia_maids', 'laurels']);
+  let hasYM = false;
+  let hasYW = false;
+  for (const k of orgKeys) {
+    if (k === 'young_men' || ymKeys.has(k)) hasYM = true;
+    if (k === 'young_women' || ywKeys.has(k)) hasYW = true;
+  }
+  if (hasYM && !hasYW) return 'young_men';
+  if (hasYW && !hasYM) return 'young_women';
+  return null;
+}
+
 // Check if org keys match a filter (any overlap)
 export function matchesOrgFilter(eventOrgs: string[], filterOrgs: string[]): boolean {
   if (filterOrgs.length === 0) return true;

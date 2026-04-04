@@ -80,4 +80,72 @@ describe('POST /api/events/:id/submit', () => {
     const res = await request(app).post(`/api/events/${eventId}/submit`).send(submissionData);
     expect(res.status).toBe(410);
   });
+
+  test('rejects submission missing participant_name', async () => {
+    const { participant_name, ...data } = submissionData;
+    const res = await request(app).post(`/api/events/${eventId}/submit`).send(data);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('required');
+  });
+
+  test('rejects submission missing participant_dob', async () => {
+    const { participant_dob, ...data } = submissionData;
+    const res = await request(app).post(`/api/events/${eventId}/submit`).send(data);
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects submission missing signature type', async () => {
+    const { participant_signature_type, ...data } = submissionData;
+    const res = await request(app).post(`/api/events/${eventId}/submit`).send(data);
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects submission missing signature date', async () => {
+    const { participant_signature_date, ...data } = submissionData;
+    const res = await request(app).post(`/api/events/${eventId}/submit`).send(data);
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects oversized participant signature', async () => {
+    const res = await request(app).post(`/api/events/${eventId}/submit`).send({
+      ...submissionData,
+      participant_signature: 'x'.repeat(800000),
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('Signature too large');
+  });
+
+  test('rejects oversized guardian signature', async () => {
+    const res = await request(app).post(`/api/events/${eventId}/submit`).send({
+      ...submissionData,
+      guardian_signature: 'x'.repeat(800000),
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.toLowerCase()).toContain('signature too large');
+  });
+
+  test('allows hand signature type without signature data', async () => {
+    const res = await request(app).post(`/api/events/${eventId}/submit`).send({
+      ...submissionData,
+      participant_signature: null,
+      participant_signature_type: 'hand',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.submission.participant_signature_type).toBe('hand');
+  });
+
+  test('rejects typed signature without signature data', async () => {
+    const res = await request(app).post(`/api/events/${eventId}/submit`).send({
+      ...submissionData,
+      participant_signature: null,
+      participant_signature_type: 'typed',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('signature is required');
+  });
+
+  test('returns 404 for nonexistent event', async () => {
+    const res = await request(app).post('/api/events/nonexistent/submit').send(submissionData);
+    expect(res.status).toBe(404);
+  });
 });

@@ -2,7 +2,7 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
@@ -10,6 +10,11 @@
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
+	import PdfModal from "$lib/components/PdfModal.svelte";
+	import YouthIcon from "$lib/components/YouthIcon.svelte";
+	import { inferProgramFromOrgs } from "$lib/utils/organizations";
+	import { Select } from "$lib/components/ui/select";
+	import LoadingState from "$lib/components/LoadingState.svelte";
 
 	let { data } = $props();
 
@@ -36,6 +41,7 @@
 	let pdfModalName = $state('');
 	let pdfLoading = $state(false);
 
+	const repo = getRepository();
 	const unsubAuth = user.subscribe((u) => {
 		currentUser = u;
 	});
@@ -74,11 +80,11 @@
 	async function loadData() {
 		try {
 			const [eventData, subData] = await Promise.all([
-				api.getEvent(data.eventId),
-				api.getSubmissions(data.eventId),
+				repo.events.getById(data.eventId),
+				repo.events.getSubmissions(data.eventId),
 			]);
-			event = eventData.event || eventData;
-			submissions = subData.submissions || subData || [];
+			event = eventData;
+			submissions = subData;
 		} catch (err) {
 			console.error("Failed to load event:", err);
 		} finally {
@@ -106,7 +112,7 @@
 		deleteLoading = true;
 		deleting = deleteTargetId;
 		try {
-			await api.deleteSubmission(deleteTargetId);
+			await repo.submissions.delete(deleteTargetId);
 			submissions = submissions.filter((s) => s.id !== deleteTargetId);
 			deleteModalOpen = false;
 			toastSuccess("Submission deleted.");
@@ -126,7 +132,7 @@
 
 			await Promise.all(
 				submissions.map(async (sub, i) => {
-					const url = api.getPdfUrl(sub.id);
+					const url = repo.submissions.getPdfUrl(sub.id);
 					const res = await fetch(url, { credentials: "include" });
 					const blob = await res.blob();
 					const name = sub.participant_name
@@ -151,7 +157,7 @@
 		pdfLoading = true;
 		pdfModalOpen = true;
 		try {
-			const res = await fetch(api.getPdfUrl(submissionId), { credentials: 'include' });
+			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
 			const blob = await res.blob();
 			pdfModalUrl = URL.createObjectURL(blob);
 		} catch {
@@ -170,29 +176,15 @@
 		}
 	}
 
-	function printPdf() {
-		const iframe = document.getElementById('pdf-preview-iframe') as HTMLIFrameElement;
-		if (iframe?.contentWindow) {
-			iframe.contentWindow.print();
-		}
-	}
-
-	function downloadPdf() {
-		if (!pdfModalUrl) return;
-		const a = document.createElement('a');
-		a.href = pdfModalUrl;
-		a.download = `permission-form-${pdfModalName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-		a.click();
-	}
 </script>
 
 <svelte:head>
 	<title>Submissions — {event?.event_name || "Event"}</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-5xl px-4 py-8">
+<div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading...</p>
+		<LoadingState />
 	{:else if !event}
 		<p class="text-center text-destructive">Event not found.</p>
 	{:else}
@@ -226,15 +218,12 @@
 					/>
 				</div>
 				<div>
-					<select
-						bind:value={sortOption}
-						class="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
+					<Select bind:value={sortOption}>
 						<option value="date-newest">Date (newest)</option>
 						<option value="date-oldest">Date (oldest)</option>
 						<option value="name-az">Name (A-Z)</option>
 						<option value="name-za">Name (Z-A)</option>
-					</select>
+					</Select>
 				</div>
 			</CardContent>
 		</Card>
@@ -258,7 +247,54 @@
 				</CardContent>
 			</Card>
 		{:else}
-			<div class="overflow-x-auto rounded-lg border">
+			<!-- Mobile card view -->
+			<div class="space-y-3 sm:hidden">
+				{#each filteredSubmissions as sub}
+					<Card>
+						<CardContent class="py-3 px-4">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2">
+										<YouthIcon size="sm" program={inferProgramFromOrgs((() => { try { const o = event?.organizations; return typeof o === 'string' ? JSON.parse(o) : (o || []); } catch { return []; } })())} />
+										<p class="font-medium">{sub.participant_name || "\u2014"}</p>
+									</div>
+									<p class="text-sm text-muted-foreground">{sub.emergency_contact || "\u2014"} {sub.emergency_phone_primary ? `\u00b7 ${sub.emergency_phone_primary}` : ""}</p>
+									<p class="text-xs text-muted-foreground">{sub.participant_age ? `Age ${sub.participant_age} \u00b7 ` : ""}{formatDate(sub.submitted_at) || "\u2014"}</p>
+								</div>
+								<div class="flex gap-1">
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+									>
+										PDF
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => goto(`/form/${data.eventId}/edit/${sub.id}`)}
+									>
+										Edit
+									</Button>
+									<Button
+										variant="destructive"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
+										disabled={deleting === sub.id}
+									>
+										{deleting === sub.id ? "..." : "Delete"}
+									</Button>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				{/each}
+			</div>
+			<!-- Desktop table view -->
+			<div class="hidden sm:block overflow-x-auto rounded-lg border">
 				<table class="w-full text-sm">
 					<thead>
 						<tr class="border-b bg-muted/50">
@@ -273,7 +309,12 @@
 					<tbody>
 						{#each filteredSubmissions as sub}
 							<tr class="border-b">
-								<td class="px-4 py-3">{sub.participant_name || "\u2014"}</td>
+								<td class="px-4 py-3">
+									<div class="flex items-center gap-2">
+										<YouthIcon size="sm" program={inferProgramFromOrgs((() => { try { const o = event?.organizations; return typeof o === 'string' ? JSON.parse(o) : (o || []); } catch { return []; } })())} />
+										{sub.participant_name || "\u2014"}
+									</div>
+								</td>
 								<td class="px-4 py-3">{sub.participant_age || "\u2014"}</td>
 								<td class="px-4 py-3">{sub.emergency_contact || "\u2014"}</td>
 								<td class="px-4 py-3">{sub.emergency_phone_primary || "\u2014"}</td>
@@ -316,36 +357,7 @@
 	{/if}
 </div>
 
-{#if pdfModalOpen}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onclick={closePdfModal}>
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="mx-6 my-6 flex h-[calc(100vh-3rem)] w-full flex-col rounded-lg bg-card shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
-		<div class="flex items-center justify-between border-b px-4 py-3">
-			<h3 class="font-semibold">{pdfModalName} — Permission Form</h3>
-			<div class="flex gap-2">
-				<Button variant="outline" size="sm" onclick={printPdf}>Print</Button>
-				<Button variant="outline" size="sm" onclick={downloadPdf}>Download</Button>
-				<Button variant="ghost" size="sm" onclick={closePdfModal}>Close</Button>
-			</div>
-		</div>
-		<div class="flex-1 overflow-hidden">
-			{#if pdfLoading}
-				<div class="flex h-full items-center justify-center">
-					<p class="text-muted-foreground">Loading PDF...</p>
-				</div>
-			{:else}
-				<iframe
-					id="pdf-preview-iframe"
-					src={pdfModalUrl}
-					class="h-full w-full"
-					title="PDF Preview"
-				></iframe>
-			{/if}
-		</div>
-	</div>
-</div>
-{/if}
+<PdfModal bind:open={pdfModalOpen} url={pdfModalUrl} name={pdfModalName} loading={pdfLoading} onclose={closePdfModal} />
 
 <ConfirmModal
 	bind:open={deleteModalOpen}

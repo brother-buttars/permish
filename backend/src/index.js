@@ -9,7 +9,8 @@ const formRoutes = require('./routes/form');
 const eventsRoutes = require('./routes/events');
 const profilesRoutes = require('./routes/profiles');
 const submissionsRoutes = require('./routes/submissions');
-const { registerLimiter, loginLimiter } = require('./middleware/rateLimiter');
+const adminRoutes = require('./routes/admin');
+const { registerLimiter, loginLimiter, submitLimiter, formLoadLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
@@ -49,6 +50,18 @@ app.use('/api/profiles', profilesRoutes);
 
 // Submissions routes
 app.use('/api/submissions', submissionsRoutes);
+
+// Admin routes (super admin only)
+app.use('/api/admin', adminRoutes);
+
+// Global error handler — must be last middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+  });
+});
 
 if (require.main === module) {
   app.listen(config.port, () => {

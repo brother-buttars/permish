@@ -25,8 +25,15 @@ function requireAuth(req, res, next) {
 }
 
 function requirePlanner(req, res, next) {
-  if (!req.user || req.user.role !== 'planner') {
+  if (!req.user || (req.user.role !== 'planner' && req.user.role !== 'super')) {
     return res.status(403).json({ error: 'Planner access required' });
+  }
+  next();
+}
+
+function requireSuper(req, res, next) {
+  if (!req.user || req.user.role !== 'super') {
+    return res.status(403).json({ error: 'Admin access required' });
   }
   next();
 }
@@ -45,4 +52,4 @@ function setAuthCookie(res, user) {
   });
 }
 
-module.exports = { extractUser, requireAuth, requirePlanner, setAuthCookie };
+module.exports = { extractUser, requireAuth, requirePlanner, requireSuper, setAuthCookie };

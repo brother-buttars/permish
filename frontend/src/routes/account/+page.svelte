@@ -2,7 +2,7 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
@@ -10,10 +10,17 @@
 	import { Separator } from "$lib/components/ui/separator";
 	import SignaturePad from "$lib/components/SignaturePad.svelte";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
+	import LoadingState from "$lib/components/LoadingState.svelte";
+	import AlertBox from "$lib/components/AlertBox.svelte";
 
 	let currentUser: any = $state(null);
 	let loading = $state(true);
 	let saving = $state(false);
+	let changingPassword = $state(false);
+	let currentPassword = $state("");
+	let newPassword = $state("");
+	let confirmPassword = $state("");
+	let passwordError = $state("");
 
 	let name = $state("");
 	let phone = $state("");
@@ -23,6 +30,7 @@
 	let guardianSigValue = $state("");
 	let guardianSigType = $state<"drawn" | "typed">("typed");
 
+	const repo = getRepository();
 	const unsub = user.subscribe((u) => {
 		currentUser = u;
 	});
@@ -35,8 +43,7 @@
 				return;
 			}
 			try {
-				const data = await api.getUserProfile();
-				const p = data.profile;
+				const p = await repo.auth.getProfile();
 				name = p.name || "";
 				phone = p.phone || "";
 				address = p.address || "";
@@ -60,7 +67,7 @@
 	async function handleSave() {
 		saving = true;
 		try {
-			await api.updateUserProfile({
+			await repo.auth.updateProfile({
 				name,
 				phone,
 				address,
@@ -76,17 +83,45 @@
 			saving = false;
 		}
 	}
+
+	async function handlePasswordChange() {
+		passwordError = "";
+		if (!currentPassword || !newPassword) {
+			passwordError = "All fields are required.";
+			return;
+		}
+		if (newPassword.length < 8) {
+			passwordError = "New password must be at least 8 characters.";
+			return;
+		}
+		if (newPassword !== confirmPassword) {
+			passwordError = "New passwords do not match.";
+			return;
+		}
+		changingPassword = true;
+		try {
+			await repo.auth.changePassword(currentPassword, newPassword);
+			toastSuccess("Password changed successfully.");
+			currentPassword = "";
+			newPassword = "";
+			confirmPassword = "";
+		} catch (err: any) {
+			passwordError = err.message || "Failed to change password.";
+		} finally {
+			changingPassword = false;
+		}
+	}
 </script>
 
 <svelte:head>
 	<title>My Account</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-2xl px-4 py-8">
+<div class="container mx-auto max-w-4xl px-4 py-8">
 	<h1 class="mb-6 text-3xl font-bold">My Account</h1>
 
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading...</p>
+		<LoadingState />
 	{:else}
 		<form onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="space-y-6">
 			<Card>
@@ -132,7 +167,7 @@
 				<CardHeader>
 					<CardTitle>Guardian Signature</CardTitle>
 					<p class="text-sm text-muted-foreground">
-						Save your signature here to auto-fill permission forms.
+						Save your signature here to auto-fill forms.
 					</p>
 				</CardHeader>
 				<CardContent>
@@ -151,5 +186,37 @@
 				{saving ? "Saving..." : "Save Profile"}
 			</Button>
 		</form>
+
+		<Separator class="my-8" />
+
+		<!-- Change Password -->
+		<Card>
+			<CardHeader>
+				<CardTitle>Change Password</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<form onsubmit={(e) => { e.preventDefault(); handlePasswordChange(); }} class="space-y-4">
+					{#if passwordError}
+						<AlertBox message={passwordError} />
+					{/if}
+					<div class="space-y-2">
+						<Label for="currentPassword">Current Password</Label>
+						<Input id="currentPassword" type="password" bind:value={currentPassword} />
+					</div>
+					<div class="space-y-2">
+						<Label for="newPassword">New Password</Label>
+						<Input id="newPassword" type="password" bind:value={newPassword} />
+						<p class="text-xs text-muted-foreground">Minimum 8 characters</p>
+					</div>
+					<div class="space-y-2">
+						<Label for="confirmPassword">Confirm New Password</Label>
+						<Input id="confirmPassword" type="password" bind:value={confirmPassword} />
+					</div>
+					<Button type="submit" variant="outline" class="w-full" disabled={changingPassword}>
+						{changingPassword ? "Changing..." : "Change Password"}
+					</Button>
+				</form>
+			</CardContent>
+		</Card>
 	{/if}
 </div>

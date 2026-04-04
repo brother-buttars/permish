@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
+	import AlertBox from "$lib/components/AlertBox.svelte";
 
 	let email = $state('');
 	let password = $state('');
@@ -36,9 +37,7 @@
 			<CardContent>
 				<div class="space-y-4">
 					{#if error}
-						<div class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-							{error}
-						</div>
+						<AlertBox message={error} />
 					{/if}
 					<div class="space-y-2">
 						<Label for="email">Email</Label>
@@ -59,6 +58,9 @@
 							bind:value={password}
 							required
 						/>
+					</div>
+					<div class="text-right">
+						<a href="/forgot-password" class="text-xs text-muted-foreground hover:text-primary underline">Forgot password?</a>
 					</div>
 				</div>
 			</CardContent>

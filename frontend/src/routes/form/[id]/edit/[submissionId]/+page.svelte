@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { user } from "$lib/stores/auth";
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
@@ -16,6 +16,9 @@
 	} from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import SignaturePad from "$lib/components/SignaturePad.svelte";
+	import LoadingState from "$lib/components/LoadingState.svelte";
+	import AlertBox from "$lib/components/AlertBox.svelte";
+	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
 
 	let { data } = $props();
 
@@ -60,18 +63,18 @@
 	let otherAccommodations = $state("");
 
 	// Signatures
-	let participantSigValue = $state("");
-	let participantSigType = $state<"drawn" | "typed">("drawn");
+	let participantSigValue = $state("hand");
+	let participantSigType = $state<"drawn" | "typed" | "hand">("hand");
 	let participantSigDate = $state("");
-	let guardianSigValue = $state("");
-	let guardianSigType = $state<"drawn" | "typed">("drawn");
+	let guardianSigValue = $state("hand");
+	let guardianSigType = $state<"drawn" | "typed" | "hand">("hand");
 	let guardianSigDate = $state("");
 
 	// Initial values for signature pads (from existing submission)
 	let participantInitialValue = $state("");
-	let participantInitialType = $state<"drawn" | "typed" | undefined>(undefined);
+	let participantInitialType = $state<"drawn" | "typed" | "hand" | undefined>(undefined);
 	let guardianInitialValue = $state("");
-	let guardianInitialType = $state<"drawn" | "typed" | undefined>(undefined);
+	let guardianInitialType = $state<"drawn" | "typed" | "hand" | undefined>(undefined);
 
 	let computedAge = $derived.by(() => {
 		if (!dateOfBirth) return "";
@@ -130,14 +133,15 @@
 		guardianSigDate = sub.guardian_signature_date || "";
 	}
 
+	const repo = getRepository();
+
 	onMount(async () => {
 		try {
-			const [eventResult, subResult] = await Promise.all([
-				api.getEvent(data.eventId),
-				api.getSubmission(data.submissionId),
+			const [eventResult, submission] = await Promise.all([
+				repo.events.getById(data.eventId),
+				repo.submissions.getById(data.submissionId),
 			]);
-			event = eventResult.event || eventResult;
-			const submission = subResult.submission || subResult;
+			event = eventResult;
 			fillFromSubmission(submission);
 		} catch (err: any) {
 			error = err.message || "Failed to load submission";
@@ -152,14 +156,19 @@
 		const errors: string[] = [];
 		if (!participantName.trim()) errors.push("Participant name is required.");
 		if (!dateOfBirth) errors.push("Date of birth is required.");
-		if (!participantSigValue) errors.push("Participant signature is required.");
-		if (!guardianSigValue) errors.push("Parent/Guardian signature is required.");
+		if (participantSigType !== "hand" && !participantSigValue) errors.push("Participant signature is required.");
+		if (guardianSigType !== "hand" && !guardianSigValue) errors.push("Parent/Guardian signature is required.");
 		return errors;
 	}
 
 	async function handleSubmit() {
 		validationErrors = validate();
-		if (validationErrors.length > 0) return;
+		if (validationErrors.length > 0) {
+			setTimeout(() => {
+				document.getElementById('validation-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			}, 50);
+			return;
+		}
 
 		submitting = true;
 		try {
@@ -185,15 +194,15 @@
 				recent_surgery_details: hadRecentSurgery ? recentSurgeryDetails : "",
 				activity_limitations: activityLimitations,
 				other_accommodations: otherAccommodations,
-				participant_signature: participantSigValue,
+				participant_signature: participantSigType === "hand" ? null : participantSigValue,
 				participant_signature_type: participantSigType,
 				participant_signature_date: participantSigDate,
-				guardian_signature: guardianSigValue,
+				guardian_signature: guardianSigType === "hand" ? null : guardianSigValue,
 				guardian_signature_type: guardianSigType,
 				guardian_signature_date: guardianSigDate,
 			};
 
-			await api.updateSubmission(data.submissionId, formData);
+			await repo.submissions.update(data.submissionId, formData);
 			goto(`/event/${data.eventId}`);
 		} catch (err: any) {
 			validationErrors = [err.message || "Failed to update submission. Please try again."];
@@ -204,12 +213,12 @@
 </script>
 
 <svelte:head>
-	<title>Edit Submission — {event?.event_name || "Permission Form"}</title>
+	<title>Edit Submission — {event?.event_name || "Permish"}</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-3xl px-4 py-8">
+<div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading submission...</p>
+		<LoadingState message="Loading submission..." />
 	{:else if error}
 		<Card>
 			<CardContent class="py-12 text-center">
@@ -256,12 +265,8 @@
 		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
 			<!-- Validation Errors -->
 			{#if validationErrors.length > 0}
-				<div class="rounded-md border border-destructive/50 bg-destructive/10 p-4">
-					<ul class="list-inside list-disc space-y-1 text-sm text-destructive">
-						{#each validationErrors as err}
-							<li>{err}</li>
-						{/each}
-					</ul>
+				<div id="validation-errors">
+					<AlertBox errors={validationErrors} />
 				</div>
 			{/if}
 
@@ -319,82 +324,20 @@
 
 			<Separator />
 
-			<!-- Medical Information -->
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">Medical Information</h2>
-				<div class="space-y-4">
-					<div class="space-y-2">
-						<label class="flex items-center gap-2">
-							<input type="checkbox" bind:checked={hasSpecialDiet} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Special dietary needs</span>
-						</label>
-						{#if hasSpecialDiet}
-							<Input bind:value={specialDietDetails} placeholder="Describe dietary needs..." />
-						{/if}
-					</div>
-
-					<div class="space-y-2">
-						<label class="flex items-center gap-2">
-							<input type="checkbox" bind:checked={hasAllergies} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Allergies</span>
-						</label>
-						{#if hasAllergies}
-							<Input bind:value={allergyDetails} placeholder="List allergies..." />
-						{/if}
-					</div>
-
-					<div class="space-y-2">
-						<Label for="medications">Medications</Label>
-						<Textarea id="medications" bind:value={medications} placeholder="List any current medications..." />
-					</div>
-
-					<label class="flex items-center gap-2">
-						<input type="checkbox" bind:checked={canSelfAdminister} class="h-4 w-4 rounded border-input" />
-						<span class="text-sm font-medium">Participant can self-administer medications</span>
-					</label>
-				</div>
-			</section>
-
-			<Separator />
-
-			<!-- Conditions That Limit Activity -->
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">Conditions That Limit Activity</h2>
-				<div class="space-y-4">
-					<div class="space-y-2">
-						<label class="flex items-center gap-2">
-							<input type="checkbox" bind:checked={hasChronicIllness} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Chronic illness or condition</span>
-						</label>
-						{#if hasChronicIllness}
-							<Input bind:value={chronicIllnessDetails} placeholder="Describe condition..." />
-						{/if}
-					</div>
-
-					<div class="space-y-2">
-						<label class="flex items-center gap-2">
-							<input type="checkbox" bind:checked={hadRecentSurgery} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Surgery or serious illness in the past year</span>
-						</label>
-						{#if hadRecentSurgery}
-							<Input bind:value={recentSurgeryDetails} placeholder="Describe surgery or illness..." />
-						{/if}
-					</div>
-
-					<div class="space-y-2">
-						<Label for="limitations">Activity Limitations</Label>
-						<Textarea id="limitations" bind:value={activityLimitations} placeholder="Describe any activity limitations..." />
-					</div>
-				</div>
-			</section>
-
-			<Separator />
-
-			<!-- Other Accommodations -->
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">Other Accommodations</h2>
-				<Textarea bind:value={otherAccommodations} placeholder="Any other accommodations or information the event organizer should know..." />
-			</section>
+			<MedicalInfoSection
+				bind:hasSpecialDiet
+				bind:specialDietDetails
+				bind:hasAllergies
+				bind:allergyDetails
+				bind:medications
+				bind:canSelfAdminister
+				bind:hasChronicIllness
+				bind:chronicIllnessDetails
+				bind:hadRecentSurgery
+				bind:recentSurgeryDetails
+				bind:activityLimitations
+				bind:otherAccommodations
+			/>
 
 			<Separator />
 
@@ -428,6 +371,7 @@
 					bind:date={participantSigDate}
 					initialValue={participantInitialValue}
 					initialType={participantInitialType}
+					allowHand
 				/>
 
 				<Separator />
@@ -439,6 +383,7 @@
 					bind:date={guardianSigDate}
 					initialValue={guardianInitialValue}
 					initialType={guardianInitialType}
+					allowHand
 				/>
 			</section>
 

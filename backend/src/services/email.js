@@ -1,5 +1,13 @@
 const nodemailer = require('nodemailer');
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function createTransport(emailConfig) {
   if (emailConfig.provider === 'resend') {
     return nodemailer.createTransport({
@@ -21,13 +29,13 @@ async function sendNotification(transport, { to, participantName, eventName, pdf
   const mailOptions = {
     from: `"${fromName}" <${fromAddress}>`,
     to,
-    subject: `Permission Form Submitted: ${participantName} - ${eventName}`,
-    text: `A permission form has been submitted for ${participantName} for ${eventName}.`,
-    html: `<p>A permission form has been submitted for <strong>${participantName}</strong> for <strong>${eventName}</strong>.</p>`,
-    attachments: [{
-      filename: `permission-form-${participantName.replace(/\s+/g, '-').toLowerCase()}.pdf`,
+    subject: `Form Submitted: ${participantName} - ${eventName}`,
+    text: `A form has been submitted for ${participantName} for ${eventName}.`,
+    html: `<p>A form has been submitted for <strong>${escapeHtml(participantName)}</strong> for <strong>${escapeHtml(eventName)}</strong>.</p>`,
+    attachments: pdfPath ? [{
+      filename: `permish-${participantName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.pdf`,
       path: pdfPath,
-    }],
+    }] : [],
   };
   return transport.sendMail(mailOptions);
 }

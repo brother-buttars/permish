@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { toasts, removeToast } from '$lib/stores/toast';
+  import { toasts, removeToast, type Toast } from '$lib/stores/toast';
   import { fly } from 'svelte/transition';
 
-  let items: any[] = $state([]);
-  const unsub = toasts.subscribe(t => { items = t; });
+  let items: Toast[] = $state([]);
+
+  $effect(() => {
+    const unsub = toasts.subscribe(t => { items = t; });
+    return unsub;
+  });
 </script>
 
 <div class="fixed top-4 left-1/2 z-[100] flex -translate-x-1/2 flex-col items-center gap-2 pointer-events-none">

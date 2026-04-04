@@ -3,11 +3,12 @@
 	import { goto } from "$app/navigation";
 	import { page } from "$app/stores";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
 	import { Textarea } from "$lib/components/ui/textarea";
+	import { Select } from "$lib/components/ui/select";
 	import {
 		Card,
 		CardHeader,
@@ -16,10 +17,13 @@
 		CardFooter,
 	} from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
-	import SignaturePad from "$lib/components/SignaturePad.svelte";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { formatDate } from "$lib/utils/formatDate";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
+	import { getYouthClass, youthClassBadgeClass, type YouthProgram } from "$lib/utils/youthClass";
+	import YouthIcon from "$lib/components/YouthIcon.svelte";
+	import LoadingState from "$lib/components/LoadingState.svelte";
+	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
 
 	let profiles: any[] = $state([]);
 	let loading = $state(true);
@@ -56,9 +60,8 @@
 	let recentSurgeryDetails = $state("");
 	let activityLimitations = $state("");
 	let otherAccommodations = $state("");
-	let guardianSigValue = $state("");
-	let guardianSigType = $state<"drawn" | "typed">("typed");
-
+	let youthProgram = $state("");
+	const repo = getRepository();
 	const unsub = user.subscribe((u) => {
 		currentUser = u;
 	});
@@ -88,8 +91,7 @@
 
 	async function loadProfiles() {
 		try {
-			const data = await api.listProfiles();
-			profiles = data.profiles || data || [];
+			profiles = await repo.profiles.list();
 		} catch {
 			profiles = [];
 		} finally {
@@ -119,8 +121,7 @@
 		recentSurgeryDetails = "";
 		activityLimitations = "";
 		otherAccommodations = "";
-		guardianSigValue = "";
-		guardianSigType = "typed";
+		youthProgram = "";
 	}
 
 	function fillForm(profile: any) {
@@ -145,8 +146,7 @@
 		recentSurgeryDetails = profile.recent_surgery_details || "";
 		activityLimitations = profile.activity_limitations || "";
 		otherAccommodations = profile.other_accommodations || "";
-		guardianSigValue = profile.guardian_signature || "";
-		guardianSigType = profile.guardian_signature_type || "typed";
+		youthProgram = profile.youth_program || "";
 	}
 
 	function startEdit(profile: any) {
@@ -190,8 +190,7 @@
 			recent_surgery_details: hadRecentSurgery ? recentSurgeryDetails : "",
 			activity_limitations: activityLimitations,
 			other_accommodations: otherAccommodations,
-			guardian_signature: guardianSigValue,
-			guardian_signature_type: guardianSigType,
+			youth_program: youthProgram || null,
 		};
 	}
 
@@ -203,9 +202,9 @@
 		saving = true;
 		try {
 			if (editingId) {
-				await api.updateProfile(editingId, getFormData());
+				await repo.profiles.update(editingId, getFormData());
 			} else {
-				await api.createProfile(getFormData());
+				await repo.profiles.create(getFormData());
 			}
 			await loadProfiles();
 			cancelEdit();
@@ -220,7 +219,7 @@
 	async function confirmDeleteProfile() {
 		deleteLoading = true;
 		try {
-			await api.deleteProfile(deleteTargetId);
+			await repo.profiles.delete(deleteTargetId);
 			deleteModalOpen = false;
 			await loadProfiles();
 			toastSuccess("Profile deleted.");
@@ -236,7 +235,7 @@
 	<title>Child Profiles</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-3xl px-4 py-8">
+<div class="container mx-auto max-w-4xl px-4 py-8">
 	<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<h1 class="text-3xl font-bold">Child Profiles</h1>
 		{#if !showNewForm && !editingId}
@@ -245,7 +244,7 @@
 	</div>
 
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading...</p>
+		<LoadingState />
 	{:else}
 		<!-- New / Edit form -->
 		{#if showNewForm || editingId}
@@ -268,6 +267,27 @@
 							<div class="space-y-2">
 								<Label for="phone">Phone</Label>
 								<Input id="phone" type="tel" bind:value={phone} placeholder="(555) 555-5555" />
+							</div>
+							<div class="space-y-2 sm:col-span-2">
+								<Label for="youthProgram">Youth Program</Label>
+								<Select
+									id="youthProgram"
+									bind:value={youthProgram}
+								>
+									<option value="">Not set</option>
+									<option value="young_men">Young Men</option>
+									<option value="young_women">Young Women</option>
+								</Select>
+								{#if youthProgram && dateOfBirth}
+									{@const yc = getYouthClass(dateOfBirth, youthProgram as YouthProgram)}
+									{#if yc}
+										<p class="text-sm text-muted-foreground">
+											Auto-assigned class: <span class="font-medium {yc.program === 'young_men' ? 'text-blue-600 dark:text-blue-400' : 'text-pink-600 dark:text-pink-400'}">{yc.label}</span>
+										</p>
+									{:else}
+										<p class="text-sm text-muted-foreground">Age not in youth range (12–18)</p>
+									{/if}
+								{/if}
 							</div>
 							<div class="space-y-2 sm:col-span-2">
 								<Label for="address">Address</Label>
@@ -304,87 +324,19 @@
 
 						<Separator />
 
-						<!-- Medical -->
-						<h3 class="text-lg font-medium">Medical Information</h3>
-						<div class="space-y-4">
-							<div class="space-y-2">
-								<label class="flex items-center gap-2">
-									<input type="checkbox" bind:checked={hasSpecialDiet} class="h-4 w-4 rounded border-input" />
-									<span class="text-sm font-medium">Special dietary needs</span>
-								</label>
-								{#if hasSpecialDiet}
-									<Input bind:value={specialDietDetails} placeholder="Describe dietary needs..." />
-								{/if}
-							</div>
-
-							<div class="space-y-2">
-								<label class="flex items-center gap-2">
-									<input type="checkbox" bind:checked={hasAllergies} class="h-4 w-4 rounded border-input" />
-									<span class="text-sm font-medium">Allergies</span>
-								</label>
-								{#if hasAllergies}
-									<Input bind:value={allergyDetails} placeholder="List allergies..." />
-								{/if}
-							</div>
-
-							<div class="space-y-2">
-								<Label for="meds">Medications</Label>
-								<Textarea id="meds" bind:value={medications} placeholder="List current medications..." />
-							</div>
-
-							<label class="flex items-center gap-2">
-								<input type="checkbox" bind:checked={canSelfAdminister} class="h-4 w-4 rounded border-input" />
-								<span class="text-sm font-medium">Can self-administer medications</span>
-							</label>
-						</div>
-
-						<Separator />
-
-						<!-- Conditions -->
-						<h3 class="text-lg font-medium">Conditions That Limit Activity</h3>
-						<div class="space-y-4">
-							<div class="space-y-2">
-								<label class="flex items-center gap-2">
-									<input type="checkbox" bind:checked={hasChronicIllness} class="h-4 w-4 rounded border-input" />
-									<span class="text-sm font-medium">Chronic illness or condition</span>
-								</label>
-								{#if hasChronicIllness}
-									<Input bind:value={chronicIllnessDetails} placeholder="Describe condition..." />
-								{/if}
-							</div>
-
-							<div class="space-y-2">
-								<label class="flex items-center gap-2">
-									<input type="checkbox" bind:checked={hadRecentSurgery} class="h-4 w-4 rounded border-input" />
-									<span class="text-sm font-medium">Surgery or serious illness in the past year</span>
-								</label>
-								{#if hadRecentSurgery}
-									<Input bind:value={recentSurgeryDetails} placeholder="Describe surgery or illness..." />
-								{/if}
-							</div>
-
-							<div class="space-y-2">
-								<Label for="limitations">Activity Limitations</Label>
-								<Textarea id="limitations" bind:value={activityLimitations} placeholder="Describe any limitations..." />
-							</div>
-						</div>
-
-						<Separator />
-
-						<!-- Other -->
-						<div class="space-y-2">
-							<Label for="accommodations">Other Accommodations</Label>
-							<Textarea id="accommodations" bind:value={otherAccommodations} placeholder="Any other information..." />
-						</div>
-
-						<Separator />
-
-						<!-- Guardian Signature -->
-						<SignaturePad
-							label="Guardian Signature"
-							bind:value={guardianSigValue}
-							bind:type={guardianSigType}
-							showDate={false}
+						<MedicalInfoSection
+							bind:hasSpecialDiet
+							bind:specialDietDetails
+							bind:hasAllergies
+							bind:allergyDetails
+							bind:medications
+							bind:canSelfAdminister
+							bind:hasChronicIllness
+							bind:chronicIllnessDetails
+							bind:hadRecentSurgery
+							bind:recentSurgeryDetails
+							bind:activityLimitations
+							bind:otherAccommodations
 						/>
 
 						<div class="flex gap-3">
@@ -412,8 +364,18 @@
 					{#if editingId !== profile.id}
 						<Card>
 							<CardContent class="flex items-center justify-between py-4">
-								<div>
-									<p class="font-medium">{profile.participant_name}</p>
+								<div class="flex items-center gap-3">
+									<YouthIcon program={profile.youth_program} />
+									<div>
+										<div class="flex items-center gap-2">
+											<p class="font-medium">{profile.participant_name}</p>
+											{#if profile.youth_program && profile.participant_dob}
+												{@const yc = getYouthClass(profile.participant_dob, profile.youth_program as YouthProgram)}
+												{#if yc}
+													<span class="rounded-full border px-2 py-0.5 text-xs font-medium {youthClassBadgeClass(yc.program)}">{yc.label}</span>
+												{/if}
+											{/if}
+										</div>
 									{#if profile.participant_dob}
 										<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
 									{/if}
@@ -425,6 +387,7 @@
 											{/if}
 										</p>
 									{/if}
+									</div>
 								</div>
 								<div class="flex gap-2">
 									<Button variant="outline" size="sm" onclick={() => startEdit(profile)}>

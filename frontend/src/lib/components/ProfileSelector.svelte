@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { user } from "$lib/stores/auth";
 	import { Label } from "$lib/components/ui/label";
+	import { Select } from "$lib/components/ui/select";
+	import { getYouthClass, profileMatchesEventOrgs, type YouthProgram } from "$lib/utils/youthClass";
 
-	let { onSelect }: { onSelect: (profile: any) => void } = $props();
+	let { onSelect, eventOrgs = [] }: { onSelect: (profile: any) => void; eventOrgs?: string[] } = $props();
 
 	let profiles: any[] = $state([]);
 	let loading = $state(true);
@@ -15,14 +17,20 @@
 		currentUser = u;
 	});
 
+	let filteredProfiles = $derived(
+		eventOrgs.length > 0
+			? profiles.filter(p => profileMatchesEventOrgs(p.participant_dob, p.youth_program, eventOrgs))
+			: profiles
+	);
+
 	onMount(async () => {
 		if (!currentUser) {
 			loading = false;
 			return;
 		}
 		try {
-			const data = await api.listProfiles();
-			profiles = data.profiles || data || [];
+			const repo = getRepository();
+			profiles = await repo.profiles.list();
 		} catch {
 			profiles = [];
 		} finally {
@@ -43,6 +51,12 @@
 			if (profile) onSelect(profile);
 		}
 	}
+
+	function getClassLabel(profile: any): string {
+		if (!profile.youth_program || !profile.participant_dob) return '';
+		const yc = getYouthClass(profile.participant_dob, profile.youth_program as YouthProgram);
+		return yc ? ` (${yc.label})` : '';
+	}
 </script>
 
 {#if currentUser}
@@ -51,19 +65,18 @@
 		{#if loading}
 			<p class="text-sm text-muted-foreground">Loading profiles...</p>
 		{:else}
-			<select
-				class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+			<Select
 				value={selectedId}
 				onchange={handleChange}
 			>
 				<option value="">Select a profile...</option>
-				{#each profiles as profile}
+				{#each filteredProfiles as profile}
 					<option value={profile.id}>
-						{profile.participant_name}
+						{profile.participant_name}{getClassLabel(profile)}
 					</option>
 				{/each}
 				<option value="manual">Fill out manually</option>
-			</select>
+			</Select>
 		{/if}
 	</div>
 {/if}

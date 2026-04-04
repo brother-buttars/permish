@@ -40,7 +40,7 @@ async function sendSmsNotification(transport, { phone, carrier, participantName,
     from: `"${fromName}" <${fromAddress}>`,
     to,
     subject: '',
-    text: `${participantName} submitted a permission form for ${eventName}.`,
+    text: `${participantName} submitted a form for ${eventName}.`,
   });
 }
 

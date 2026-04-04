@@ -7,19 +7,21 @@
 	let {
 		label,
 		value = $bindable(""),
-		type = $bindable<"drawn" | "typed">("drawn"),
+		type = $bindable<"drawn" | "typed" | "hand">("drawn"),
 		date = $bindable(""),
 		initialValue = "",
 		initialType = undefined,
 		showDate = true,
+		allowHand = false,
 	}: {
 		label: string;
 		value: string;
-		type: "drawn" | "typed";
+		type: "drawn" | "typed" | "hand";
 		date: string;
 		initialValue?: string;
-		initialType?: "drawn" | "typed";
+		initialType?: "drawn" | "typed" | "hand";
 		showDate?: boolean;
+		allowHand?: boolean;
 	} = $props();
 
 	let canvas: HTMLCanvasElement | undefined = $state();
@@ -27,6 +29,10 @@
 	let isDrawing = $state(false);
 	let typedName = $state("");
 	let hasDrawn = $state(false);
+	let usingSaved = $state(false);
+
+	// Whether a saved signature is available (not "hand" type)
+	let hasSavedSig = $derived(!!initialValue && initialType !== "hand");
 
 	function getToday(): string {
 		const d = new Date();
@@ -38,23 +44,28 @@
 
 	onMount(() => {
 		if (!date) date = getToday();
-		applyInitialValues();
+		// Pre-store typed name from saved sig for when user switches to Type mode
+		if (initialValue && (initialType ?? "typed") === "typed") {
+			typedName = initialValue;
+		}
+		// Only apply saved signature if not starting in "hand" mode
+		if (type !== "hand") {
+			applyInitialValues();
+		}
 		initialized = true;
 	});
 
 	function applyInitialValues() {
-		if (initialType) {
-			type = initialType;
-		}
-		if (initialValue) {
-			if ((initialType ?? type) === "typed") {
-				typedName = initialValue;
-				value = initialValue;
-			} else {
-				value = initialValue;
-				hasDrawn = true;
-				if (canvas) loadImageToCanvas(initialValue);
-			}
+		if (!initialValue) return;
+		if (initialType) type = initialType;
+
+		if ((initialType ?? type) === "typed") {
+			typedName = initialValue;
+			value = initialValue;
+		} else if ((initialType ?? type) === "drawn") {
+			value = initialValue;
+			hasDrawn = true;
+			if (canvas) loadImageToCanvas(initialValue);
 		}
 		lastInitialValue = initialValue;
 	}
@@ -69,7 +80,15 @@
 	// React to initialValue changes (e.g., profile selection after mount)
 	$effect(() => {
 		if (initialized && initialValue !== lastInitialValue) {
-			applyInitialValues();
+			// Update stored typed name
+			if (initialValue && (initialType ?? "typed") === "typed") {
+				typedName = initialValue;
+			}
+			lastInitialValue = initialValue;
+			// If currently using saved, re-apply
+			if (usingSaved) {
+				applySaved();
+			}
 		}
 	});
 
@@ -87,8 +106,8 @@
 		ctx.lineCap = "round";
 		ctx.lineJoin = "round";
 
-		// Redraw if there was an initial drawn value
-		if (initialValue && (initialType ?? "drawn") === "drawn") {
+		// Redraw if there was an initial drawn value and we're in drawn mode
+		if (initialValue && (initialType ?? "drawn") === "drawn" && type === "drawn") {
 			loadImageToCanvas(initialValue);
 		}
 	}
@@ -146,9 +165,12 @@
 		hasDrawn = false;
 	}
 
-	function switchMode(newMode: "drawn" | "typed") {
+	function switchMode(newMode: "drawn" | "typed" | "hand") {
+		usingSaved = false;
 		type = newMode;
-		if (newMode === "typed") {
+		if (newMode === "hand") {
+			value = "hand";
+		} else if (newMode === "typed") {
 			value = typedName;
 		} else {
 			if (hasDrawn && canvas) {
@@ -159,10 +181,25 @@
 		}
 	}
 
+	function applySaved() {
+		usingSaved = true;
+		const savedType = initialType ?? "typed";
+		type = savedType;
+		if (savedType === "typed") {
+			typedName = initialValue;
+			value = initialValue;
+		} else if (savedType === "drawn") {
+			value = initialValue;
+			hasDrawn = true;
+			if (canvas) loadImageToCanvas(initialValue);
+		}
+	}
+
 	function onTypedInput(e: Event) {
 		const target = e.target as HTMLInputElement;
 		typedName = target.value;
 		value = typedName;
+		usingSaved = false;
 	}
 </script>
 
@@ -171,31 +208,73 @@
 
 	<!-- Mode toggle -->
 	<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
+		{#if allowHand}
+			<Button
+				type="button"
+				variant={type === 'hand' && !usingSaved ? "default" : "outline"}
+				size="sm"
+				class="flex-1 {type !== 'hand' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+				onclick={() => switchMode("hand")}
+			>
+				By Hand
+			</Button>
+		{/if}
 		<Button
-			variant={type === 'drawn' ? "default" : "outline"}
+			type="button"
+			variant={type === 'drawn' && !usingSaved ? "default" : "outline"}
 			size="sm"
-			class="flex-1 {type !== 'drawn' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+			class="flex-1 {type !== 'drawn' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
 			onclick={() => switchMode("drawn")}
 		>
 			Draw
 		</Button>
 		<Button
-			variant={type === 'typed' ? "default" : "outline"}
+			type="button"
+			variant={type === 'typed' && !usingSaved ? "default" : "outline"}
 			size="sm"
-			class="flex-1 {type !== 'typed' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+			class="flex-1 {type !== 'typed' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
 			onclick={() => switchMode("typed")}
 		>
 			Type
 		</Button>
+		{#if hasSavedSig}
+			<Button
+				type="button"
+				variant={usingSaved ? "default" : "outline"}
+				size="sm"
+				class="flex-1 {!usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+				onclick={applySaved}
+			>
+				Saved
+			</Button>
+		{/if}
 	</div>
 
+	<!-- Saved mode preview -->
+	{#if usingSaved}
+		<div class="rounded-md border border-input bg-muted/30 p-4 text-center">
+			{#if initialType === "drawn" && initialValue}
+				<img src={initialValue} alt="Saved signature" class="mx-auto max-h-[80px]" />
+			{:else}
+				<span style="font-family: 'Georgia', 'Times New Roman', serif; font-style: italic; font-size: 1.5rem;">
+					{initialValue}
+				</span>
+			{/if}
+			<p class="mt-2 text-xs text-muted-foreground">Using saved signature from your account</p>
+		</div>
+	<!-- Hand mode -->
+	{:else if type === "hand"}
+		<div class="rounded-md border border-dashed border-input bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+			<p class="font-medium text-foreground">Will sign by hand on the printed form</p>
+			<p class="mt-1">The signature area will be left blank on the PDF for you to sign after printing.</p>
+		</div>
 	<!-- Draw mode -->
-	{#if type === "drawn"}
+	{:else if type === "drawn"}
 		<div class="space-y-2">
 			<canvas
 				bind:this={canvas}
-				class="w-full rounded-md border border-input bg-white"
-				style="height: 150px; touch-action: none; cursor: crosshair;"
+				class="w-full rounded-md border border-input bg-white h-[200px] sm:h-[150px]"
+				style="touch-action: none; cursor: crosshair;"
 				onpointerdown={onPointerDown}
 				onpointermove={onPointerMove}
 				onpointerup={onPointerUp}

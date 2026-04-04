@@ -173,6 +173,11 @@ async function generatePdf({ event, submission }, pdfDir) {
     }
   }
 
+  // Remove second page (no fill-in fields)
+  if (pdfDoc.getPageCount() > 1) {
+    pdfDoc.removePage(1);
+  }
+
   // Flatten the form so fields appear as static text
   form.flatten();
 

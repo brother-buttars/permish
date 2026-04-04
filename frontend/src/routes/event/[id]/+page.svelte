@@ -2,22 +2,30 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
-	import { getOrgDisplayLabels } from "$lib/utils/organizations";
+	import { getOrgDisplayLabels, orgBadgeClass, inferProgramFromOrgs } from "$lib/utils/organizations";
+	import { parseOrgs, isPastEvent } from "$lib/utils/events";
+	import { formatFileSize } from "$lib/utils/format";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
 	import QRCode from "qrcode";
+	import PdfModal from "$lib/components/PdfModal.svelte";
+	import { linkify } from "$lib/utils/linkify";
+	import YouthIcon from "$lib/components/YouthIcon.svelte";
+	import LoadingState from "$lib/components/LoadingState.svelte";
+	import { Badge } from "$lib/components/ui/badge";
 
 	let { data } = $props();
 
 	let event: any = $state(null);
 	let submissions: any[] = $state([]);
+	let attachments: any[] = $state([]);
 	let loading = $state(true);
 	let currentUser: any = $state(null);
 	let copySuccess = $state(false);
@@ -58,18 +66,29 @@
 	let pdfModalName = $state('');
 	let pdfLoading = $state(false);
 
+	// Attachment preview modal state
+	let attachPreviewOpen = $state(false);
+	let attachPreviewUrl = $state('');
+	let attachPreviewName = $state('');
+	let attachPreviewType = $state('');
+	let attachPreviewLoading = $state(false);
+
 	const unsubAuth = user.subscribe((u) => {
 		currentUser = u;
 	});
 
+	const repo = getRepository();
+
 	async function loadData() {
 		try {
-			const [eventData, subData] = await Promise.all([
-				api.getEvent(data.eventId),
-				api.getSubmissions(data.eventId),
+			const [eventData, subData, attData] = await Promise.all([
+				repo.events.getById(data.eventId),
+				repo.events.getSubmissions(data.eventId),
+				repo.attachments.list(data.eventId),
 			]);
-			event = eventData.event || eventData;
-			submissions = subData.submissions || subData || [];
+			event = eventData;
+			submissions = subData;
+			attachments = attData;
 		} catch (err) {
 			console.error("Failed to load event:", err);
 		} finally {
@@ -97,7 +116,7 @@
 		if (!event) return;
 		toggling = true;
 		try {
-			await api.updateEvent(data.eventId, { is_active: !event.is_active });
+			await repo.events.update(data.eventId, { is_active: !event.is_active });
 			event = { ...event, is_active: !event.is_active };
 			toastSuccess(event.is_active ? "Event activated." : "Event deactivated.");
 		} catch (err) {
@@ -124,7 +143,7 @@
 		deleteLoading = true;
 		deleting = deleteTargetId;
 		try {
-			await api.deleteSubmission(deleteTargetId);
+			await repo.submissions.delete(deleteTargetId);
 			submissions = submissions.filter((s) => s.id !== deleteTargetId);
 			deleteModalOpen = false;
 			toastSuccess("Submission deleted.");
@@ -144,7 +163,7 @@
 
 			await Promise.all(
 				submissions.map(async (sub, i) => {
-					const url = api.getPdfUrl(sub.id);
+					const url = repo.submissions.getPdfUrl(sub.id);
 					const res = await fetch(url, { credentials: "include" });
 					const blob = await res.blob();
 					const name = sub.participant_name
@@ -164,32 +183,6 @@
 		}
 	}
 
-	function parseOrgs(ev: any): string[] {
-		if (!ev?.organizations) return [];
-		if (typeof ev.organizations === 'string') {
-			try { return JSON.parse(ev.organizations); } catch { return []; }
-		}
-		return ev.organizations;
-	}
-
-	function isYM(label: string): boolean {
-		return ['Young Men', 'Deacons', 'Teachers', 'Priests'].includes(label);
-	}
-	function isYW(label: string): boolean {
-		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
-	}
-	function orgBadgeClass(label: string): string {
-		if (isYM(label)) return 'border-primary/30 bg-primary/10 text-primary';
-		if (isYW(label)) return 'border-accent-foreground/20 bg-accent text-accent-foreground';
-		return 'border-border bg-muted text-muted-foreground';
-	}
-
-	function isPastEvent(ev: any): boolean {
-		const endStr = ev.event_end || ev.event_start;
-		if (!endStr) return false;
-		return new Date(endStr) < new Date();
-	}
-
 	function getFormUrl() {
 		return `${typeof window !== 'undefined' ? window.location.origin : ''}/form/${data.eventId}`;
 	}
@@ -199,7 +192,7 @@
 		pdfLoading = true;
 		pdfModalOpen = true;
 		try {
-			const res = await fetch(api.getPdfUrl(submissionId), { credentials: 'include' });
+			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
 			const blob = await res.blob();
 			pdfModalUrl = URL.createObjectURL(blob);
 		} catch {
@@ -218,20 +211,43 @@
 		}
 	}
 
-	function printPdf() {
-		const iframe = document.getElementById('pdf-preview-iframe') as HTMLIFrameElement;
-		if (iframe?.contentWindow) {
-			iframe.contentWindow.print();
+	function isPreviewable(mimeType: string): boolean {
+		return mimeType === 'application/pdf' || mimeType.startsWith('image/');
+	}
+
+	async function openAttachmentPreview(att: any) {
+		attachPreviewName = att.original_name;
+		attachPreviewType = att.mime_type;
+		attachPreviewLoading = true;
+		attachPreviewOpen = true;
+		try {
+			const url = repo.attachments.getUrl(data.eventId, att.id);
+			const res = await fetch(url, { credentials: 'include' });
+			const blob = await res.blob();
+			attachPreviewUrl = URL.createObjectURL(blob);
+		} catch {
+			toastError('Failed to load attachment');
+			attachPreviewOpen = false;
+		} finally {
+			attachPreviewLoading = false;
 		}
 	}
 
-	function downloadPdf() {
-		if (!pdfModalUrl) return;
+	function closeAttachmentPreview() {
+		attachPreviewOpen = false;
+		if (attachPreviewUrl) {
+			URL.revokeObjectURL(attachPreviewUrl);
+			attachPreviewUrl = '';
+		}
+	}
+
+	function downloadAttachment(att: any) {
 		const a = document.createElement('a');
-		a.href = pdfModalUrl;
-		a.download = `permission-form-${pdfModalName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+		a.href = repo.attachments.getUrl(data.eventId, att.id);
+		a.download = att.original_name;
 		a.click();
 	}
+
 </script>
 
 <svelte:head>
@@ -240,7 +256,7 @@
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading...</p>
+		<LoadingState />
 	{:else if !event}
 		<p class="text-center text-destructive">Event not found.</p>
 	{:else}
@@ -250,7 +266,7 @@
 				<div class="flex items-center gap-2">
 					<h1 class="text-3xl font-bold">{event.event_name}</h1>
 					{#if isPastEvent(event)}
-						<span class="rounded-full border border-muted-foreground/20 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Past</span>
+						<Badge variant="past">Past</Badge>
 					{/if}
 				</div>
 				<p class="text-muted-foreground">{event.event_dates}</p>
@@ -307,7 +323,45 @@
 					</div>
 				{/if}
 
+				{#if event.additional_details}
 				<Separator />
+				<div>
+					<p class="mb-2 text-sm font-medium">Additional Details</p>
+					<div class="text-sm leading-relaxed">{@html linkify(event.additional_details)}</div>
+				</div>
+			{/if}
+
+			{#if attachments.length > 0}
+				<Separator />
+				<div>
+					<p class="mb-2 text-sm font-medium">Attachments</p>
+					<ul class="space-y-1">
+						{#each attachments as att}
+							<li class="flex items-center gap-2 text-sm">
+								{#if att.mime_type === 'application/pdf'}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+								{:else if att.mime_type?.startsWith('image/')}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+								{:else}
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+								{/if}
+								{#if isPreviewable(att.mime_type)}
+									<button class="text-primary underline hover:no-underline" onclick={() => openAttachmentPreview(att)}>
+										{att.original_name}
+									</button>
+								{:else}
+									<button class="text-primary underline hover:no-underline" onclick={() => downloadAttachment(att)}>
+										{att.original_name}
+									</button>
+								{/if}
+								<span class="text-muted-foreground">({formatFileSize(att.size)})</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+
+			<Separator />
 
 				<div>
 					<p class="mb-2 text-sm font-medium">Shareable Form URL</p>
@@ -364,7 +418,54 @@
 						<p class="text-muted-foreground">No submissions yet. Share the form URL with parents to get started.</p>
 					</div>
 				{:else}
-					<div class="overflow-x-auto">
+					<!-- Mobile card view -->
+					<div class="space-y-3 sm:hidden">
+						{#each submissions as sub}
+							<Card>
+								<CardContent class="py-3 px-4">
+									<div class="flex items-center justify-between gap-2">
+										<div class="min-w-0 flex-1">
+											<div class="flex items-center gap-2">
+												<YouthIcon size="sm" program={inferProgramFromOrgs(parseOrgs(event))} />
+												<p class="font-medium">{sub.participant_name || "\u2014"}</p>
+											</div>
+											<p class="text-sm text-muted-foreground">{sub.emergency_contact || "\u2014"}</p>
+											<p class="text-xs text-muted-foreground">{formatDate(sub.submitted_at) || "\u2014"}</p>
+										</div>
+										<div class="flex gap-1">
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-7 text-xs"
+												onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+											>
+												PDF
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												class="h-7 text-xs"
+												onclick={() => goto(`/form/${data.eventId}/edit/${sub.id}`)}
+											>
+												Edit
+											</Button>
+											<Button
+												variant="destructive"
+												size="sm"
+												class="h-7 text-xs"
+												onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
+												disabled={deleting === sub.id}
+											>
+												{deleting === sub.id ? "..." : "Delete"}
+											</Button>
+										</div>
+									</div>
+								</CardContent>
+							</Card>
+						{/each}
+					</div>
+					<!-- Desktop table view -->
+					<div class="hidden sm:block overflow-x-auto">
 						<table class="w-full text-sm">
 							<thead>
 								<tr class="border-b">
@@ -377,7 +478,12 @@
 							<tbody>
 								{#each submissions as sub}
 									<tr class="border-b">
-										<td class="px-4 py-3">{sub.participant_name || "\u2014"}</td>
+										<td class="px-4 py-3">
+											<div class="flex items-center gap-2">
+												<YouthIcon size="sm" program={inferProgramFromOrgs(parseOrgs(event))} />
+												{sub.participant_name || "\u2014"}
+											</div>
+										</td>
 										<td class="px-4 py-3">{sub.emergency_contact || "\u2014"}</td>
 										<td class="px-4 py-3">{formatDate(sub.submitted_at) || "\u2014"}</td>
 										<td class="px-4 py-3">
@@ -420,36 +526,7 @@
 	{/if}
 </div>
 
-{#if pdfModalOpen}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onclick={closePdfModal}>
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="mx-6 my-6 flex h-[calc(100vh-3rem)] w-full flex-col rounded-lg bg-card shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
-		<div class="flex items-center justify-between border-b px-4 py-3">
-			<h3 class="font-semibold">{pdfModalName} — Permission Form</h3>
-			<div class="flex gap-2">
-				<Button variant="outline" size="sm" onclick={printPdf}>Print</Button>
-				<Button variant="outline" size="sm" onclick={downloadPdf}>Download</Button>
-				<Button variant="ghost" size="sm" onclick={closePdfModal}>Close</Button>
-			</div>
-		</div>
-		<div class="flex-1 overflow-hidden">
-			{#if pdfLoading}
-				<div class="flex h-full items-center justify-center">
-					<p class="text-muted-foreground">Loading PDF...</p>
-				</div>
-			{:else}
-				<iframe
-					id="pdf-preview-iframe"
-					src={pdfModalUrl}
-					class="h-full w-full"
-					title="PDF Preview"
-				></iframe>
-			{/if}
-		</div>
-	</div>
-</div>
-{/if}
+<PdfModal bind:open={pdfModalOpen} url={pdfModalUrl} name={pdfModalName} loading={pdfLoading} onclose={closePdfModal} />
 
 <ConfirmModal
 	bind:open={deleteModalOpen}
@@ -493,7 +570,35 @@
 				<img src={qrDataUrl} alt="QR Code" class="h-64 w-64 sm:h-72 sm:w-72" />
 			</div>
 			<p class="text-xs text-muted-foreground text-center break-all">{getFormUrl()}</p>
-			<p class="text-sm text-muted-foreground">Scan to open the permission form</p>
+			<p class="text-sm text-muted-foreground">Scan to open the form</p>
+		</div>
+	</div>
+</div>
+{/if}
+
+{#if attachPreviewOpen}
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onclick={closeAttachmentPreview}>
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="mx-6 my-6 flex h-[calc(100vh-3rem)] w-full flex-col rounded-lg bg-card shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
+		<div class="flex items-center justify-between border-b px-4 py-3">
+			<h3 class="font-semibold">{attachPreviewName}</h3>
+			<div class="flex gap-2">
+				<Button variant="ghost" size="sm" onclick={closeAttachmentPreview}>Close</Button>
+			</div>
+		</div>
+		<div class="flex-1 overflow-hidden">
+			{#if attachPreviewLoading}
+				<div class="flex h-full items-center justify-center">
+					<p class="text-muted-foreground">Loading...</p>
+				</div>
+			{:else if attachPreviewType === 'application/pdf'}
+				<PdfViewer src={attachPreviewUrl} class="h-full" />
+			{:else if attachPreviewType?.startsWith('image/')}
+				<div class="flex h-full items-center justify-center overflow-auto p-4">
+					<img src={attachPreviewUrl} alt={attachPreviewName} class="max-h-full max-w-full object-contain" />
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>

@@ -17,12 +17,19 @@ router.post('/', (req, res) => {
   const id = crypto.randomUUID();
   const d = req.body;
 
+  if (!d.participant_name || !d.participant_name.trim()) {
+    return res.status(400).json({ error: 'Participant name is required' });
+  }
+  if (!d.participant_dob) {
+    return res.status(400).json({ error: 'Date of birth is required' });
+  }
+
   db.prepare(`INSERT INTO child_profiles (id, user_id, participant_name, participant_dob, participant_phone,
     address, city, state_province, emergency_contact, emergency_phone_primary, emergency_phone_secondary,
     special_diet, special_diet_details, allergies, allergies_details, medications, can_self_administer_meds,
     chronic_illness, chronic_illness_details, recent_surgery, recent_surgery_details,
-    activity_limitations, other_accommodations, guardian_signature, guardian_signature_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    activity_limitations, other_accommodations, youth_program)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(id, req.user.id,
       sanitizeString(d.participant_name), d.participant_dob, sanitizeString(d.participant_phone),
       sanitizeString(d.address), sanitizeString(d.city), sanitizeString(d.state_province),
@@ -34,7 +41,7 @@ router.post('/', (req, res) => {
       d.chronic_illness ? 1 : 0, sanitizeString(d.chronic_illness_details),
       d.recent_surgery ? 1 : 0, sanitizeString(d.recent_surgery_details),
       sanitizeString(d.activity_limitations, 1000), sanitizeString(d.other_accommodations, 1000),
-      d.guardian_signature || null, d.guardian_signature_type || null);
+      d.youth_program || null);
 
   const profile = db.prepare('SELECT * FROM child_profiles WHERE id = ?').get(id);
   res.status(201).json({ profile });
@@ -46,12 +53,20 @@ router.put('/:id', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Profile not found' });
 
   const d = req.body;
+
+  if (!d.participant_name || !d.participant_name.trim()) {
+    return res.status(400).json({ error: 'Participant name is required' });
+  }
+  if (!d.participant_dob) {
+    return res.status(400).json({ error: 'Date of birth is required' });
+  }
+
   db.prepare(`UPDATE child_profiles SET participant_name = ?, participant_dob = ?, participant_phone = ?,
     address = ?, city = ?, state_province = ?, emergency_contact = ?, emergency_phone_primary = ?,
     emergency_phone_secondary = ?, special_diet = ?, special_diet_details = ?, allergies = ?,
     allergies_details = ?, medications = ?, can_self_administer_meds = ?,
     chronic_illness = ?, chronic_illness_details = ?, recent_surgery = ?, recent_surgery_details = ?,
-    activity_limitations = ?, other_accommodations = ?, guardian_signature = ?, guardian_signature_type = ?,
+    activity_limitations = ?, other_accommodations = ?, youth_program = ?,
     updated_at = datetime('now')
     WHERE id = ?`)
     .run(
@@ -65,7 +80,7 @@ router.put('/:id', (req, res) => {
       d.chronic_illness ? 1 : 0, sanitizeString(d.chronic_illness_details),
       d.recent_surgery ? 1 : 0, sanitizeString(d.recent_surgery_details),
       sanitizeString(d.activity_limitations, 1000), sanitizeString(d.other_accommodations, 1000),
-      d.guardian_signature || null, d.guardian_signature_type || null,
+      d.youth_program !== undefined ? (d.youth_program || null) : existing.youth_program,
       req.params.id);
 
   const profile = db.prepare('SELECT * FROM child_profiles WHERE id = ?').get(req.params.id);

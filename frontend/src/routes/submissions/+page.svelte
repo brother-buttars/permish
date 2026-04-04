@@ -2,13 +2,23 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
+	import PdfModal from "$lib/components/PdfModal.svelte";
+	import YouthIcon from "$lib/components/YouthIcon.svelte";
+	import { inferProgramFromOrgs } from "$lib/utils/organizations";
+	import { Select } from "$lib/components/ui/select";
+	import LoadingState from "$lib/components/LoadingState.svelte";
+
+	function parseSubOrgs(sub: any): string[] {
+		if (!sub.organizations) return [];
+		try { return typeof sub.organizations === 'string' ? JSON.parse(sub.organizations) : sub.organizations; } catch { return []; }
+	}
 
 	let view = $state<'planner' | 'parent'>('planner');
 	let allSubmissions: any[] = $state([]);
@@ -36,6 +46,7 @@
 	let pdfModalName = $state('');
 	let pdfLoading = $state(false);
 
+	const repo = getRepository();
 	const unsub = user.subscribe(u => { currentUser = u; });
 
 	onMount(() => {
@@ -51,15 +62,15 @@
 			try {
 				const promises: Promise<any>[] = [];
 				if (isPlanner) {
-					promises.push(api.getAllSubmissions());
+					promises.push(repo.events.getAllSubmissions());
 				}
-				promises.push(api.getMySubmissions());
+				promises.push(repo.submissions.getMine());
 
 				const results = await Promise.all(promises);
 
 				if (isPlanner) {
-					allSubmissions = results[0].submissions || [];
-					mySubmissions = results[1].submissions || results[1] || [];
+					allSubmissions = results[0];
+					mySubmissions = results[1];
 
 					// Extract unique events
 					const eventMap = new Map<string, string>();
@@ -70,7 +81,7 @@
 					});
 					uniqueEvents = Array.from(eventMap, ([id, name]) => ({ id, name }));
 				} else {
-					mySubmissions = results[0].submissions || results[0] || [];
+					mySubmissions = results[0];
 				}
 			} catch (err) {
 				console.error('Failed to load submissions:', err);
@@ -111,7 +122,7 @@
 		deleteLoading = true;
 		deleting = deleteTargetId;
 		try {
-			await api.deleteSubmission(deleteTargetId);
+			await repo.submissions.delete(deleteTargetId);
 			allSubmissions = allSubmissions.filter(s => s.id !== deleteTargetId);
 			mySubmissions = mySubmissions.filter(s => s.id !== deleteTargetId);
 			deleteModalOpen = false;
@@ -129,7 +140,7 @@
 		pdfLoading = true;
 		pdfModalOpen = true;
 		try {
-			const res = await fetch(api.getPdfUrl(submissionId), { credentials: 'include' });
+			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
 			const blob = await res.blob();
 			pdfModalUrl = URL.createObjectURL(blob);
 		} catch {
@@ -148,25 +159,11 @@
 		}
 	}
 
-	function printPdf() {
-		const iframe = document.getElementById('pdf-preview-iframe') as HTMLIFrameElement;
-		if (iframe?.contentWindow) {
-			iframe.contentWindow.print();
-		}
-	}
-
-	function downloadPdf() {
-		if (!pdfModalUrl) return;
-		const a = document.createElement('a');
-		a.href = pdfModalUrl;
-		a.download = `permission-form-${pdfModalName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-		a.click();
-	}
 </script>
 
 <svelte:head><title>Submissions</title></svelte:head>
 
-<div class="container mx-auto max-w-5xl px-4 py-8">
+<div class="container mx-auto max-w-4xl px-4 py-8">
 	<div class="mb-6">
 		<h1 class="text-3xl font-bold">Submissions</h1>
 	</div>
@@ -201,15 +198,12 @@
 					<Input type="text" placeholder="Search by participant or contact..." bind:value={search} />
 				</div>
 				{#if view === 'planner' && uniqueEvents.length > 0}
-					<select
-						class="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-						bind:value={eventFilter}
-					>
+					<Select bind:value={eventFilter}>
 						<option value="">All Events</option>
 						{#each uniqueEvents as ev}
 							<option value={ev.id}>{ev.name}</option>
 						{/each}
-					</select>
+					</Select>
 				{/if}
 			</div>
 		</CardContent>
@@ -217,7 +211,7 @@
 
 	<!-- Content -->
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading...</p>
+		<LoadingState />
 	{:else if view === 'planner'}
 		<!-- Planner View -->
 		{#if filteredPlannerSubmissions.length === 0}
@@ -228,7 +222,54 @@
 			</Card>
 		{:else}
 			<p class="mb-3 text-sm text-muted-foreground">{filteredPlannerSubmissions.length} submission{filteredPlannerSubmissions.length === 1 ? '' : 's'}</p>
-			<Card>
+			<!-- Mobile card view -->
+			<div class="space-y-3 sm:hidden">
+				{#each filteredPlannerSubmissions as sub}
+					<Card>
+						<CardContent class="py-3 px-4">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2">
+										<YouthIcon size="sm" program={inferProgramFromOrgs(parseSubOrgs(sub))} />
+										<p class="font-medium">{sub.participant_name || "\u2014"}</p>
+									</div>
+									<p class="text-sm text-muted-foreground">{sub.event_name || "\u2014"}</p>
+									<p class="text-xs text-muted-foreground">{sub.emergency_contact ? `${sub.emergency_contact} \u00b7 ` : ""}{formatDate(sub.submitted_at) || "\u2014"}</p>
+								</div>
+								<div class="flex gap-1">
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+									>
+										PDF
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => goto(`/form/${sub.event_id}/edit/${sub.id}`)}
+									>
+										Edit
+									</Button>
+									<Button
+										variant="destructive"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
+										disabled={deleting === sub.id}
+									>
+										{deleting === sub.id ? "..." : "Delete"}
+									</Button>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				{/each}
+			</div>
+			<!-- Desktop table view -->
+			<Card class="hidden sm:block">
 				<CardContent class="p-0">
 					<div class="overflow-x-auto">
 						<table class="w-full text-sm">
@@ -244,7 +285,12 @@
 							<tbody>
 								{#each filteredPlannerSubmissions as sub}
 									<tr class="border-b">
-										<td class="px-4 py-3">{sub.participant_name || "\u2014"}</td>
+										<td class="px-4 py-3">
+											<div class="flex items-center gap-2">
+												<YouthIcon size="sm" program={inferProgramFromOrgs(parseSubOrgs(sub))} />
+												{sub.participant_name || "\u2014"}
+											</div>
+										</td>
 										<td class="px-4 py-3">{sub.event_name || "\u2014"}</td>
 										<td class="px-4 py-3">{sub.emergency_contact || "\u2014"}</td>
 										<td class="px-4 py-3">{formatDate(sub.submitted_at) || "\u2014"}</td>
@@ -295,7 +341,45 @@
 			</Card>
 		{:else}
 			<p class="mb-3 text-sm text-muted-foreground">{filteredParentSubmissions.length} submission{filteredParentSubmissions.length === 1 ? '' : 's'}</p>
-			<Card>
+			<!-- Mobile card view -->
+			<div class="space-y-3 sm:hidden">
+				{#each filteredParentSubmissions as sub}
+					<Card>
+						<CardContent class="py-3 px-4">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2">
+										<YouthIcon size="sm" program={inferProgramFromOrgs(parseSubOrgs(sub))} />
+										<p class="font-medium">{sub.participant_name || "\u2014"}</p>
+									</div>
+									<p class="text-sm text-muted-foreground">{sub.event_name || "\u2014"}</p>
+									<p class="text-xs text-muted-foreground">{formatDate(sub.submitted_at) || "\u2014"}</p>
+								</div>
+								<div class="flex gap-1">
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+									>
+										PDF
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => goto(`/form/${sub.event_id}/edit/${sub.id}`)}
+									>
+										Edit
+									</Button>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				{/each}
+			</div>
+			<!-- Desktop table view -->
+			<Card class="hidden sm:block">
 				<CardContent class="p-0">
 					<div class="overflow-x-auto">
 						<table class="w-full text-sm">
@@ -311,7 +395,12 @@
 								{#each filteredParentSubmissions as sub}
 									<tr class="border-b">
 										<td class="px-4 py-3">{sub.event_name || "\u2014"}</td>
-										<td class="px-4 py-3">{sub.participant_name || "\u2014"}</td>
+										<td class="px-4 py-3">
+											<div class="flex items-center gap-2">
+												<YouthIcon size="sm" program={inferProgramFromOrgs(parseSubOrgs(sub))} />
+												{sub.participant_name || "\u2014"}
+											</div>
+										</td>
 										<td class="px-4 py-3">{formatDate(sub.submitted_at) || "\u2014"}</td>
 										<td class="px-4 py-3">
 											<div class="flex gap-1">
@@ -344,36 +433,7 @@
 	{/if}
 </div>
 
-{#if pdfModalOpen}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onclick={closePdfModal}>
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="mx-6 my-6 flex h-[calc(100vh-3rem)] w-full flex-col rounded-lg bg-card shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
-		<div class="flex items-center justify-between border-b px-4 py-3">
-			<h3 class="font-semibold">{pdfModalName} — Permission Form</h3>
-			<div class="flex gap-2">
-				<Button variant="outline" size="sm" onclick={printPdf}>Print</Button>
-				<Button variant="outline" size="sm" onclick={downloadPdf}>Download</Button>
-				<Button variant="ghost" size="sm" onclick={closePdfModal}>Close</Button>
-			</div>
-		</div>
-		<div class="flex-1 overflow-hidden">
-			{#if pdfLoading}
-				<div class="flex h-full items-center justify-center">
-					<p class="text-muted-foreground">Loading PDF...</p>
-				</div>
-			{:else}
-				<iframe
-					id="pdf-preview-iframe"
-					src={pdfModalUrl}
-					class="h-full w-full"
-					title="PDF Preview"
-				></iframe>
-			{/if}
-		</div>
-	</div>
-</div>
-{/if}
+<PdfModal bind:open={pdfModalOpen} url={pdfModalUrl} name={pdfModalName} loading={pdfLoading} onclose={closePdfModal} />
 
 <ConfirmModal
 	bind:open={deleteModalOpen}

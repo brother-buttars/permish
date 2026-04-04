@@ -12,7 +12,7 @@
 </script>
 
 <div
-	class={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
+	class={cn("rounded-lg border bg-card text-card-foreground shadow-sm backdrop-blur-lg", className)}
 	{...restProps}
 >
 	{#if children}

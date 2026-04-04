@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import { api } from '$lib/api';
+import { getRepository } from '$lib/data';
 
 interface User {
 	id: string;
@@ -13,8 +13,9 @@ export const authLoading = writable(true);
 
 export async function checkAuth() {
 	try {
-		const data = await api.me();
-		user.set(data.user);
+		const repo = getRepository();
+		const u = await repo.auth.getCurrentUser();
+		user.set(u as User | null);
 	} catch {
 		user.set(null);
 	} finally {
@@ -23,18 +24,21 @@ export async function checkAuth() {
 }
 
 export async function login(email: string, password: string) {
-	const data = await api.login({ email, password });
-	user.set(data.user);
-	return data.user;
+	const repo = getRepository();
+	const u = await repo.auth.login(email, password);
+	user.set(u as User);
+	return u;
 }
 
 export async function register(email: string, password: string, name: string, role: string) {
-	const data = await api.register({ email, password, name, role });
-	user.set(data.user);
-	return data.user;
+	const repo = getRepository();
+	const u = await repo.auth.register(email, password, name, role);
+	user.set(u as User);
+	return u;
 }
 
 export async function logout() {
-	await api.logout();
+	const repo = getRepository();
+	await repo.auth.logout();
 	user.set(null);
 }

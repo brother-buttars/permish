@@ -66,16 +66,102 @@ router.put('/profile', requireAuth, (req, res) => {
   const { sanitizeString } = require('../middleware/validate');
   const d = req.body;
 
+  if (!d.name || !d.name.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  if (d.guardian_signature_type && !['drawn', 'typed', 'hand'].includes(d.guardian_signature_type)) {
+    return res.status(400).json({ error: 'Invalid signature type' });
+  }
+  if (d.guardian_signature && d.guardian_signature.length > 700000) {
+    return res.status(400).json({ error: 'Signature too large' });
+  }
+
   db.prepare(`UPDATE users SET name = ?, phone = ?, address = ?, city = ?, state_province = ?,
     guardian_signature = ?, guardian_signature_type = ? WHERE id = ?`)
     .run(
-      sanitizeString(d.name || ''), sanitizeString(d.phone),
+      sanitizeString(d.name.trim()), sanitizeString(d.phone),
       sanitizeString(d.address), sanitizeString(d.city), sanitizeString(d.state_province),
       d.guardian_signature || null, d.guardian_signature_type || null,
       req.user.id);
 
   const updated = db.prepare('SELECT id, email, name, role, phone, address, city, state_province, guardian_signature, guardian_signature_type FROM users WHERE id = ?').get(req.user.id);
   res.json({ profile: updated });
+});
+
+router.post('/forgot-password', async (req, res) => {
+  const db = req.app.locals.db;
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  const user = db.prepare('SELECT id, email, name FROM users WHERE email = ?').get(email);
+  // Always return success to prevent email enumeration
+  if (!user) return res.json({ message: 'If an account exists with that email, a reset link has been sent.' });
+
+  const token = randomUUID();
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+  db.prepare('INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)')
+    .run(randomUUID(), user.id, token, expiresAt);
+
+  // Send reset email
+  try {
+    const config = require('../config');
+    const { createTransport } = require('../services/email');
+    const transport = createTransport(config.email);
+    const resetUrl = `${config.frontendUrl}/reset-password?token=${token}`;
+    await transport.sendMail({
+      from: `"${config.email.fromName}" <${config.email.fromAddress}>`,
+      to: user.email,
+      subject: 'Password Reset — Permish',
+      text: `Hi ${user.name},\n\nClick the link below to reset your password:\n${resetUrl}\n\nThis link expires in 1 hour.\n\nIf you did not request this, you can ignore this email.`,
+      html: `<p>Hi ${user.name},</p><p>Click the link below to reset your password:</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>This link expires in 1 hour.</p><p>If you did not request this, you can ignore this email.</p>`,
+    });
+  } catch (err) {
+    console.error('Failed to send reset email:', err.message);
+  }
+
+  res.json({ message: 'If an account exists with that email, a reset link has been sent.' });
+});
+
+router.post('/reset-password', async (req, res) => {
+  const db = req.app.locals.db;
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  const resetToken = db.prepare('SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0').get(token);
+  if (!resetToken) return res.status(400).json({ error: 'Invalid or expired reset link' });
+  if (new Date(resetToken.expires_at) < new Date()) {
+    return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
+  }
+
+  const password_hash = await bcrypt.hash(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(password_hash, resetToken.user_id);
+  db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(resetToken.id);
+
+  res.json({ message: 'Password reset successfully. You can now log in.' });
+});
+
+router.put('/password', requireAuth, async (req, res) => {
+  const db = req.app.locals.db;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const valid = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+
+  const password_hash = await bcrypt.hash(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(password_hash, req.user.id);
+  res.json({ message: 'Password updated successfully' });
 });
 
 module.exports = router;

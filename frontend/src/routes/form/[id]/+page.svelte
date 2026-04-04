@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { goto } from "$app/navigation";
+	import { goto, beforeNavigate } from "$app/navigation";
 	import { page } from "$app/stores";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { user } from "$lib/stores/auth";
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
@@ -19,12 +19,35 @@
 	import SignaturePad from "$lib/components/SignaturePad.svelte";
 	import ProfileSelector from "$lib/components/ProfileSelector.svelte";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+	import PdfViewer from "$lib/components/PdfViewer.svelte";
+	import { linkify } from "$lib/utils/linkify";
+	import { formatFileSize } from "$lib/utils/format";
+	import LoadingState from "$lib/components/LoadingState.svelte";
+	import AlertBox from "$lib/components/AlertBox.svelte";
+	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
+	import FormProgress from "$lib/components/FormProgress.svelte";
+
+	const formSections = [
+		{ id: "section-contact", label: "Contact" },
+		{ id: "section-emergency", label: "Emergency" },
+		{ id: "section-medical", label: "Medical" },
+		{ id: "section-permission", label: "Permission" },
+		{ id: "section-signatures", label: "Signatures" },
+	];
 
 	let { data } = $props();
 
 	let event: any = $state(null);
+	let attachments: any[] = $state([]);
 	let loading = $state(true);
 	let error = $state("");
+
+	// Attachment preview modal
+	let attachPreviewOpen = $state(false);
+	let attachPreviewUrl = $state('');
+	let attachPreviewName = $state('');
+	let attachPreviewType = $state('');
+	let attachPreviewLoading = $state(false);
 	let submitting = $state(false);
 	let validationErrors: string[] = $state([]);
 	let currentUser: any = $state(null);
@@ -63,16 +86,16 @@
 	let otherAccommodations = $state("");
 
 	// Signatures
-	let participantSigValue = $state("");
-	let participantSigType = $state<"drawn" | "typed">("drawn");
+	let participantSigValue = $state("hand");
+	let participantSigType = $state<"drawn" | "typed" | "hand">("typed");
 	let participantSigDate = $state("");
-	let guardianSigValue = $state("");
-	let guardianSigType = $state<"drawn" | "typed">("drawn");
+	let guardianSigValue = $state("hand");
+	let guardianSigType = $state<"drawn" | "typed" | "hand">("typed");
 	let guardianSigDate = $state("");
 
-	// Profile-based initial values for guardian sig
-	let guardianInitialValue = $state("");
-	let guardianInitialType = $state<"drawn" | "typed" | undefined>(undefined);
+	// Saved guardian signature from user profile (used when switching away from "hand")
+	let savedGuardianSig = $state("");
+	let savedGuardianSigType = $state<"drawn" | "typed">("typed");
 
 	// Track whether an existing profile was used
 	let usedExistingProfile = $state(false);
@@ -80,6 +103,25 @@
 	// Save profile modal state
 	let saveProfileModalOpen = $state(false);
 	let saveProfileLoading = $state(false);
+	let pendingSubmissionId = $state('');
+	let formDirty = $state(false);
+	let formSubmitted = $state(false);
+
+	// Track form changes
+	$effect(() => {
+		if (participantName || dateOfBirth || phone || address || emergencyContact) {
+			formDirty = true;
+		}
+	});
+
+	// Warn before navigating away from dirty form
+	beforeNavigate(({ cancel }) => {
+		if (formDirty && !formSubmitted && !saveProfileModalOpen) {
+			if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+				cancel();
+			}
+		}
+	});
 
 	let computedAge = $derived.by(() => {
 		if (!dateOfBirth) return "";
@@ -93,26 +135,56 @@
 		return age >= 0 ? `${age} years old` : "";
 	});
 
+	function isPreviewable(mimeType: string): boolean {
+		return mimeType === 'application/pdf' || mimeType?.startsWith('image/');
+	}
+
+	const repo = getRepository();
+
+	async function openAttachmentPreview(att: any) {
+		attachPreviewName = att.original_name;
+		attachPreviewType = att.mime_type;
+		attachPreviewLoading = true;
+		attachPreviewOpen = true;
+		try {
+			const url = repo.attachments.getUrl(data.eventId, att.id);
+			const res = await fetch(url);
+			const blob = await res.blob();
+			attachPreviewUrl = URL.createObjectURL(blob);
+		} catch {
+			attachPreviewOpen = false;
+		} finally {
+			attachPreviewLoading = false;
+		}
+	}
+
+	function closeAttachmentPreview() {
+		attachPreviewOpen = false;
+		if (attachPreviewUrl) {
+			URL.revokeObjectURL(attachPreviewUrl);
+			attachPreviewUrl = '';
+		}
+	}
+
 	onMount(async () => {
 		try {
-			const result = await api.getFormEvent(data.eventId);
-			event = result.event || result;
+			const result = await repo.submissions.getFormEvent(data.eventId);
+			event = result.event;
+			attachments = result.attachments || [];
 		} catch (err: any) {
 			error = err.message || "Failed to load event";
 		} finally {
 			loading = false;
 		}
 
-		// Auto-fill guardian signature from user profile if logged in
+		// Auto-fill emergency contact and store saved signature from user profile
 		if (currentUser) {
 			try {
-				const data = await api.getUserProfile();
-				const p = data.profile;
+				const p = await repo.auth.getProfile();
 				if (p.guardian_signature) {
-					guardianInitialValue = p.guardian_signature;
-					guardianInitialType = p.guardian_signature_type || "typed";
+					savedGuardianSig = p.guardian_signature;
+					savedGuardianSigType = p.guardian_signature_type || "typed";
 				}
-				// Pre-fill emergency contact from user profile if not already filled
 				if (!emergencyContact && p.name) emergencyContact = p.name;
 				if (!primaryPhone && p.phone) primaryPhone = p.phone;
 			} catch {
@@ -153,25 +225,26 @@
 		activityLimitations = profile.activity_limitations || "";
 
 		otherAccommodations = profile.other_accommodations || "";
-
-		if (profile.guardian_signature) {
-			guardianInitialValue = profile.guardian_signature;
-			guardianInitialType = profile.guardian_signature_type || "typed";
-		}
 	}
 
 	function validate(): string[] {
 		const errors: string[] = [];
 		if (!participantName.trim()) errors.push("Participant name is required.");
 		if (!dateOfBirth) errors.push("Date of birth is required.");
-		if (!participantSigValue) errors.push("Participant signature is required.");
-		if (!guardianSigValue) errors.push("Parent/Guardian signature is required.");
+		if (participantSigType !== "hand" && !participantSigValue) errors.push("Participant signature is required.");
+		if (guardianSigType !== "hand" && !guardianSigValue) errors.push("Parent/Guardian signature is required.");
 		return errors;
 	}
 
 	async function handleSubmit() {
 		validationErrors = validate();
-		if (validationErrors.length > 0) return;
+		if (validationErrors.length > 0) {
+			// Scroll to error summary so mobile users see the errors
+			setTimeout(() => {
+				document.getElementById('validation-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			}, 50);
+			return;
+		}
 
 		submitting = true;
 		try {
@@ -197,21 +270,21 @@
 				recent_surgery_details: hadRecentSurgery ? recentSurgeryDetails : "",
 				activity_limitations: activityLimitations,
 				other_accommodations: otherAccommodations,
-				participant_signature: participantSigValue,
+				participant_signature: participantSigType === "hand" ? null : participantSigValue,
 				participant_signature_type: participantSigType,
 				participant_signature_date: participantSigDate,
-				guardian_signature: guardianSigValue,
+				guardian_signature: guardianSigType === "hand" ? null : guardianSigValue,
 				guardian_signature_type: guardianSigType,
 				guardian_signature_date: guardianSigDate,
 			};
 
-			const result = await api.submitForm(data.eventId, formData);
+			const result = await repo.submissions.submit(data.eventId, formData);
 			const submissionId = result.submission?.id || '';
+			formSubmitted = true;
 
 			if (currentUser && !usedExistingProfile) {
+				pendingSubmissionId = submissionId;
 				saveProfileModalOpen = true;
-				// Store submissionId for redirect after modal
-				(window as any).__submissionId = submissionId;
 				return;
 			}
 
@@ -226,7 +299,7 @@
 	async function saveProfileAndRedirect() {
 		saveProfileLoading = true;
 		try {
-			await api.createProfile({
+			await repo.profiles.create({
 				participant_name: participantName,
 				participant_dob: dateOfBirth,
 				participant_phone: phone,
@@ -248,33 +321,29 @@
 				recent_surgery_details: recentSurgeryDetails,
 				activity_limitations: activityLimitations,
 				other_accommodations: otherAccommodations,
-				guardian_signature: guardianSigValue,
-				guardian_signature_type: guardianSigType,
 			});
 		} catch {
 			// Profile save is optional, don't block redirect
 		} finally {
 			saveProfileLoading = false;
 			saveProfileModalOpen = false;
-			const sid = (window as any).__submissionId || '';
-			goto(`/form/${data.eventId}/success?sid=${sid}`);
+			goto(`/form/${data.eventId}/success?sid=${pendingSubmissionId}`);
 		}
 	}
 
 	function skipSaveAndRedirect() {
 		saveProfileModalOpen = false;
-		const sid = (window as any).__submissionId || '';
-		goto(`/form/${data.eventId}/success?sid=${sid}`);
+		goto(`/form/${data.eventId}/success?sid=${pendingSubmissionId}`);
 	}
 </script>
 
 <svelte:head>
-	<title>{event?.event_name || "Permission Form"}</title>
+	<title>{event?.event_name || "Permish"}</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-3xl px-4 py-8">
+<div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading event...</p>
+		<LoadingState message="Loading event..." />
 	{:else if error}
 		<Card>
 			<CardContent class="py-12 text-center">
@@ -311,36 +380,75 @@
 						{/if}
 					</p>
 				{/if}
+
+				{#if event.additional_details}
+					<Separator />
+					<div>
+						<p class="mb-1 font-medium">Additional Details</p>
+						<div class="leading-relaxed">{@html linkify(event.additional_details)}</div>
+					</div>
+				{/if}
+
+				{#if attachments.length > 0}
+					<Separator />
+					<div>
+						<p class="mb-1 font-medium">Attachments</p>
+						<ul class="space-y-1">
+							{#each attachments as att}
+								<li class="flex items-center gap-2">
+									{#if att.mime_type === 'application/pdf'}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+									{:else if att.mime_type?.startsWith('image/')}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+									{:else}
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+									{/if}
+									{#if isPreviewable(att.mime_type)}
+										<button class="text-primary underline hover:no-underline" onclick={() => openAttachmentPreview(att)}>
+											{att.original_name}
+										</button>
+									{:else}
+										<a href={repo.attachments.getUrl(data.eventId, att.id)} download={att.original_name} class="text-primary underline hover:no-underline">
+											{att.original_name}
+										</a>
+									{/if}
+									<span class="text-muted-foreground">({formatFileSize(att.size)})</span>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
 			</CardContent>
 		</Card>
 
-		<!-- Profile Selector -->
-		<div class="mb-6">
-			<ProfileSelector onSelect={fillFromProfile} />
-			{#if !currentUser}
-				<p class="mt-2 text-sm text-muted-foreground">
-					Have an account?
-					<a href="/login" class="text-primary underline hover:no-underline">Log in</a>
-					to auto-fill from saved profiles.
-				</p>
-			{/if}
-		</div>
+		<FormProgress sections={formSections} />
 
-		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
-			<!-- Validation Errors -->
-			{#if validationErrors.length > 0}
-				<div class="rounded-md border border-destructive/50 bg-destructive/10 p-4">
-					<ul class="list-inside list-disc space-y-1 text-sm text-destructive">
-						{#each validationErrors as err}
-							<li>{err}</li>
-						{/each}
-					</ul>
+		<!-- Form Card -->
+		<Card>
+			<CardContent class="pt-6">
+				<!-- Profile Selector -->
+				<div class="mb-6">
+					<ProfileSelector onSelect={fillFromProfile} eventOrgs={(() => { try { return typeof event.organizations === 'string' ? JSON.parse(event.organizations) : (event.organizations || []); } catch { return []; } })()} />
+					{#if !currentUser}
+						<p class="mt-2 text-sm text-muted-foreground">
+							Have an account?
+							<a href="/login" class="text-primary underline hover:no-underline">Log in</a>
+							to auto-fill from saved profiles.
+						</p>
+					{/if}
 				</div>
-			{/if}
 
-			<!-- Contact Information -->
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">Contact Information</h2>
+				<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
+					<!-- Validation Errors -->
+					{#if validationErrors.length > 0}
+						<div id="validation-errors">
+							<AlertBox errors={validationErrors} />
+						</div>
+					{/if}
+
+					<!-- Contact Information -->
+					<section id="section-contact">
+						<h2 class="mb-4 text-xl font-semibold">Contact Information</h2>
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2 sm:col-span-2">
 						<Label for="participantName">Participant Name *</Label>
@@ -373,7 +481,7 @@
 
 				<Separator class="my-6" />
 
-				<h3 class="mb-3 text-lg font-medium">Emergency Contact</h3>
+				<h3 id="section-emergency" class="mb-3 text-lg font-medium">Emergency Contact</h3>
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2 sm:col-span-2">
 						<Label for="emergencyContact">Emergency Contact Name</Label>
@@ -392,87 +500,27 @@
 
 			<Separator />
 
-			<!-- Medical Information -->
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">Medical Information</h2>
-				<div class="space-y-4">
-					<div class="space-y-2">
-						<label class="flex items-center gap-2">
-							<input type="checkbox" bind:checked={hasSpecialDiet} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Special dietary needs</span>
-						</label>
-						{#if hasSpecialDiet}
-							<Input bind:value={specialDietDetails} placeholder="Describe dietary needs..." />
-						{/if}
-					</div>
-
-					<div class="space-y-2">
-						<label class="flex items-center gap-2">
-							<input type="checkbox" bind:checked={hasAllergies} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Allergies</span>
-						</label>
-						{#if hasAllergies}
-							<Input bind:value={allergyDetails} placeholder="List allergies..." />
-						{/if}
-					</div>
-
-					<div class="space-y-2">
-						<Label for="medications">Medications</Label>
-						<Textarea id="medications" bind:value={medications} placeholder="List any current medications..." />
-					</div>
-
-					<label class="flex items-center gap-2">
-						<input type="checkbox" bind:checked={canSelfAdminister} class="h-4 w-4 rounded border-input" />
-						<span class="text-sm font-medium">Participant can self-administer medications</span>
-					</label>
-				</div>
-			</section>
-
-			<Separator />
-
-			<!-- Conditions That Limit Activity -->
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">Conditions That Limit Activity</h2>
-				<div class="space-y-4">
-					<div class="space-y-2">
-						<label class="flex items-center gap-2">
-							<input type="checkbox" bind:checked={hasChronicIllness} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Chronic illness or condition</span>
-						</label>
-						{#if hasChronicIllness}
-							<Input bind:value={chronicIllnessDetails} placeholder="Describe condition..." />
-						{/if}
-					</div>
-
-					<div class="space-y-2">
-						<label class="flex items-center gap-2">
-							<input type="checkbox" bind:checked={hadRecentSurgery} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Surgery or serious illness in the past year</span>
-						</label>
-						{#if hadRecentSurgery}
-							<Input bind:value={recentSurgeryDetails} placeholder="Describe surgery or illness..." />
-						{/if}
-					</div>
-
-					<div class="space-y-2">
-						<Label for="limitations">Activity Limitations</Label>
-						<Textarea id="limitations" bind:value={activityLimitations} placeholder="Describe any activity limitations..." />
-					</div>
-				</div>
-			</section>
-
-			<Separator />
-
-			<!-- Other Accommodations -->
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">Other Accommodations</h2>
-				<Textarea bind:value={otherAccommodations} placeholder="Any other accommodations or information the event organizer should know..." />
-			</section>
+			<div id="section-medical">
+			<MedicalInfoSection
+				bind:hasSpecialDiet
+				bind:specialDietDetails
+				bind:hasAllergies
+				bind:allergyDetails
+				bind:medications
+				bind:canSelfAdminister
+				bind:hasChronicIllness
+				bind:chronicIllnessDetails
+				bind:hadRecentSurgery
+				bind:recentSurgeryDetails
+				bind:activityLimitations
+				bind:otherAccommodations
+			/>
+			</div>
 
 			<Separator />
 
 			<!-- Permission Text -->
-			<section>
+			<section id="section-permission">
 				<Card class="bg-muted/30">
 					<CardContent class="py-6">
 						<p class="text-sm leading-relaxed">
@@ -493,12 +541,13 @@
 			<Separator />
 
 			<!-- Signatures -->
-			<section class="space-y-6">
+			<section id="section-signatures" class="space-y-6">
 				<SignaturePad
 					label="Participant Signature"
 					bind:value={participantSigValue}
 					bind:type={participantSigType}
 					bind:date={participantSigDate}
+					allowHand
 				/>
 
 				<Separator />
@@ -508,22 +557,25 @@
 					bind:value={guardianSigValue}
 					bind:type={guardianSigType}
 					bind:date={guardianSigDate}
-					initialValue={guardianInitialValue}
-					initialType={guardianInitialType}
+					initialValue={savedGuardianSig}
+					initialType={savedGuardianSigType}
+					allowHand
 				/>
 			</section>
 
-			<!-- Submit -->
-			<div class="sticky bottom-0 bg-background pb-4 pt-4">
-				<Button type="submit" class="w-full" disabled={submitting}>
-					{#if submitting}
-						Submitting...
-					{:else}
-						Submit Permission Form
-					{/if}
-				</Button>
-			</div>
-		</form>
+					<!-- Submit -->
+					<div class="sticky bottom-0 bg-card pt-4 pb-2">
+						<Button type="submit" class="w-full" disabled={submitting}>
+							{#if submitting}
+								Submitting...
+							{:else}
+								Submit Form
+							{/if}
+						</Button>
+					</div>
+				</form>
+			</CardContent>
+		</Card>
 	{/if}
 </div>
 
@@ -537,3 +589,31 @@
 	onCancel={skipSaveAndRedirect}
 	loading={saveProfileLoading}
 />
+
+{#if attachPreviewOpen}
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onclick={closeAttachmentPreview}>
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="mx-6 my-6 flex h-[calc(100vh-3rem)] w-full flex-col rounded-lg bg-card shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
+		<div class="flex items-center justify-between border-b px-4 py-3">
+			<h3 class="font-semibold">{attachPreviewName}</h3>
+			<div class="flex gap-2">
+				<Button variant="ghost" size="sm" onclick={closeAttachmentPreview}>Close</Button>
+			</div>
+		</div>
+		<div class="flex-1 overflow-hidden">
+			{#if attachPreviewLoading}
+				<div class="flex h-full items-center justify-center">
+					<p class="text-muted-foreground">Loading...</p>
+				</div>
+			{:else if attachPreviewType === 'application/pdf'}
+				<PdfViewer src={attachPreviewUrl} class="h-full" />
+			{:else if attachPreviewType?.startsWith('image/')}
+				<div class="flex h-full items-center justify-center overflow-auto p-4">
+					<img src={attachPreviewUrl} alt={attachPreviewName} class="max-h-full max-w-full object-contain" />
+				</div>
+			{/if}
+		</div>
+	</div>
+</div>
+{/if}

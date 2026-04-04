@@ -2,13 +2,16 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import { formatDate } from "$lib/utils/formatDate";
-	import { orgGroups, getOrgDisplayLabels, matchesOrgFilter } from "$lib/utils/organizations";
+	import { orgGroups, getOrgDisplayLabels, matchesOrgFilter, orgBadgeClass, isYMLabel } from "$lib/utils/organizations";
+	import { parseOrgs, isPastEvent } from "$lib/utils/events";
+	import LoadingState from "$lib/components/LoadingState.svelte";
+	import { Badge } from "$lib/components/ui/badge";
 
 	let events: any[] = $state([]);
 	let loading = $state(true);
@@ -16,7 +19,7 @@
 
 	// Filters
 	let search = $state("");
-	let statusFilter = $state<"active" | "inactive" | "past" | "all">("all");
+	let statusFilter = $state<"active" | "inactive" | "past" | "all">("active");
 	let orgFilter: string[] = $state([]);
 
 	const unsub = user.subscribe(u => { currentUser = u; });
@@ -24,27 +27,18 @@
 	onMount(() => {
 		const unsubLoading = authLoading.subscribe(async (isLoading) => {
 			if (isLoading) return;
-			if (!currentUser || currentUser.role !== 'planner') {
+			if (!currentUser || (currentUser.role !== 'planner' && currentUser.role !== 'super')) {
 				goto('/login');
 				return;
 			}
 			try {
-				const data = await api.listEvents({ all: true });
-				events = data.events || [];
+				const repo = getRepository();
+				events = await repo.events.list({ all: true });
 			} catch {}
 			finally { loading = false; }
 		});
 		return () => { unsubLoading(); unsub(); };
 	});
-
-	// Parse organizations from JSON string
-	function parseOrgs(event: any): string[] {
-		if (!event.organizations) return [];
-		if (typeof event.organizations === 'string') {
-			try { return JSON.parse(event.organizations); } catch { return []; }
-		}
-		return event.organizations;
-	}
 
 	let filteredEvents = $derived.by(() => {
 		return events.filter(event => {
@@ -72,19 +66,6 @@
 		}
 	}
 
-	function isYM(label: string): boolean {
-		return ['Young Men', 'Deacons', 'Teachers', 'Priests'].includes(label);
-	}
-
-	function isYW(label: string): boolean {
-		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
-	}
-
-	function isPastEvent(event: any): boolean {
-		const endStr = event.event_end || event.event_start;
-		if (!endStr) return false;
-		return new Date(endStr) < new Date();
-	}
 </script>
 
 <!-- Template -->
@@ -124,16 +105,16 @@
 						<Button
 							variant={orgFilter.includes(group.key) ? "default" : "outline"}
 							size="sm"
-							class="rounded-full text-xs h-7 {orgFilter.includes(group.key) ? '' : 'text-muted-foreground'}"
+							class="rounded-full text-xs h-7 {orgFilter.includes(group.key) ? (group.key === 'young_men' ? 'bg-blue-500 hover:bg-blue-400 text-white' : 'bg-pink-500 hover:bg-pink-400 text-white') : 'text-muted-foreground'}"
 							onclick={() => toggleOrgFilter(group.key)}
 						>
 							{group.label}
 						</Button>
 						{#each group.children as child}
 							<Button
-								variant={orgFilter.includes(child.key) ? "secondary" : "outline"}
+								variant={orgFilter.includes(child.key) ? "default" : "outline"}
 								size="sm"
-								class="rounded-full text-xs h-7 {orgFilter.includes(child.key) ? '' : 'text-muted-foreground'}"
+								class="rounded-full text-xs h-7 {orgFilter.includes(child.key) ? (isYMLabel(child.label) ? 'bg-blue-500 hover:bg-blue-400 text-white' : 'bg-pink-500 hover:bg-pink-400 text-white') : 'text-muted-foreground'}"
 								onclick={() => toggleOrgFilter(child.key)}
 							>
 								{child.label}
@@ -147,7 +128,7 @@
 
 	<!-- Results -->
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading...</p>
+		<LoadingState />
 	{:else if filteredEvents.length === 0}
 		<Card>
 			<CardContent class="py-12 text-center">
@@ -167,12 +148,12 @@
 							</div>
 							<span class="flex gap-1 text-sm">
 								{#if event.is_active}
-									<span class="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Active</span>
+									<Badge variant="active">Active</Badge>
 								{:else}
-									<span class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Inactive</span>
+									<Badge variant="inactive">Inactive</Badge>
 								{/if}
 								{#if isPastEvent(event)}
-									<span class="rounded-full border border-muted-foreground/20 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Past</span>
+									<Badge variant="past">Past</Badge>
 								{/if}
 							</span>
 						</div>
@@ -181,7 +162,7 @@
 						<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 							<div class="flex flex-wrap gap-1">
 								{#each getOrgDisplayLabels(parseOrgs(event)) as label}
-									<span class="rounded-full border px-2 py-0.5 text-xs font-medium {isYM(label) ? 'border-primary/30 bg-primary/10 text-primary' : isYW(label) ? 'border-accent-foreground/20 bg-accent text-accent-foreground' : 'border-border bg-muted text-muted-foreground'}">{label}</span>
+									<span class="rounded-full border px-2 py-0.5 text-xs font-medium {orgBadgeClass(label)}">{label}</span>
 								{/each}
 								{#if parseOrgs(event).length === 0}
 									<span class="text-xs text-muted-foreground">No organizations</span>

@@ -9,7 +9,7 @@ router.use(requireAuth);
 router.get('/mine', (req, res) => {
   const db = req.app.locals.db;
   const submissions = db.prepare(`
-    SELECT s.id, s.participant_name, s.submitted_at, s.pdf_path, e.event_name
+    SELECT s.id, s.participant_name, s.submitted_at, s.pdf_path, s.event_id, e.event_name, e.organizations
     FROM submissions s
     JOIN events e ON s.event_id = e.id
     WHERE s.submitted_by = ?
@@ -51,7 +51,7 @@ router.get('/:id/pdf', (req, res) => {
     return res.status(404).json({ error: 'PDF not available' });
   }
 
-  const fileName = `permission-form-${submission.participant_name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+  const fileName = `permish-${submission.participant_name.replace(/\s+/g, '-').toLowerCase()}.pdf`;
   res.download(submission.pdf_path, fileName);
 });
 

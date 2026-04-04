@@ -2,13 +2,18 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import { formatDate } from "$lib/utils/formatDate";
-	import { getOrgDisplayLabels } from "$lib/utils/organizations";
 	import { toastError } from "$lib/stores/toast";
+	import { getYouthClass, youthClassBadgeClass, type YouthProgram } from "$lib/utils/youthClass";
+	import YouthIcon from "$lib/components/YouthIcon.svelte";
+	import PdfModal from "$lib/components/PdfModal.svelte";
+	import { isPastEvent } from "$lib/utils/events";
+	import LoadingState from "$lib/components/LoadingState.svelte";
+	import { Badge } from "$lib/components/ui/badge";
 
 	let events: any[] = $state([]);
 	let profiles: any[] = $state([]);
@@ -37,24 +42,26 @@
 			}
 
 			// Default view based on role
-			view = currentUser.role === 'planner' ? 'planner' : 'parent';
+			const isPlanner = currentUser.role === 'planner' || currentUser.role === 'super';
+			view = isPlanner ? 'planner' : 'parent';
 
 			try {
+				const repo = getRepository();
 				const promises: Promise<any>[] = [
-					api.listProfiles(),
-					api.getMySubmissions(),
+					repo.profiles.list(),
+					repo.submissions.getMine(),
 				];
 
-				if (currentUser.role === "planner") {
-					promises.push(api.listEvents());
+				if (isPlanner) {
+					promises.push(repo.events.list());
 				}
 
 				const results = await Promise.all(promises);
-				profiles = results[0].profiles || results[0] || [];
-				submissions = results[1].submissions || results[1] || [];
+				profiles = results[0];
+				submissions = results[1];
 
-				if (currentUser.role === "planner" && results[2]) {
-					events = results[2].events || results[2] || [];
+				if (isPlanner && results[2]) {
+					events = results[2];
 				}
 			} catch (err) {
 				console.error("Failed to load dashboard data:", err);
@@ -74,7 +81,8 @@
 		pdfLoading = true;
 		pdfModalOpen = true;
 		try {
-			const res = await fetch(api.getPdfUrl(submissionId), { credentials: 'include' });
+			const repo = getRepository();
+			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
 			const blob = await res.blob();
 			pdfModalUrl = URL.createObjectURL(blob);
 		} catch {
@@ -93,41 +101,7 @@
 		}
 	}
 
-	function printPdf() {
-		const iframe = document.getElementById('pdf-preview-iframe') as HTMLIFrameElement;
-		if (iframe?.contentWindow) {
-			iframe.contentWindow.print();
-		}
-	}
 
-	function downloadPdf() {
-		if (!pdfModalUrl) return;
-		const a = document.createElement('a');
-		a.href = pdfModalUrl;
-		a.download = `permission-form-${pdfModalName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-		a.click();
-	}
-
-	function parseOrgs(ev: any): string[] {
-		if (!ev?.organizations) return [];
-		if (typeof ev.organizations === 'string') {
-			try { return JSON.parse(ev.organizations); } catch { return []; }
-		}
-		return ev.organizations;
-	}
-
-	function isYM(label: string): boolean {
-		return ['Young Men', 'Deacons', 'Teachers', 'Priests'].includes(label);
-	}
-	function isYW(label: string): boolean {
-		return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
-	}
-
-	function isPastEvent(event: any): boolean {
-		const endStr = event.event_end || event.event_start;
-		if (!endStr) return false;
-		return new Date(endStr) < new Date();
-	}
 </script>
 
 <svelte:head>
@@ -136,13 +110,13 @@
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
-		<p class="text-center text-muted-foreground">Loading...</p>
+		<LoadingState />
 	{:else}
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<h1 class="text-3xl font-bold">Dashboard</h1>
 
 			<!-- View toggle (only for planners who can see both) -->
-			{#if currentUser?.role === "planner"}
+			{#if currentUser?.role === "planner" || currentUser?.role === "super"}
 				<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
 					<Button
 						variant={view === 'planner' ? 'default' : 'outline'}
@@ -165,11 +139,42 @@
 		</div>
 
 		<!-- ═══════ Event Manager View ═══════ -->
-		{#if view === 'planner' && currentUser?.role === 'planner'}
+		{#if view === 'planner' && (currentUser?.role === 'planner' || currentUser?.role === 'super')}
+			<!-- Summary stats -->
+			<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+				<Card>
+					<CardContent class="pt-6 text-center">
+						<p class="text-3xl font-bold">{events.length}</p>
+						<p class="text-sm text-muted-foreground">Total Events</p>
+					</CardContent>
+				</Card>
+				<Card>
+					<CardContent class="pt-6 text-center">
+						<p class="text-3xl font-bold">{events.filter(e => e.is_active && !isPastEvent(e)).length}</p>
+						<p class="text-sm text-muted-foreground">Active</p>
+					</CardContent>
+				</Card>
+				<Card>
+					<CardContent class="pt-6 text-center">
+						<p class="text-3xl font-bold">{events.filter(e => isPastEvent(e)).length}</p>
+						<p class="text-sm text-muted-foreground">Past</p>
+					</CardContent>
+				</Card>
+				<Card>
+					<CardContent class="pt-6 text-center">
+						<p class="text-3xl font-bold">{events.reduce((sum, e) => sum + (e.submission_count ?? 0), 0)}</p>
+						<p class="text-sm text-muted-foreground">Submissions</p>
+					</CardContent>
+				</Card>
+			</div>
+
 			<section class="mb-10">
 				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<h2 class="text-xl font-semibold">My Events</h2>
-					<Button onclick={() => goto("/create")}>Create New Event</Button>
+					<h2 class="text-xl font-semibold">Recent Events</h2>
+					<div class="flex gap-2">
+						<Button variant="outline" onclick={() => goto("/events")}>View All Events</Button>
+						<Button onclick={() => goto("/create")}>Create New Event</Button>
+					</div>
 				</div>
 
 				{#if events.length === 0}
@@ -181,34 +186,25 @@
 					</Card>
 				{:else}
 					<div class="grid gap-4">
-						{#each events as event}
+						{#each events.slice(0, 5) as event}
 							<Card class="cursor-pointer transition-shadow hover:shadow-md" onclick={() => goto(`/event/${event.id}`)}>
-								<CardHeader>
-									<CardTitle>{event.event_name}</CardTitle>
-									<CardDescription>{event.event_dates}</CardDescription>
-								</CardHeader>
-								<CardContent>
-									<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-										<div class="flex flex-col gap-1">
-											<span class="text-sm text-muted-foreground">
-												{event.submission_count ?? 0} submission{(event.submission_count ?? 0) === 1 ? "" : "s"}
-											</span>
-											{#if parseOrgs(event).length > 0}
-												<div class="flex flex-wrap gap-1">
-													{#each getOrgDisplayLabels(parseOrgs(event)) as label}
-														<span class="rounded-full border px-2 py-0.5 text-xs font-medium {isYM(label) ? 'border-primary/30 bg-primary/10 text-primary' : isYW(label) ? 'border-accent-foreground/20 bg-accent text-accent-foreground' : 'border-border bg-muted text-muted-foreground'}">{label}</span>
-													{/each}
-												</div>
-											{/if}
-										</div>
-										<span class="flex gap-1 text-sm">
+								<CardContent class="flex items-center justify-between py-4">
+									<div class="min-w-0 flex-1">
+										<p class="font-medium">{event.event_name}</p>
+										<p class="text-sm text-muted-foreground">{event.event_dates}</p>
+									</div>
+									<div class="flex items-center gap-3">
+										<span class="text-sm text-muted-foreground">
+											{event.submission_count ?? 0} submission{(event.submission_count ?? 0) === 1 ? "" : "s"}
+										</span>
+										<span class="flex gap-1">
 											{#if event.is_active}
-												<span class="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Active</span>
+												<Badge variant="active">Active</Badge>
 											{:else}
-												<span class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Inactive</span>
+												<Badge variant="inactive">Inactive</Badge>
 											{/if}
 											{#if isPastEvent(event)}
-												<span class="rounded-full border border-muted-foreground/20 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">Past</span>
+												<Badge variant="past">Past</Badge>
 											{/if}
 										</span>
 									</div>
@@ -216,6 +212,11 @@
 							</Card>
 						{/each}
 					</div>
+					{#if events.length > 5}
+						<div class="mt-3 text-center">
+							<Button variant="link" onclick={() => goto("/events")}>View all {events.length} events</Button>
+						</div>
+					{/if}
 				{/if}
 			</section>
 
@@ -239,11 +240,22 @@
 						{#each profiles as profile}
 							<Card>
 								<CardContent class="flex items-center justify-between py-4">
-									<div>
-										<p class="font-medium">{profile.participant_name}</p>
-										{#if profile.participant_dob}
-											<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
-										{/if}
+									<div class="flex items-center gap-3">
+										<YouthIcon program={profile.youth_program} />
+										<div>
+											<div class="flex items-center gap-2">
+												<p class="font-medium">{profile.participant_name}</p>
+												{#if profile.youth_program && profile.participant_dob}
+													{@const yc = getYouthClass(profile.participant_dob, profile.youth_program as YouthProgram)}
+													{#if yc}
+														<span class="rounded-full border px-2 py-0.5 text-xs font-medium {youthClassBadgeClass(yc.program)}">{yc.label}</span>
+													{/if}
+												{/if}
+											</div>
+											{#if profile.participant_dob}
+												<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
+											{/if}
+										</div>
 									</div>
 									<Button variant="outline" size="sm" onclick={() => goto(`/profiles?edit=${profile.id}`)}>Edit</Button>
 								</CardContent>
@@ -264,7 +276,32 @@
 						</CardContent>
 					</Card>
 				{:else}
-					<div class="overflow-x-auto">
+					<!-- Mobile card view -->
+					<div class="space-y-3 sm:hidden">
+						{#each submissions as sub}
+							<Card>
+								<CardContent class="py-3 px-4">
+									<div class="flex items-center justify-between">
+										<div class="min-w-0 flex-1">
+											<p class="font-medium">{sub.participant_name || "—"}</p>
+											<p class="text-sm text-muted-foreground">{sub.event_name || "—"}</p>
+											<p class="text-xs text-muted-foreground">{formatDate(sub.submitted_at)}</p>
+										</div>
+										<Button
+											variant="outline"
+											size="sm"
+											class="h-7 text-xs"
+											onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+										>
+											PDF
+										</Button>
+									</div>
+								</CardContent>
+							</Card>
+						{/each}
+					</div>
+					<!-- Desktop table view -->
+					<div class="hidden sm:block overflow-x-auto">
 						<table class="w-full text-sm">
 							<thead>
 								<tr class="border-b">
@@ -301,33 +338,4 @@
 	{/if}
 </div>
 
-{#if pdfModalOpen}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onclick={closePdfModal}>
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="mx-6 my-6 flex h-[calc(100vh-3rem)] w-full flex-col rounded-lg bg-card shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
-		<div class="flex items-center justify-between border-b px-4 py-3">
-			<h3 class="font-semibold">{pdfModalName} — Permission Form</h3>
-			<div class="flex gap-2">
-				<Button variant="outline" size="sm" onclick={printPdf}>Print</Button>
-				<Button variant="outline" size="sm" onclick={downloadPdf}>Download</Button>
-				<Button variant="ghost" size="sm" onclick={closePdfModal}>Close</Button>
-			</div>
-		</div>
-		<div class="flex-1 overflow-hidden">
-			{#if pdfLoading}
-				<div class="flex h-full items-center justify-center">
-					<p class="text-muted-foreground">Loading PDF...</p>
-				</div>
-			{:else}
-				<iframe
-					id="pdf-preview-iframe"
-					src={pdfModalUrl}
-					class="h-full w-full"
-					title="PDF Preview"
-				></iframe>
-			{/if}
-		</div>
-	</div>
-</div>
-{/if}
+<PdfModal bind:open={pdfModalOpen} url={pdfModalUrl} name={pdfModalName} loading={pdfLoading} onclose={closePdfModal} />

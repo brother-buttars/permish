@@ -1,4 +1,4 @@
-# Permission Form App — Development Guide
+# Permish — Development Guide
 
 ## Project Overview
 
@@ -14,7 +14,7 @@ A mobile-friendly web app that digitizes the LDS Church "Parental or Guardian Pe
 - **SMS:** Carrier email gateways via Nodemailer
 - **Auth:** JWT via HttpOnly SameSite=Strict cookies (bcryptjs)
 - **Package Manager:** pnpm (NOT npm)
-- **Node Version:** 20 (managed via nvm, see .nvmrc)
+- **Node Version:** 24 LTS (managed via nvm, see .nvmrc)
 - **Deployment:** Docker Compose
 
 ## Directory Structure

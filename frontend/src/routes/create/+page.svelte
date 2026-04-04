@@ -2,41 +2,23 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { api } from "$lib/api";
+	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
 	import { Textarea } from "$lib/components/ui/textarea";
 	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
-	import { carriers } from "$lib/utils/carriers";
-	import { orgGroups } from "$lib/utils/organizations";
+	import OrganizationPicker from "$lib/components/OrganizationPicker.svelte";
+	import NotificationSettings from "$lib/components/NotificationSettings.svelte";
 	import { toastSuccess } from "$lib/stores/toast";
 	import { formatEventDates } from "$lib/utils/formatDate";
+	import AlertBox from "$lib/components/AlertBox.svelte";
 
 	let currentUser: any = $state(null);
 
 	// Organizations
 	let selectedOrgs: string[] = $state([]);
-
-	function toggleOrg(key: string) {
-		if (selectedOrgs.includes(key)) {
-			selectedOrgs = selectedOrgs.filter(o => o !== key);
-		} else {
-			selectedOrgs = [...selectedOrgs, key];
-		}
-	}
-
-	function toggleGroup(groupKey: string, checked: boolean) {
-		const group = orgGroups.find(g => g.key === groupKey);
-		if (!group) return;
-		const childKeys = group.children.map(c => c.key);
-		if (checked) {
-			selectedOrgs = [...new Set([...selectedOrgs, ...childKeys])];
-		} else {
-			selectedOrgs = selectedOrgs.filter(o => !childKeys.includes(o));
-		}
-	}
 
 	// Form fields
 	let eventName = $state("");
@@ -53,9 +35,14 @@
 	let leaderPhone = $state("");
 	let leaderEmail = $state("");
 
+	let additionalDetails = $state("");
+
 	let notifyEmail = $state("");
 	let notifyPhone = $state("");
 	let notifyCarrier = $state("");
+
+	// Pending attachments (uploaded after event is created)
+	let pendingFiles: File[] = $state([]);
 
 	let submitting = $state(false);
 	let errors: Record<string, string> = $state({});
@@ -70,7 +57,7 @@
 	onMount(() => {
 		const unsubLoading = authLoading.subscribe((isLoading) => {
 			if (isLoading) return;
-			if (!currentUser || currentUser.role !== "planner") {
+			if (!currentUser || (currentUser.role !== "planner" && currentUser.role !== "super")) {
 				goto("/login");
 			}
 		});
@@ -87,7 +74,7 @@
 
 	function buildDatetime(date: string, time: string): string {
 		if (!date) return '';
-		return time ? `${date}T${time}` : `${date}T00:00`;
+		return time ? `${date}T${time}` : date;
 	}
 
 	function validate(): boolean {
@@ -95,8 +82,6 @@
 
 		if (!eventName.trim()) newErrors.eventName = "Event name is required";
 		if (!startDate) newErrors.startDate = "Event date is required";
-		if (!startTime) newErrors.startTime = "Start time is required";
-		if (!endTime) newErrors.endTime = "End time is required";
 		if (isMultiDay && !endDate) newErrors.endDate = "End date is required";
 		if (isMultiDay && startDate && endDate) {
 			const start = buildDatetime(startDate, startTime);
@@ -132,7 +117,8 @@
 			const eventStartDt = buildDatetime(startDate, startTime);
 			const eventEndDt = isMultiDay ? buildDatetime(endDate, endTime) : buildDatetime(startDate, endTime);
 			const eventDatesDisplay = formatEventDates(eventStartDt, isMultiDay ? eventEndDt : buildDatetime(startDate, endTime));
-			const data = await api.createEvent({
+			const repo = getRepository();
+			const result = await repo.events.create({
 				event_name: eventName,
 				event_dates: eventDatesDisplay,
 				event_start: eventStartDt,
@@ -147,10 +133,22 @@
 				notify_phone: notifyPhone || null,
 				notify_carrier: notifyCarrier || null,
 				organizations: selectedOrgs,
+				additional_details: additionalDetails || null,
 			});
 
-			formUrl = data.formUrl || data.form_url || "";
-			createdEventId = data.event?.id || data.id || "";
+			const newEventId = result.event?.id || "";
+
+			// Upload pending attachments
+			for (const file of pendingFiles) {
+				try {
+					await repo.attachments.upload(newEventId, file);
+				} catch (err: any) {
+					console.error('Failed to upload attachment:', err.message);
+				}
+			}
+
+			formUrl = result.formUrl || result.form_url || "";
+			createdEventId = newEventId;
 			toastSuccess("Event created successfully!");
 		} catch (err: any) {
 			errors = { form: err.message || "Failed to create event" };
@@ -174,7 +172,7 @@
 	<title>Create Event</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-2xl px-4 py-8">
+<div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if formUrl}
 		<!-- Success state -->
 		<Card>
@@ -182,7 +180,7 @@
 				<CardTitle>Event Created!</CardTitle>
 			</CardHeader>
 			<CardContent class="space-y-4">
-				<p class="text-sm text-muted-foreground">Share this URL with parents to collect permission forms:</p>
+				<p class="text-sm text-muted-foreground">Share this URL with parents to collect forms:</p>
 				<div class="flex flex-col gap-2 sm:flex-row">
 					<Input value={formUrl} readonly class="flex-1" />
 					<Button onclick={copyUrl}>
@@ -202,9 +200,7 @@
 		<h1 class="mb-6 text-3xl font-bold">Create New Event</h1>
 
 		{#if errors.form}
-			<div class="mb-4 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
-				{errors.form}
-			</div>
+			<AlertBox message={errors.form} class="mb-4" />
 		{/if}
 
 		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
@@ -228,9 +224,8 @@
 								{#if errors.startDate}<p class="text-sm text-destructive">{errors.startDate}</p>{/if}
 							</div>
 							<div class="space-y-2">
-								<Label for="startTime">Start Time *</Label>
+								<Label for="startTime">Start Time</Label>
 								<Input id="startTime" type="time" bind:value={startTime} />
-								{#if errors.startTime}<p class="text-sm text-destructive">{errors.startTime}</p>{/if}
 							</div>
 						</div>
 
@@ -247,18 +242,16 @@
 									{#if errors.endDate}<p class="text-sm text-destructive">{errors.endDate}</p>{/if}
 								</div>
 								<div class="space-y-2">
-									<Label for="endTime">End Time *</Label>
+									<Label for="endTime">End Time</Label>
 									<Input id="endTime" type="time" bind:value={endTime} />
-									{#if errors.endTime}<p class="text-sm text-destructive">{errors.endTime}</p>{/if}
 								</div>
 							</div>
 						{:else}
 							<div class="grid gap-4 sm:grid-cols-2">
 								<div></div>
 								<div class="space-y-2">
-									<Label for="endTime">End Time *</Label>
+									<Label for="endTimeSingle">End Time</Label>
 									<Input id="endTimeSingle" type="time" bind:value={endTime} />
-									{#if errors.endTime}<p class="text-sm text-destructive">{errors.endTime}</p>{/if}
 								</div>
 							</div>
 						{/if}
@@ -281,6 +274,57 @@
 							<Input id="stake" bind:value={stake} placeholder="Stake name" />
 							{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
 						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			<!-- Additional Info & Attachments -->
+			<Card>
+				<CardHeader>
+					<CardTitle>Additional Information</CardTitle>
+					<p class="text-sm text-muted-foreground">Optional details and files visible to parents on the form</p>
+				</CardHeader>
+				<CardContent class="space-y-4">
+					<div class="space-y-2">
+						<Label for="additionalDetails">Additional Details</Label>
+						<Textarea id="additionalDetails" bind:value={additionalDetails} placeholder="Extra info, links to Google Docs, packing lists, etc..." rows={4} />
+						<p class="text-xs text-muted-foreground">URLs will be automatically linked.</p>
+					</div>
+
+					<Separator />
+
+					<div class="space-y-2">
+						<Label>Attachments</Label>
+						<p class="text-xs text-muted-foreground">PDFs, images, documents — max 10MB each, up to 10 files.</p>
+						<input
+							type="file"
+							accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt"
+							multiple
+							onchange={(e) => {
+								const input = e.currentTarget;
+								if (input.files) {
+									pendingFiles = [...pendingFiles, ...Array.from(input.files)];
+									input.value = '';
+								}
+							}}
+							class="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary-foreground hover:file:bg-primary/90"
+						/>
+						{#if pendingFiles.length > 0}
+							<ul class="space-y-1 pt-2">
+								{#each pendingFiles as file, i}
+									<li class="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+										<span class="truncate">{file.name}</span>
+										<button
+											type="button"
+											class="ml-2 text-destructive hover:text-destructive/80"
+											onclick={() => { pendingFiles = pendingFiles.filter((_, idx) => idx !== i); }}
+										>
+											Remove
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{/if}
 					</div>
 				</CardContent>
 			</Card>
@@ -312,78 +356,9 @@
 				</CardContent>
 			</Card>
 
-			<!-- Organizations -->
-			<Card>
-				<CardHeader>
-					<CardTitle>Organizations</CardTitle>
-					<p class="text-sm text-muted-foreground">Select which groups are included in this event</p>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					{#each orgGroups as group}
-						<div class="space-y-2">
-							<label class="flex items-center gap-2">
-								<input
-									type="checkbox"
-									checked={group.children.every(c => selectedOrgs.includes(c.key))}
-									onchange={(e) => toggleGroup(group.key, e.currentTarget.checked)}
-									class="h-4 w-4 rounded border-input"
-								/>
-								<span class="text-sm font-semibold">{group.label}</span>
-							</label>
-							<div class="ml-6 flex flex-wrap gap-4">
-								{#each group.children as child}
-									<label class="flex items-center gap-2">
-										<input
-											type="checkbox"
-											checked={selectedOrgs.includes(child.key)}
-											onchange={() => toggleOrg(child.key)}
-											class="h-4 w-4 rounded border-input"
-										/>
-										<span class="text-sm">{child.label}</span>
-									</label>
-								{/each}
-							</div>
-						</div>
-					{/each}
-				</CardContent>
-			</Card>
+			<OrganizationPicker bind:selectedOrgs />
 
-			<!-- Notification Settings -->
-			<Card>
-				<CardHeader>
-					<CardTitle>Notification Settings</CardTitle>
-					<p class="text-sm text-muted-foreground">Optional — get notified when forms are submitted</p>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					<div class="space-y-2">
-						<Label for="notifyEmail">Notification Email</Label>
-						<Input id="notifyEmail" type="email" bind:value={notifyEmail} placeholder="notify@example.com" />
-						{#if errors.notifyEmail}<p class="text-sm text-destructive">{errors.notifyEmail}</p>{/if}
-					</div>
-
-					<Separator />
-
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div class="space-y-2">
-							<Label for="notifyPhone">Notification Phone</Label>
-							<Input id="notifyPhone" type="tel" bind:value={notifyPhone} placeholder="(555) 123-4567" />
-						</div>
-						<div class="space-y-2">
-							<Label for="notifyCarrier">Carrier</Label>
-							<select
-								id="notifyCarrier"
-								bind:value={notifyCarrier}
-								class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-							>
-								<option value="">Select carrier...</option>
-								{#each carriers as carrier}
-									<option value={carrier.value}>{carrier.label}</option>
-								{/each}
-							</select>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+			<NotificationSettings bind:notifyEmail bind:notifyPhone bind:notifyCarrier emailError={errors.notifyEmail} />
 
 			<Button type="submit" class="w-full" disabled={submitting}>
 				{submitting ? "Creating..." : "Create Event"}
