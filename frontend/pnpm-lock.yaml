@@ -26,6 +26,9 @@ importers:
       pdfjs-dist:
         specifier: ^5.5.207
         version: 5.5.207
+      pocketbase:
+        specifier: ^0.26.8
+        version: 0.26.8
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -1066,6 +1069,9 @@ packages:
     resolution: {integrity: sha512-40QW5YalBNfQo5yRYmiw7Yz6TKKVr3h6970B2YE+3fQpsWcrbj1PzJgxeJ19DRQjhMbKPIuMY8rFaXc8moolVw==}
     engines: {node: '>=10.13.0'}
 
+  pocketbase@0.26.8:
+    resolution: {integrity: sha512-aQ/ewvS7ncvAE8wxoW10iAZu6ElgbeFpBhKPnCfvRovNzm2gW8u/sQNPGN6vNgVEagz44kK//C61oKjfa+7Low==}
+
   postcss@8.5.8:
     resolution: {integrity: sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==}
     engines: {node: ^10 || ^12 || >=14}
@@ -2100,6 +2106,8 @@ snapshots:
   picomatch@4.0.3: {}
 
   pngjs@5.0.0: {}
+
+  pocketbase@0.26.8: {}
 
   postcss@8.5.8:
     dependencies:

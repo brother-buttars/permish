@@ -6,7 +6,7 @@ updated: 2026-04-01
 # Active Work
 
 ## Current
-- **PocketBase migration** (2026-04-04) — Phase 1 complete (repository layer + Express adapter + page refactoring). Ready for Phase 2 (PocketBase adapter).
+- **PocketBase migration** (2026-04-04) — Phase 2 complete (PocketBase adapter, auth cookie proxy, migration schema, provider wiring). Ready for Phase 3 (Node.js sidecar).
 
 ## Blocked
 _Nothing blocked._
