@@ -16,13 +16,12 @@
 		"tauri": "tauri",
 		"tauri:dev": "tauri dev",
 		"tauri:build": "tauri build",
-		"cap": "cap",
-		"cap:sync": "cap sync",
-		"mobile:ios": "pnpm build && cap sync ios && cap open ios",
-		"mobile:android": "pnpm build && cap sync android && cap open android"
+		"tauri:ios": "tauri ios dev",
+		"tauri:android": "tauri android dev",
+		"tauri:ios:build": "tauri ios build",
+		"tauri:android:build": "tauri android build"
 	},
 	"devDependencies": {
-		"@capacitor/cli": "^8.3.0",
 		"@sveltejs/adapter-auto": "^7.0.0",
 		"@sveltejs/adapter-node": "^5.5.4",
 		"@sveltejs/kit": "^2.50.2",
@@ -37,17 +36,12 @@
 		"vitest": "^4.1.0"
 	},
 	"dependencies": {
-		"@capacitor-community/sqlite": "^8.1.0",
-		"@capacitor/app": "^8.1.0",
-		"@capacitor/core": "^8.3.0",
-		"@capacitor/filesystem": "^8.1.2",
-		"@capacitor/preferences": "^8.0.1",
-		"@capacitor/status-bar": "^8.0.2",
 		"@tailwindcss/vite": "^4.2.2",
 		"@tauri-apps/api": "^2.10.1",
 		"@tauri-apps/plugin-dialog": "^2.7.0",
 		"@tauri-apps/plugin-process": "^2.3.1",
 		"@tauri-apps/plugin-shell": "^2.3.5",
+		"@tauri-apps/plugin-sql": "^2.4.0",
 		"bits-ui": "^2.16.3",
 		"clsx": "^2.1.1",
 		"file-saver": "^2.0.5",

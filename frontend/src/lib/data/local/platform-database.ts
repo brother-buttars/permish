@@ -3,15 +3,15 @@ import type { LocalDatabase } from './database';
 
 /**
  * Creates the appropriate LocalDatabase implementation for the current platform.
- * - Web/Tauri: sql.js (WebAssembly SQLite with IndexedDB persistence)
- * - iOS/Android: @capacitor-community/sqlite (native SQLite)
+ * - Tauri (desktop + mobile): @tauri-apps/plugin-sql (native SQLite via rusqlite)
+ * - Web browser: sql.js (WebAssembly SQLite with IndexedDB persistence)
  */
 export async function createPlatformDatabase(): Promise<LocalDatabase> {
   const platform = getPlatform();
 
-  if (platform === 'ios' || platform === 'android') {
-    const { CapacitorDatabase } = await import('./capacitor-driver');
-    return CapacitorDatabase.create();
+  if (platform === 'tauri') {
+    const { TauriDatabase } = await import('./tauri-driver');
+    return TauriDatabase.create();
   }
 
   const { SqlJsDatabase } = await import('./database');

@@ -7,15 +7,12 @@ pdfs/
 build/
 dist/
 
-# Capacitor native projects
-frontend/ios/
-frontend/android/
-
-# Tauri
+# Tauri (generated mobile projects)
 frontend/src-tauri/target/
 frontend/src-tauri/sidecars/pocketbase*
 frontend/src-tauri/sidecars/node-sidecar*
 !frontend/src-tauri/sidecars/README.md
+frontend/src-tauri/gen/
 
 # PocketBase binary
 pocketbase

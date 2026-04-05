@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-ios:
-    name: Build iOS
+    name: Build iOS (Tauri)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,43 +25,56 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: 'frontend/pnpm-lock.yaml'
 
-      - name: Install dependencies
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+
+      - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
+      - name: Initialize Tauri iOS
         working-directory: frontend
-        run: pnpm build
+        run: pnpm tauri ios init
 
-      - name: Add iOS platform
-        working-directory: frontend
-        run: npx cap add ios || true
-
-      - name: Sync Capacitor
-        working-directory: frontend
-        run: npx cap sync ios
-
-      - name: Build iOS
-        working-directory: frontend/ios/App
+      - name: Download PocketBase sidecar
         run: |
-          xcodebuild -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -archivePath build/App.xcarchive \
-            archive \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+          PB_VERSION="0.27.2"
+          SIDECAR_DIR="frontend/src-tauri/sidecars"
+          mkdir -p "$SIDECAR_DIR"
+          curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_darwin_arm64.zip" -o /tmp/pb.zip
+          cd /tmp && unzip -o pb.zip pocketbase
+          mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-aarch64-apple-darwin"
+          chmod +x "$SIDECAR_DIR/pocketbase-aarch64-apple-darwin"
 
-      - name: Upload iOS archive
+      - name: Create Node sidecar placeholder
+        run: |
+          SIDECAR_DIR="frontend/src-tauri/sidecars"
+          echo "#!/bin/sh" > "$SIDECAR_DIR/node-sidecar-aarch64-apple-darwin"
+          chmod +x "$SIDECAR_DIR/node-sidecar-aarch64-apple-darwin"
+
+      - name: Build Tauri iOS
+        working-directory: frontend
+        run: pnpm tauri ios build
+        env:
+          CODE_SIGN_IDENTITY: ""
+          CODE_SIGNING_REQUIRED: "NO"
+          CODE_SIGNING_ALLOWED: "NO"
+
+      - name: Upload iOS build
         uses: actions/upload-artifact@v4
         with:
           name: ios-build
-          path: frontend/ios/App/build/App.xcarchive
+          path: frontend/src-tauri/gen/apple/build/
 
   build-android:
-    name: Build Android
+    name: Build Android (Tauri)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,6 +91,16 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: 'frontend/pnpm-lock.yaml'
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -87,28 +110,51 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install dependencies
+      - name: Install NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev
+
+      - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
+      - name: Initialize Tauri Android
         working-directory: frontend
-        run: pnpm build
+        run: pnpm tauri android init
 
-      - name: Add Android platform
+      - name: Download PocketBase sidecar
+        run: |
+          PB_VERSION="0.27.2"
+          SIDECAR_DIR="frontend/src-tauri/sidecars"
+          mkdir -p "$SIDECAR_DIR"
+          curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_amd64.zip" -o /tmp/pb.zip
+          cd /tmp && unzip -o pb.zip pocketbase
+          mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-x86_64-unknown-linux-gnu"
+          chmod +x "$SIDECAR_DIR/pocketbase-x86_64-unknown-linux-gnu"
+
+      - name: Create Node sidecar placeholder
+        run: |
+          SIDECAR_DIR="frontend/src-tauri/sidecars"
+          echo "#!/bin/sh" > "$SIDECAR_DIR/node-sidecar-x86_64-unknown-linux-gnu"
+          chmod +x "$SIDECAR_DIR/node-sidecar-x86_64-unknown-linux-gnu"
+
+      - name: Build Tauri Android
         working-directory: frontend
-        run: npx cap add android || true
-
-      - name: Sync Capacitor
-        working-directory: frontend
-        run: npx cap sync android
-
-      - name: Build Android APK
-        working-directory: frontend/android
-        run: ./gradlew assembleRelease
+        run: pnpm tauri android build
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: android-build
-          path: frontend/android/app/build/outputs/apk/release/*.apk
+          path: frontend/src-tauri/gen/android/app/build/outputs/apk/
