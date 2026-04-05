@@ -16,7 +16,15 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({
-  origin: config.frontendUrl,
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    const allowed = [config.frontendUrl];
+    if (process.env.CORS_ORIGINS) {
+      allowed.push(...process.env.CORS_ORIGINS.split(',').map(s => s.trim()));
+    }
+    if (allowed.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '2mb' }));

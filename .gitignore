@@ -14,5 +14,11 @@ frontend/src-tauri/sidecars/node-sidecar*
 !frontend/src-tauri/sidecars/README.md
 frontend/src-tauri/gen/
 
+# Local dev certs
+certs/
+
 # PocketBase binary
 pocketbase
+
+# Tauri mobile generated projects
+frontend/src-tauri/gen/

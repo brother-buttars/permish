@@ -1,0 +1,99 @@
+# Permish — Local Development with HTTPS
+#
+# Start with:
+#   docker compose -f docker-compose.dev.yml up
+#
+# Access:
+#   https://dev.permish.app     (add to /etc/hosts → 127.0.0.1)
+#   https://192.168.3.1         (from mobile devices on LAN)
+#   https://localhost
+#
+# Prerequisites:
+#   1. mkcert -install (trust the local CA)
+#   2. Certs generated in certs/ (mkcert -cert-file certs/dev.pem ...)
+#   3. Add "127.0.0.1 dev.permish.app" to /etc/hosts
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      - "8443:8443"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - ./certs:/etc/caddy/certs:ro
+    depends_on:
+      - frontend
+
+  frontend:
+    image: node:24-slim
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm dev --host 0.0.0.0 --port 5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    expose:
+      - "5173"
+    environment:
+      - PUBLIC_BACKEND=${PUBLIC_BACKEND:-express}
+      - PUBLIC_API_URL=https://dev.permish.app/api
+      - PUBLIC_PB_URL=https://dev.permish.app:8443
+      - PUBLIC_SIDECAR_URL=https://dev.permish.app/api
+
+  backend:
+    build: ./backend
+    expose:
+      - "3001"
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/src:/app/src
+      - db-data:/app/data
+      - pdf-storage:/app/pdfs
+      - uploads-storage:/app/uploads
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+      - PDF_DIR=/app/pdfs
+      - UPLOADS_DIR=/app/uploads
+      - FRONTEND_URL=https://dev.permish.app
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/auth/me').catch(()=>{})"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Uncomment for PocketBase mode:
+  # pocketbase:
+  #   image: ghcr.io/muchobien/pocketbase:latest
+  #   expose:
+  #     - "8090"
+  #   volumes:
+  #     - pb-data:/pb/pb_data
+  #     - ./pb_migrations:/pb/pb_migrations
+  #   command: serve --http=0.0.0.0:8090
+  #
+  # sidecar:
+  #   build: ./sidecar
+  #   expose:
+  #     - "3002"
+  #   volumes:
+  #     - pdf-storage:/app/pdfs
+  #   depends_on:
+  #     - pocketbase
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     - PORT=3002
+  #     - PB_URL=http://pocketbase:8090
+  #     - FRONTEND_URL=https://dev.permish.app
+
+volumes:
+  db-data:
+  pdf-storage:
+  uploads-storage:
+  pb-data:
+  frontend_node_modules:
