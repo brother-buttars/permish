@@ -107,6 +107,9 @@
 					Already have an account?
 					<a href="/login" class="text-primary underline hover:no-underline">Login</a>
 				</p>
+				<a href="/server-settings" class="text-xs text-muted-foreground hover:text-foreground transition-colors">
+					Connect to a different server
+				</a>
 			</CardFooter>
 		</form>
 	</Card>

@@ -72,6 +72,9 @@
 					Don't have an account?
 					<a href="/register" class="text-primary underline hover:no-underline">Register</a>
 				</p>
+				<a href="/server-settings" class="text-xs text-muted-foreground hover:text-foreground transition-colors">
+					Connect to a different server
+				</a>
 			</CardFooter>
 		</form>
 	</Card>

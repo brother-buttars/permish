@@ -17,7 +17,27 @@ import type {
   SystemStats
 } from '../types';
 
-const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:3001';
+/**
+ * API URL resolution (runtime, not build-time):
+ * 1. Custom server URL from localStorage (user-configured via /server-settings)
+ * 2. Build-time env var (for Docker/dev overrides)
+ * 3. Current origin (default — works on any domain without config)
+ */
+function getApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('permish_server_url');
+    if (custom) return custom.replace(/\/$/, ''); // strip trailing slash
+  }
+  return import.meta.env.PUBLIC_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+}
+
+// Resolved once at module load, updated when server settings change
+let API_URL = getApiUrl();
+
+/** Call this after changing permish_server_url in localStorage */
+export function reloadApiUrl(): void {
+  API_URL = getApiUrl();
+}
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
   const { headers: customHeaders, ...restOptions } = options;
