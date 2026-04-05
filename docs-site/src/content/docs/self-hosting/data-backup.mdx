@@ -1,0 +1,102 @@
+---
+title: Data Backup
+description: Back up your Permish database, files, and certificates
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+All persistent data in Permish lives in Docker volumes. This page covers how to back up and restore each one.
+
+## Docker Volumes
+
+| Volume            | Contents                       | Mode    |
+|-------------------|--------------------------------|---------|
+| `db-data`         | SQLite database (`permish.db`) | Express |
+| `pdf-storage`     | Generated PDF files            | Both    |
+| `uploads-storage` | Uploaded event attachments     | Express |
+| `pb-data`         | PocketBase database and files  | PB      |
+| `caddy_data`      | TLS certificates               | HTTPS   |
+| `caddy_config`    | Caddy configuration state      | HTTPS   |
+
+## Manual Backup
+
+### Express Mode
+
+Copy the SQLite database out of the container:
+
+```bash
+docker compose cp backend:/app/data/permish.db ./backup-permish.db
+```
+
+Back up generated PDFs:
+
+```bash
+docker compose cp backend:/app/pdfs ./backup-pdfs
+```
+
+### PocketBase Mode
+
+Copy the entire PocketBase data directory:
+
+```bash
+docker compose cp pocketbase:/pb/pb_data ./backup-pb-data
+```
+
+### TLS Certificates
+
+If you use the `production` profile, back up the Caddy certificate volume:
+
+```bash
+docker run --rm -v permissionform_caddy_data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/caddy-data-backup.tar.gz /data
+```
+
+## Automated Daily Backup (Cron)
+
+Add to your crontab with `crontab -e`:
+
+```bash
+# Back up the SQLite database every day at 3:00 AM
+0 3 * * * docker compose -f /path/to/docker-compose.yml \
+  cp backend:/app/data/permish.db /backups/permish-$(date +\%F).db
+```
+
+To keep only the last 30 days of backups:
+
+```bash
+# Clean up backups older than 30 days
+0 4 * * * find /backups -name "permish-*.db" -mtime +30 -delete
+```
+
+:::tip[Hot Backups]
+SQLite uses WAL (Write-Ahead Logging) mode. You can safely copy the `.db` file while the application is running without stopping services.
+:::
+
+## In-App Encrypted Backup
+
+Permish supports encrypted backup files (`.permish-backup`) that use AES-256 encryption.
+
+### Export
+
+From the account settings page, select **Export Data**. Choose a password and download the encrypted backup file.
+
+### Restore
+
+From the account settings page, select **Import Data**. Upload the `.permish-backup` file and enter the password used during export. Data is decrypted and restored into the current instance.
+
+Backup files are portable. Export from one instance and restore on another.
+
+## SQLite File Location
+
+When running without Docker, the SQLite database is at:
+
+```
+backend/data/permish.db
+```
+
+The `DATA_DIR` environment variable controls this path. Inside Docker, it maps to `/app/data/`.
+
+## Next Steps
+
+- [Updating](/PermissionForm/self-hosting/updating/) — How to update Permish to the latest version
+- [Docker Compose](/PermissionForm/self-hosting/docker-compose/) — Volume configuration reference

@@ -1,0 +1,154 @@
+---
+title: Code Style
+description: Coding conventions and patterns used in Permish
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Follow these conventions when contributing to Permish.
+
+## Svelte 5 Runes
+
+All components use Svelte 5 runes mode. Do not use the legacy `$:` reactive syntax.
+
+```svelte
+<script>
+  let { name, onSubmit } = $props();
+  let count = $state(0);
+  let doubled = $derived(count * 2);
+
+  $effect(() => {
+    console.log('count changed:', count);
+  });
+</script>
+```
+
+| Rune | Purpose |
+|------|---------|
+| `$props()` | Declare component props |
+| `$state()` | Declare reactive state |
+| `$derived` | Computed values |
+| `$effect` | Side effects |
+| `$bindable()` | Two-way bindable props |
+
+## shadcn-svelte Components
+
+Use shadcn-svelte components for all UI. Components live in `frontend/src/lib/components/ui/` and are hand-built to match shadcn patterns exactly.
+
+- Use the `cn()` utility from `$lib/utils.ts` to merge Tailwind classes.
+- Follow the same prop interfaces as shadcn-svelte.
+- If a component does not exist, build it to match shadcn design patterns.
+
+```svelte
+<script>
+  import { cn } from '$lib/utils';
+  let { class: className, ...rest } = $props();
+</script>
+
+<div class={cn('rounded-lg border p-4', className)} {...rest}>
+  <slot />
+</div>
+```
+
+## Field Name Conventions
+
+Backend database column names **must** match exactly in frontend API calls. The definitive field names are in `backend/src/db/schema.js`.
+
+| Correct Name | Not This |
+|---|---|
+| `participant_name` | `first_name`, `last_name` |
+| `participant_dob` | `date_of_birth` |
+| `participant_phone` | `phone` |
+| `emergency_contact` | `emergency_contact_name` |
+| `emergency_phone_primary` | `emergency_contact_phone` |
+| `emergency_phone_secondary` | `emergency_contact_phone_secondary` |
+| `allergies_details` | `allergy_details` |
+| `can_self_administer_meds` | `can_self_administer` |
+| `event_description` | `description` |
+| `event_name` | `name` |
+| `event_dates` | `dates` |
+| `submitted_at` | `created_at` |
+
+## Date Formatting
+
+All displayed dates use `formatDate()` from `$lib/utils/formatDate.ts`:
+
+- Date-only: **"20 March 2026"**
+- Datetime: **"20 March 2026 at 6:29 pm"**
+- Date input fields use `YYYY-MM-DD` format for `<input type="date">`
+
+## Toast Notifications
+
+Use the toast system for all user feedback. Never use `alert()`.
+
+```typescript
+import { toastSuccess, toastError } from '$lib/stores/toast';
+
+toastSuccess('Event created');
+toastError('Failed to save');
+```
+
+Toasts appear from top center with auto-dismiss.
+
+## Modals
+
+Use `ConfirmModal` for all destructive or confirmation actions. Never use `confirm()`.
+
+```svelte
+<script>
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  let showModal = $state(false);
+</script>
+
+<ConfirmModal
+  open={showModal}
+  title="Delete Event"
+  message="This action cannot be undone."
+  onConfirm={handleDelete}
+  onCancel={() => showModal = false}
+/>
+```
+
+The modal uses a blurred backdrop (`backdrop-blur-sm`).
+
+## Auth
+
+- JWT tokens are stored in HttpOnly SameSite=Strict cookies.
+- `extractUser` middleware runs on every request.
+- `requireAuth` and `requirePlanner` protect routes.
+- The `planner` role can create and manage events. All users can manage child profiles and submit forms.
+
+## Route Mounting Order
+
+In `backend/src/index.js`, form routes **must** come before event routes:
+
+1. Auth routes (`/api/auth`)
+2. Form routes (`/api/events` — public)
+3. Events routes (`/api/events` — planner-only)
+4. Profiles routes (`/api/profiles`)
+5. Submissions routes (`/api/submissions`)
+
+## Testing Conventions
+
+- **Backend:** Jest + supertest with in-memory SQLite (`:memory:`)
+- **Frontend:** Vitest
+- **UUID generation:** Use `crypto.randomUUID()` instead of the `uuid` package
+- **Rate limiting:** Disabled in test environment (`NODE_ENV=test`)
+- **Test database:** Override `app.locals.db` in test setup
+
+## Package Manager
+
+Use **pnpm**, not npm. The project uses pnpm workspaces.
+
+```bash
+pnpm install    # install dependencies
+pnpm dev        # start dev server
+pnpm test       # run tests
+pnpm build      # production build
+```
+
+## Next Steps
+
+- [Fork & Build](/PermissionForm/contributing/fork-and-build/) — Set up your own instance
+- [Testing](/PermissionForm/development/testing/) — Run and write tests
+- [Architecture](/PermissionForm/development/architecture/) — Understand the codebase

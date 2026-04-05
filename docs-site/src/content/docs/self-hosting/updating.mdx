@@ -1,0 +1,88 @@
+---
+title: Updating
+description: How to update Permish to the latest version
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Updating Permish takes three commands. Docker Compose preserves all data volumes across rebuilds.
+
+## Update Steps
+
+```bash
+cd /path/to/PermissionForm
+
+# Pull the latest code
+git pull
+
+# Rebuild containers
+docker compose build
+
+# Restart with the new build
+docker compose up -d
+```
+
+## Update a Single Service
+
+If only the frontend or backend changed, rebuild just that service:
+
+```bash
+docker compose build frontend
+docker compose up -d frontend
+```
+
+## Database Migrations
+
+Database migrations run automatically when the backend starts. The migration system checks if each column exists before adding it, so migrations are safe to re-run.
+
+No manual migration commands are needed.
+
+## Version Checking
+
+Check the currently deployed version:
+
+```bash
+docker compose logs frontend | head -5
+```
+
+Check the latest available version:
+
+```bash
+git fetch origin
+git log --oneline origin/main -5
+```
+
+## Rollback
+
+If an update causes issues, roll back to the previous version:
+
+```bash
+# Find the previous commit
+git log --oneline -10
+
+# Check out the previous version
+git checkout <commit-hash>
+
+# Rebuild and restart
+docker compose build
+docker compose up -d
+```
+
+:::caution
+Database migrations are forward-only. If a new version adds columns, rolling back the code does not remove those columns. This is safe because the old code ignores unknown columns, but keep it in mind.
+:::
+
+## Data Safety
+
+Docker Compose preserves named volumes across rebuilds. Your database, PDFs, uploads, and TLS certificates are not affected by `docker compose build` or `docker compose up -d`.
+
+To verify your volumes still exist:
+
+```bash
+docker volume ls | grep permissionform
+```
+
+## Next Steps
+
+- [Data backup](/PermissionForm/self-hosting/data-backup/) — Back up before updating
+- [Docker Compose](/PermissionForm/self-hosting/docker-compose/) — Configuration reference

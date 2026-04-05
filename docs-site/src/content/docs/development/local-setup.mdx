@@ -1,0 +1,128 @@
+---
+title: Local Setup
+description: Set up a local development environment for Permish
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Run Permish locally without Docker for development. This gives you hot module replacement and fast iteration.
+
+## Prerequisites
+
+| Tool    | Version | Install                                      |
+|---------|---------|----------------------------------------------|
+| Node.js | 24 LTS  | `nvm install` (reads `.nvmrc` automatically) |
+| pnpm    | 10+     | `corepack enable && corepack prepare pnpm@latest --activate` |
+| nvm     | any     | [github.com/nvm-sh/nvm](https://github.com/nvm-sh/nvm) |
+
+## Clone and Install
+
+```bash
+git clone https://github.com/brandonbuttars/PermissionForm.git
+cd PermissionForm
+```
+
+Set up the environment file:
+
+```bash
+cp .env.example .env
+# Edit .env with your JWT_SECRET and optional email settings
+```
+
+Install dependencies for both backend and frontend:
+
+```bash
+cd backend && pnpm install
+cd ../frontend && pnpm install
+```
+
+## Start Development Servers
+
+Open two terminals:
+
+**Terminal 1 — Backend:**
+
+```bash
+cd backend
+pnpm dev
+```
+
+Starts the Express API server on port 3001 with `--watch` for auto-reload.
+
+**Terminal 2 — Frontend:**
+
+```bash
+cd frontend
+pnpm dev
+```
+
+Starts the SvelteKit dev server on port 3000 with hot module replacement.
+
+| Service  | URL                    |
+|----------|------------------------|
+| Frontend | http://localhost:3000   |
+| Backend  | http://localhost:3001   |
+
+The frontend proxies API calls to the backend automatically.
+
+:::caution
+HTTP mode does not set secure cookies and does not test CORS or mixed-content behavior. Use [HTTPS development mode](/PermissionForm/development/https-dev/) to catch production issues early.
+:::
+
+## Project Structure
+
+```
+PermissionForm/
+├── backend/               Express API server (Node.js)
+│   ├── src/
+│   │   ├── index.js       Entry point, middleware, route mounting
+│   │   ├── config.js      Environment variable loading
+│   │   ├── db/            SQLite schema, connection, migrations
+│   │   ├── middleware/     Auth, validation, rate limiting
+│   │   ├── routes/        API route handlers
+│   │   ├── services/      Email, SMS, PDF generation
+│   │   └── templates/     Church PDF template
+│   └── tests/             Jest test suites
+├── frontend/              SvelteKit app (Svelte 5, Tailwind v4)
+│   ├── src/
+│   │   ├── app.css        Theme (oklch colors, dark mode)
+│   │   ├── lib/
+│   │   │   ├── api.ts         Backend API client
+│   │   │   ├── stores/        Svelte stores (auth, toast)
+│   │   │   ├── components/    UI components (shadcn-style)
+│   │   │   └── utils/         Shared utilities
+│   │   └── routes/            SvelteKit pages
+│   └── src-tauri/             Tauri desktop/mobile config
+├── sidecar/               Node.js sidecar (PocketBase mode)
+├── scripts/               Migration and utility scripts
+├── pb_migrations/         PocketBase collection schemas
+├── docker-compose.yml     Production Docker setup
+├── Caddyfile              Production Caddy config
+├── Caddyfile.dev          Local HTTPS Caddy config
+└── dev.sh                 Local HTTPS startup script
+```
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/src/index.js` | Express entry point. Route mounting order matters. |
+| `backend/src/db/schema.js` | SQLite schema and migrations. Definitive field names. |
+| `frontend/src/lib/api.ts` | Backend API client (fetch wrapper). |
+| `frontend/src/app.css` | Theme variables (oklch colors, dark mode). |
+| `frontend/src/lib/components/ui/` | shadcn-style base components. |
+
+## Rebuilding Native Modules
+
+After switching Node versions, rebuild the native SQLite binding:
+
+```bash
+cd backend
+pnpm rebuild better-sqlite3
+```
+
+## Next Steps
+
+- [HTTPS development](/PermissionForm/development/https-dev/) — Recommended for catching production issues
+- [Testing](/PermissionForm/development/testing/) — Run the test suites
+- [Architecture](/PermissionForm/development/architecture/) — Understand the codebase structure

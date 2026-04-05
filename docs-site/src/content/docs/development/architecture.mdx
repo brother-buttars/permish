@@ -1,0 +1,134 @@
+---
+title: Architecture
+description: Permish codebase structure, data modes, and backend options
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Permish supports two backend modes and three data storage modes. This page explains how the pieces fit together.
+
+## Backend Modes
+
+### Express Mode (Default)
+
+The Express backend handles auth, CRUD, PDF generation, email, and SMS. Data is stored in SQLite via `better-sqlite3`.
+
+```
+Browser → SvelteKit Frontend → Express Backend → SQLite
+```
+
+### PocketBase Mode
+
+PocketBase replaces Express for auth, CRUD, and realtime subscriptions. A Node.js sidecar handles PDF generation, email, and SMS since PocketBase cannot do those natively.
+
+```
+Browser → SvelteKit Frontend → PocketBase (auth, CRUD)
+                             → Node Sidecar (PDF, email, SMS)
+```
+
+## Data Modes
+
+The app supports three data storage modes, selectable via **Settings > Data Storage**:
+
+| Mode     | Storage            | Connectivity | Description                                     |
+|----------|--------------------|--------------|--------------------------------------------------|
+| `online` | Server             | Required     | Default for web. Server is the source of truth.  |
+| `local`  | In-browser SQLite  | None         | Fully offline. Data stays in the browser (sql.js).|
+| `hybrid` | Local SQLite + sync| Optional     | Local-first with background sync to PocketBase.  |
+
+- **online** — Default for web deployments.
+- **local** — Default for the desktop Tauri app. All data is stored locally.
+- **hybrid** — Useful for intermittent connectivity (e.g., camp locations with poor signal). Works offline and syncs when a connection is available.
+
+## Data Flow Diagram
+
+```
+                    ┌──────────────┐
+                    │   Browser    │
+                    └──────┬───────┘
+                           │
+              ┌────────────┼────────────┐
+              │ Express    │ PocketBase │
+              │ Mode       │ Mode       │
+              ▼            │            ▼
+     ┌────────────┐        │   ┌──────────────┐
+     │  Express   │        │   │ PocketBase   │
+     │  Backend   │        │   │ (auth, CRUD) │
+     │            │        │   └──────┬───────┘
+     │ - Auth     │        │          │
+     │ - CRUD     │        │   ┌──────┴───────┐
+     │ - PDF      │        │   │ Node Sidecar │
+     │ - Email    │        │   │ (PDF, email) │
+     │ - SMS      │        │   └──────┬───────┘
+     └──────┬─────┘        │          │
+            │              │          │
+            ▼              │          ▼
+     ┌────────────┐        │   ┌──────────────┐
+     │  SQLite    │        │   │  PocketBase  │
+     │ (better-   │        │   │  Database    │
+     │  sqlite3)  │        │   └──────────────┘
+     └────────────┘        │
+```
+
+## Directory Structure
+
+```
+PermissionForm/
+├── backend/               Express API server (Node.js)
+│   ├── src/
+│   │   ├── index.js       Entry point, middleware, route mounting
+│   │   ├── config.js      Environment variable loading
+│   │   ├── db/            SQLite schema, connection, migrations
+│   │   ├── middleware/     Auth, validation, rate limiting
+│   │   ├── routes/        API route handlers
+│   │   ├── services/      Email, SMS, PDF generation
+│   │   └── templates/     Church PDF template
+│   └── tests/             Jest test suites
+├── frontend/              SvelteKit app (Svelte 5, Tailwind v4)
+│   ├── src/
+│   │   ├── app.css        Theme (oklch colors, dark mode)
+│   │   ├── lib/
+│   │   │   ├── api.ts         Backend API client
+│   │   │   ├── stores/        Svelte stores (auth, toast)
+│   │   │   ├── components/    UI components (shadcn-style)
+│   │   │   └── utils/         Shared utilities
+│   │   └── routes/            SvelteKit pages
+│   └── src-tauri/             Tauri desktop/mobile config
+├── sidecar/               Node.js sidecar (PocketBase mode)
+├── scripts/               Migration and utility scripts
+├── pb_migrations/         PocketBase collection schemas
+├── certs/                 Local dev TLS certificates (gitignored)
+├── docker-compose.yml     Production Docker setup
+├── Caddyfile              Production Caddy config
+├── Caddyfile.dev          Local HTTPS Caddy config
+└── dev.sh                 Local HTTPS startup script
+```
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/src/index.js` | Express entry point. Route mounting order is critical (form routes before event routes). |
+| `backend/src/db/schema.js` | SQLite schema and migrations. The definitive source for field names. |
+| `backend/src/services/pdf.js` | PDF generation using `pdf-lib`. Fills the official church PDF template. |
+| `backend/src/templates/permission-form.pdf` | The actual church form used as a PDF template. |
+| `frontend/src/lib/api.ts` | Backend API client. All HTTP requests go through this module. |
+| `frontend/src/app.css` | Theme variables in oklch format with dark mode support. |
+| `frontend/src/lib/components/ui/` | Hand-built shadcn-style base components (Svelte 5 runes). |
+| `docker-compose.yml` | Docker Compose configuration with profiles for Express, PocketBase, and production HTTPS. |
+
+## Route Mounting Order
+
+In `backend/src/index.js`, form routes **must** be mounted before event routes since both use the `/api/events` prefix:
+
+1. Auth routes (`/api/auth`)
+2. Form routes (`/api/events` — public: `/:id/form`, `/:id/submit`)
+3. Events routes (`/api/events` — planner-only, requires auth)
+4. Profiles routes (`/api/profiles`)
+5. Submissions routes (`/api/submissions` — `/mine` before `/:id/*`)
+
+## Next Steps
+
+- [Testing](/PermissionForm/development/testing/) — Run the test suites
+- [Code style](/PermissionForm/contributing/code-style/) — Conventions and patterns
+- [Local setup](/PermissionForm/development/local-setup/) — Get the dev environment running

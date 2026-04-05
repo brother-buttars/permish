@@ -24,3 +24,5 @@ pocketbase
 
 # Tauri mobile generated projects
 frontend/src-tauri/gen/
+docs-site/node_modules/
+docs-site/dist/

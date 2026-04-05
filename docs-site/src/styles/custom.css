@@ -1,0 +1,153 @@
+/* Permish docs — Purple branding inspired by Mintlify */
+
+:root {
+	/* Purple accent colors */
+	--sl-color-accent-low: #2e1065;
+	--sl-color-accent: #7c3aed;
+	--sl-color-accent-high: #c4b5fd;
+
+	/* Slightly warmer text */
+	--sl-color-white: #f8fafc;
+	--sl-color-gray-1: #e2e8f0;
+	--sl-color-gray-2: #cbd5e1;
+	--sl-color-gray-3: #94a3b8;
+	--sl-color-gray-4: #64748b;
+	--sl-color-gray-5: #475569;
+	--sl-color-gray-6: #1e293b;
+	--sl-color-black: #0f172a;
+
+	/* Fonts */
+	--sl-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	--sl-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Light theme overrides */
+:root[data-theme='light'] {
+	--sl-color-accent-low: #ede9fe;
+	--sl-color-accent: #7c3aed;
+	--sl-color-accent-high: #4c1d95;
+
+	--sl-color-white: #0f172a;
+	--sl-color-gray-1: #1e293b;
+	--sl-color-gray-2: #334155;
+	--sl-color-gray-3: #64748b;
+	--sl-color-gray-4: #94a3b8;
+	--sl-color-gray-5: #cbd5e1;
+	--sl-color-gray-6: #f1f5f9;
+	--sl-color-black: #ffffff;
+}
+
+/* Mintlify-style hero on landing page */
+.hero-section {
+	text-align: center;
+	padding: 4rem 1rem;
+}
+
+.hero-section h1 {
+	font-size: 3rem;
+	font-weight: 800;
+	letter-spacing: -0.025em;
+	background: linear-gradient(135deg, #7c3aed, #a78bfa, #c084fc);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+.hero-section p {
+	font-size: 1.25rem;
+	color: var(--sl-color-gray-3);
+	max-width: 600px;
+	margin: 1rem auto;
+}
+
+/* Card grid for feature highlights */
+.card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+	gap: 1.5rem;
+	margin: 2rem 0;
+}
+
+.card-grid > div {
+	padding: 1.5rem;
+	border-radius: 0.75rem;
+	border: 1px solid var(--sl-color-gray-5);
+	background: var(--sl-color-black);
+	transition: border-color 0.2s;
+}
+
+.card-grid > div:hover {
+	border-color: var(--sl-color-accent);
+}
+
+.card-grid h3 {
+	margin-top: 0;
+	font-size: 1.1rem;
+}
+
+/* Version badge */
+.version-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.25rem 0.75rem;
+	border-radius: 9999px;
+	font-size: 0.8rem;
+	font-weight: 500;
+	background: var(--sl-color-accent-low);
+	color: var(--sl-color-accent);
+	margin-bottom: 1rem;
+}
+
+/* Download buttons */
+.download-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	margin: 1.5rem 0;
+}
+
+.download-buttons a {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.75rem 1.5rem;
+	border-radius: 0.5rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: all 0.2s;
+}
+
+.download-buttons a.primary {
+	background: var(--sl-color-accent);
+	color: white;
+}
+
+.download-buttons a.primary:hover {
+	opacity: 0.9;
+	transform: translateY(-1px);
+}
+
+.download-buttons a.secondary {
+	border: 1px solid var(--sl-color-gray-5);
+	color: var(--sl-color-white);
+}
+
+.download-buttons a.secondary:hover {
+	border-color: var(--sl-color-accent);
+}
+
+/* Code blocks */
+starlight-tabs code {
+	font-size: 0.85rem;
+}
+
+/* Smoother scrollbar */
+::-webkit-scrollbar {
+	width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--sl-color-gray-5);
+	border-radius: 4px;
+}

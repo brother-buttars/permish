@@ -1,0 +1,110 @@
+---
+title: Testing
+description: Run the Permish test suites — 270 tests across backend, frontend, and E2E
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Permish has 270 tests across three suites.
+
+## Test Summary
+
+| Suite          | Framework | Command                                      | Tests |
+|----------------|-----------|----------------------------------------------|-------|
+| Backend        | Jest      | `cd backend && pnpm test`                    | 89    |
+| Frontend       | Vitest    | `cd frontend && pnpm test`                   | 155   |
+| PocketBase E2E | Node.js   | `cd scripts && node test-pocketbase-e2e.js`  | 26    |
+| **Total**      |           |                                              | **270** |
+
+## Backend Tests
+
+```bash
+cd backend
+pnpm test
+```
+
+- **Framework:** Jest + supertest
+- **Database:** In-memory SQLite (`:memory:`) — no test data persists between runs
+- **Rate limiting:** Disabled when `NODE_ENV=test`
+- **Coverage areas:** Auth, events, forms, submissions, profiles, PDF generation, email, SMS
+
+The test database is created fresh for each test suite using `app.locals.db` override.
+
+## Frontend Tests
+
+```bash
+cd frontend
+pnpm test
+```
+
+- **Framework:** Vitest
+- **Coverage areas:** Components, utilities, stores, API client, form validation
+
+### Watch Mode
+
+Re-runs tests on file changes:
+
+```bash
+cd frontend
+pnpm test:watch
+```
+
+## PocketBase E2E Tests
+
+```bash
+cd scripts
+node test-pocketbase-e2e.js
+```
+
+- **Prerequisite:** A running PocketBase instance (start with `docker compose --profile pocketbase up -d`)
+- **Coverage areas:** Auth flow, CRUD operations, realtime subscriptions, sidecar integration
+
+## Running All Tests
+
+Run all three suites in sequence:
+
+```bash
+cd backend && pnpm test && cd ../frontend && pnpm test
+```
+
+The PocketBase E2E suite requires a running PocketBase instance and is typically run separately.
+
+## Writing Tests
+
+### Backend
+
+Tests live in `backend/tests/`. Each test file uses supertest to make HTTP requests against the Express app with an in-memory database:
+
+```javascript
+const request = require('supertest');
+const app = require('../src/index');
+
+describe('GET /api/events', () => {
+  it('returns events for authenticated planner', async () => {
+    const res = await request(app)
+      .get('/api/events')
+      .set('Cookie', authCookie);
+    expect(res.status).toBe(200);
+  });
+});
+```
+
+### Frontend
+
+Tests live alongside components or in `frontend/src/lib/`. Vitest provides a fast test runner with Vite's module resolution:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { formatDate } from './formatDate';
+
+describe('formatDate', () => {
+  it('formats date-only values', () => {
+    expect(formatDate('2026-03-20')).toBe('20 March 2026');
+  });
+});
+```
+
+## Next Steps
+
+- [Architecture](/PermissionForm/development/architecture/) — Understand the codebase structure
+- [Code style](/PermissionForm/contributing/code-style/) — Testing conventions and patterns

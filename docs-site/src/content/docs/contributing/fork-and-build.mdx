@@ -1,0 +1,109 @@
+---
+title: Fork & Build
+description: Fork Permish, customize it for your organization, and contribute back
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Permish is open source. Fork it, customize it for your ward or stake, and deploy your own instance.
+
+## Fork the Repository
+
+1. Go to [github.com/brandonbuttars/PermissionForm](https://github.com/brandonbuttars/PermissionForm).
+2. Click **Fork** in the top right.
+3. Clone your fork:
+
+```bash
+git clone https://github.com/YOUR-USERNAME/PermissionForm.git
+cd PermissionForm
+```
+
+## Set Up for Development
+
+Follow the [Local Setup](/PermissionForm/development/local-setup/) guide to install prerequisites and start the dev servers.
+
+## Customize for Your Organization
+
+### Organizations and Groups
+
+Edit `frontend/src/lib/utils/organizations.ts` to change the youth organizations and groups. The default configuration uses LDS Church organizations:
+
+- **Young Men:** Deacons, Teachers, Priests
+- **Young Women:** Beehives, Mia Maids, Laurels
+
+### Form Fields
+
+The permission form fields are defined in:
+- **Database schema:** `backend/src/db/schema.js` — column definitions
+- **PDF mapping:** `backend/src/services/pdf.js` — maps fields to the church PDF template
+- **Form UI:** `frontend/src/routes/form/[id]/+page.svelte` — the form page
+
+To add or modify fields:
+1. Add the column in `schema.js` (use the migration pattern for existing tables).
+2. Update the PDF service if the field appears on the form.
+3. Update the frontend form component.
+4. Update the submission display pages.
+
+### Branding
+
+- **Theme colors:** `frontend/src/app.css` — oklch color variables with dark mode
+- **App name:** Search for "Permish" in the frontend and replace
+
+## Deploy Your Fork
+
+Use any of the deployment methods:
+- [Docker Compose](/PermissionForm/self-hosting/docker-compose/) for a VPS
+- [Desktop app](/PermissionForm/downloads/desktop/) for offline use
+- Or run directly with Node.js
+
+## Contributing Back
+
+Contributions are welcome. To submit changes back to the main project:
+
+### 1. Create a Branch
+
+```bash
+git checkout -b feature/your-feature-name
+```
+
+### 2. Make Your Changes
+
+Follow the [Code Style](/PermissionForm/contributing/code-style/) conventions.
+
+### 3. Write Tests
+
+Add tests for new features. See [Testing](/PermissionForm/development/testing/).
+
+### 4. Push and Open a PR
+
+```bash
+git push origin feature/your-feature-name
+```
+
+Then open a Pull Request on GitHub against the `main` branch.
+
+### PR Guidelines
+
+- Keep PRs focused on a single change.
+- Include a description of what changed and why.
+- Add tests for new functionality.
+- Make sure existing tests pass: `cd backend && pnpm test && cd ../frontend && pnpm test`
+
+## Keeping Your Fork Updated
+
+Sync your fork with the upstream repository:
+
+```bash
+# Add the upstream remote (one time)
+git remote add upstream https://github.com/brandonbuttars/PermissionForm.git
+
+# Fetch and merge upstream changes
+git fetch upstream
+git merge upstream/main
+```
+
+## Next Steps
+
+- [Code style](/PermissionForm/contributing/code-style/) — Conventions to follow
+- [Testing](/PermissionForm/development/testing/) — Write and run tests
+- [Architecture](/PermissionForm/development/architecture/) — Understand the codebase

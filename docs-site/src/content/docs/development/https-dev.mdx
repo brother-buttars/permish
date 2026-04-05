@@ -1,0 +1,108 @@
+---
+title: HTTPS Development
+description: Set up local HTTPS with mkcert and Caddy for development
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Local HTTPS development catches issues that only appear with secure connections: secure cookies, mixed-content blocking, CORS with credentials, and service worker requirements.
+
+## How It Works
+
+Caddy runs as a local reverse proxy on port 443 with locally-trusted TLS certificates from [mkcert](https://github.com/FiloSottile/mkcert):
+
+```
+Browser (https://dev.permish.app)
+  └── Caddy (port 443, TLS termination)
+        ├── /api/*  → Express backend (port 3001)
+        └── /*      → Vite dev server (port 5173, HMR over WSS)
+```
+
+## One-Time Setup
+
+### 1. Install mkcert and Caddy
+
+```bash
+# macOS
+brew install mkcert caddy
+
+# Ubuntu / Debian
+sudo apt install mkcert caddy
+```
+
+### 2. Trust the local CA
+
+```bash
+sudo mkcert -install
+```
+
+### 3. Add the dev hostname
+
+```bash
+echo "127.0.0.1 dev.permish.app" | sudo tee -a /etc/hosts
+```
+
+### 4. Generate certificates
+
+This is handled automatically by `dev.sh`, but you can do it manually:
+
+```bash
+mkdir -p certs
+mkcert -cert-file certs/dev.pem -key-file certs/dev-key.pem \
+  "dev.permish.app" "localhost" "127.0.0.1" "$(ipconfig getifaddr en0)"
+```
+
+The certificate includes your LAN IP so mobile devices on the same network can connect.
+
+## Start Everything
+
+```bash
+./dev.sh
+```
+
+This single script starts the backend, frontend, and Caddy, then prints the access URLs:
+
+| Access from       | URL                        |
+|-------------------|----------------------------|
+| Desktop browser   | https://dev.permish.app    |
+| Mobile on LAN     | https://192.168.x.x        |
+| Backend directly  | http://localhost:3001       |
+
+Press `Ctrl+C` to stop all services.
+
+## Manual Start (Without dev.sh)
+
+Run each service in its own terminal:
+
+**Terminal 1 — Backend:**
+
+```bash
+cd backend && pnpm dev
+```
+
+**Terminal 2 — Frontend:**
+
+```bash
+cd frontend
+VITE_DEV_HTTPS=true PUBLIC_API_URL=https://dev.permish.app/api pnpm dev --host 0.0.0.0
+```
+
+**Terminal 3 — Caddy:**
+
+```bash
+caddy run --config Caddyfile.dev
+```
+
+The `VITE_DEV_HTTPS=true` flag configures Vite's HMR to use WSS (WebSocket Secure) through the Caddy proxy instead of plain WS.
+
+## Mobile Device Testing
+
+Use the LAN IP printed by `dev.sh` (e.g., `https://192.168.3.1`) to access from a phone or tablet on the same Wi-Fi network.
+
+The certificate includes your LAN IP, so HTTPS works — but only if the device trusts mkcert's root CA. See [Mobile Testing](/PermissionForm/development/mobile-testing/) for CA installation instructions.
+
+## Next Steps
+
+- [Mobile testing](/PermissionForm/development/mobile-testing/) — Install the mkcert CA on iOS and Android
+- [Local setup](/PermissionForm/development/local-setup/) — Basic HTTP development
+- [Testing](/PermissionForm/development/testing/) — Run the test suites

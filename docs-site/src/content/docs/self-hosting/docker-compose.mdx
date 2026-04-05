@@ -1,0 +1,103 @@
+---
+title: Docker Compose
+description: Deploy Permish with Docker Compose in Express or PocketBase mode
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Permish supports two backend modes via Docker Compose profiles. Choose the one that fits your needs.
+
+## Prerequisites
+
+- Docker Engine 24+ and Docker Compose v2
+- A Linux VPS (Ubuntu 22.04+ recommended) with at least 1 GB RAM
+- A domain name with DNS A record pointing to your server (for HTTPS)
+- Ports 80 and 443 open in your firewall (for HTTPS)
+
+## Express Mode (Simplest)
+
+The default deployment. Uses Express with SQLite for data storage.
+
+```bash
+git clone https://github.com/brandonbuttars/PermissionForm.git
+cd PermissionForm
+cp .env.example .env
+# Edit .env with your values (JWT_SECRET, email settings, etc.)
+
+docker compose up -d
+```
+
+This starts two services:
+
+| Service   | Port | Description                     |
+|-----------|------|---------------------------------|
+| `backend` | 3001 | Express API server              |
+| `frontend`| 3000 | SvelteKit app (server-rendered) |
+
+Access the app at `http://your-server-ip:3000`.
+
+## PocketBase Mode
+
+Replaces the Express backend with PocketBase for data storage. A Node.js sidecar service handles PDF generation, email, and SMS.
+
+```bash
+PUBLIC_BACKEND=pocketbase docker compose --profile pocketbase up -d
+```
+
+This starts:
+
+| Service      | Port | Description                       |
+|--------------|------|-----------------------------------|
+| `pocketbase` | 8090 | PocketBase (auth, CRUD, realtime) |
+| `sidecar`    | 3002 | Node.js service (PDF, email, SMS) |
+| `frontend`   | 3000 | SvelteKit app                     |
+| `backend`    | 3001 | Express (still runs for healthchecks) |
+
+:::note
+The `backend` container still starts because the frontend depends on it for healthchecks. You can safely ignore it in PocketBase mode.
+:::
+
+## Production HTTPS
+
+Add automatic HTTPS with Caddy. See [HTTPS & SSL](/PermissionForm/self-hosting/https-ssl/) for full details.
+
+```bash
+DOMAIN=permish.app docker compose --profile production up -d
+```
+
+## Combined: PocketBase + HTTPS
+
+```bash
+DOMAIN=permish.app PUBLIC_BACKEND=pocketbase \
+  docker compose --profile pocketbase --profile production up -d
+```
+
+## Port Configuration
+
+Override default ports via environment variables or `.env`:
+
+| Variable        | Default | Description             |
+|-----------------|---------|-------------------------|
+| `BACKEND_PORT`  | `3001`  | Host port for Express   |
+| `FRONTEND_PORT` | `3000`  | Host port for SvelteKit |
+| `PB_PORT`       | `8090`  | Host port for PocketBase|
+| `SIDECAR_PORT`  | `3002`  | Host port for sidecar   |
+
+## Docker Volumes
+
+All persistent data lives in Docker volumes, which survive container rebuilds:
+
+| Volume            | Contents                       | Mode    |
+|-------------------|--------------------------------|---------|
+| `db-data`         | SQLite database (`permish.db`) | Express |
+| `pdf-storage`     | Generated PDF files            | Both    |
+| `uploads-storage` | Uploaded event attachments     | Express |
+| `pb-data`         | PocketBase database and files  | PB      |
+| `caddy_data`      | TLS certificates               | HTTPS   |
+| `caddy_config`    | Caddy configuration state      | HTTPS   |
+
+## Next Steps
+
+- [HTTPS & SSL](/PermissionForm/self-hosting/https-ssl/) — Set up automatic HTTPS with Caddy
+- [Environment variables](/PermissionForm/self-hosting/environment-variables/) — Full configuration reference
+- [Data backup](/PermissionForm/self-hosting/data-backup/) — Back up your database and files

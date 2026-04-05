@@ -1,0 +1,92 @@
+---
+title: Environment Variables
+description: Complete reference of all Permish configuration options
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Copy the example file and edit it with your values:
+
+```bash
+cp .env.example .env
+```
+
+## Required
+
+| Variable     | Description                       |
+|--------------|-----------------------------------|
+| `JWT_SECRET` | Secret key for signing JWT tokens. Use a long, random string. |
+
+:::caution
+Always set a strong, unique `JWT_SECRET` in production. Never use the default or leave it empty.
+:::
+
+## Email (Optional)
+
+Required only if you want to send form links and notifications via email.
+
+| Variable     | Default | Description                            |
+|--------------|---------|----------------------------------------|
+| `EMAIL_HOST` | —       | SMTP server hostname (e.g., `smtp.gmail.com`) |
+| `EMAIL_PORT` | `587`   | SMTP server port                       |
+| `EMAIL_USER` | —       | SMTP username                          |
+| `EMAIL_PASS` | —       | SMTP password or app-specific password |
+| `EMAIL_FROM` | —       | Sender email address                   |
+
+:::tip[Gmail]
+Use a [Gmail App Password](https://myaccount.google.com/apppasswords), not your account password. Go to Google Account > Security > App passwords.
+:::
+
+## PocketBase Mode
+
+Set these when running with `--profile pocketbase`.
+
+| Variable             | Default                   | Description                       |
+|----------------------|---------------------------|-----------------------------------|
+| `PUBLIC_BACKEND`     | `express`                 | Set to `pocketbase` to use PocketBase |
+| `PUBLIC_PB_URL`      | `http://localhost:8090`   | PocketBase URL (as seen by the browser) |
+| `PUBLIC_SIDECAR_URL` | `http://localhost:3002`   | Node sidecar URL (as seen by the browser) |
+| `PB_ADMIN_EMAIL`     | —                         | PocketBase superuser email        |
+| `PB_ADMIN_PASSWORD`  | —                         | PocketBase superuser password     |
+
+## Ports
+
+Override default port mappings for Docker services.
+
+| Variable        | Default | Description             |
+|-----------------|---------|-------------------------|
+| `BACKEND_PORT`  | `3001`  | Host port for Express backend |
+| `FRONTEND_PORT` | `3000`  | Host port for SvelteKit frontend |
+| `PB_PORT`       | `8090`  | Host port for PocketBase |
+| `SIDECAR_PORT`  | `3002`  | Host port for Node sidecar |
+
+## Build-Time Variables
+
+These are baked into the SvelteKit build. Set them at build time or pass as Docker build args.
+
+| Variable             | Default                   | Description               |
+|----------------------|---------------------------|---------------------------|
+| `PUBLIC_BACKEND`     | `express`                 | `express` or `pocketbase` |
+| `PUBLIC_API_URL`     | `http://localhost:3001`   | Express backend URL       |
+| `PUBLIC_PB_URL`      | `http://localhost:8090`   | PocketBase URL            |
+| `PUBLIC_SIDECAR_URL` | `http://localhost:3002`   | Node sidecar URL          |
+
+## HTTPS / Production
+
+| Variable | Default     | Description                              |
+|----------|-------------|------------------------------------------|
+| `DOMAIN` | `localhost` | Your domain name. Setting this enables Caddy HTTPS via the `production` profile. |
+
+## Data Migration
+
+Used when migrating from Express (SQLite) to PocketBase mode. See the migration script in `scripts/`.
+
+| Variable             | Default                     | Description                            |
+|----------------------|-----------------------------|----------------------------------------|
+| `SQLITE_PATH`       | `./backend/data/permish.db` | Path to existing SQLite database       |
+| `PB_URL`            | `http://localhost:8090`     | PocketBase server URL                  |
+| `PB_ADMIN_EMAIL`    | *(required)*                | PocketBase superuser email             |
+| `PB_ADMIN_PASSWORD` | *(required)*                | PocketBase superuser password          |
+| `UPLOADS_DIR`       | `./backend/uploads`         | Directory containing uploaded files    |
+| `DRY_RUN`           | `false`                     | Preview migration without writing      |
+| `SEND_RESET_EMAILS` | `false`                     | Send password reset emails after migration |

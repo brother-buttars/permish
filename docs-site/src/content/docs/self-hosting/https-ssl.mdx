@@ -1,0 +1,110 @@
+---
+title: HTTPS & SSL
+description: Set up automatic HTTPS with Caddy and Let's Encrypt
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Permish uses [Caddy](https://caddyserver.com/) as a reverse proxy to provide automatic HTTPS via Let's Encrypt. No manual certificate management is needed.
+
+## Quick Setup
+
+```bash
+DOMAIN=your-domain.com docker compose --profile production up -d
+```
+
+That single command:
+1. Starts the Caddy reverse proxy on ports 80 and 443
+2. Obtains a TLS certificate from Let's Encrypt for your domain
+3. Routes `/api/*` requests to the Express backend
+4. Routes all other requests to the SvelteKit frontend
+
+## DNS Requirements
+
+Before starting, your domain must have a DNS **A record** pointing to your server's public IP address.
+
+| Record Type | Host              | Value            |
+|-------------|-------------------|------------------|
+| A           | `your-domain.com` | `203.0.113.50`   |
+
+DNS propagation can take up to 48 hours, but typically completes in minutes. Verify with:
+
+```bash
+dig +short your-domain.com
+```
+
+## Using Your Own Domain
+
+Set the `DOMAIN` environment variable to your domain. You can do this inline or in your `.env` file:
+
+**Inline:**
+
+```bash
+DOMAIN=permish.example.org docker compose --profile production up -d
+```
+
+**In `.env` file:**
+
+```ini
+DOMAIN=permish.example.org
+```
+
+Then start normally:
+
+```bash
+docker compose --profile production up -d
+```
+
+Caddy reads the `DOMAIN` value and configures HTTPS for that hostname automatically.
+
+## With PocketBase Mode
+
+Combine the `production` and `pocketbase` profiles:
+
+```bash
+DOMAIN=your-domain.com PUBLIC_BACKEND=pocketbase \
+  docker compose --profile pocketbase --profile production up -d
+```
+
+## How Certificates Work
+
+Caddy handles the full TLS lifecycle:
+
+- **Issuance:** Certificates are obtained from Let's Encrypt on the first HTTPS request to your domain.
+- **Renewal:** Certificates renew automatically 30 days before expiry. Let's Encrypt certificates have a 90-day lifetime.
+- **HTTP/3:** QUIC is enabled by default on UDP port 443.
+- **HSTS:** Strict-Transport-Security headers are set with a one-year max-age and `includeSubDomains`.
+- **Storage:** Certificate data persists in the `caddy_data` Docker volume.
+
+No cron jobs, no manual renewal commands. Caddy handles everything.
+
+## Ports
+
+The production profile requires these ports open in your firewall:
+
+| Port    | Protocol | Purpose                    |
+|---------|----------|----------------------------|
+| 80      | TCP      | HTTP (redirects to HTTPS)  |
+| 443     | TCP      | HTTPS                      |
+| 443     | UDP      | HTTP/3 (QUIC)              |
+
+With the production profile active, you do **not** need to expose ports 3000 or 3001. Caddy proxies all traffic.
+
+## Troubleshooting
+
+**Certificate not issued:**
+- Verify DNS resolves to your server: `dig +short your-domain.com`
+- Ensure ports 80 and 443 are open: `sudo ufw allow 80,443/tcp`
+- Check Caddy logs: `docker compose logs caddy`
+
+**Mixed content warnings:**
+- Make sure `PUBLIC_API_URL` is not set to an `http://` URL when using HTTPS. Remove it from `.env` and let Caddy handle routing.
+
+**Certificate renewal failed:**
+- Caddy retries automatically. Check logs for rate-limit errors from Let's Encrypt.
+- The `caddy_data` volume stores certificate state. Do not delete it unless you want to re-issue.
+
+## Next Steps
+
+- [Environment variables](/PermissionForm/self-hosting/environment-variables/) — Full configuration reference
+- [Data backup](/PermissionForm/self-hosting/data-backup/) — Back up certificates and data

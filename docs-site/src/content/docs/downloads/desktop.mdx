@@ -1,0 +1,72 @@
+---
+title: Desktop App
+description: Download Permish for macOS, Windows, and Linux
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+The Permish desktop app bundles the full application with embedded PocketBase. It runs offline on your machine with no server required.
+
+## Downloads
+
+<div class="download-buttons">
+  <a href="https://github.com/brandonbuttars/PermissionForm/releases/latest" class="primary">Download for macOS (.dmg)</a>
+  <a href="https://github.com/brandonbuttars/PermissionForm/releases/latest" class="secondary">Download for Windows (.exe)</a>
+  <a href="https://github.com/brandonbuttars/PermissionForm/releases/latest" class="secondary">Download for Linux (.AppImage)</a>
+</div>
+
+All releases are available on the [GitHub Releases page](https://github.com/brandonbuttars/PermissionForm/releases/latest).
+
+## What's Included
+
+The desktop app is a self-contained package built with [Tauri](https://tauri.app/). It includes:
+
+- **SvelteKit frontend** — The same web interface, running in a native window.
+- **PocketBase sidecar** — Embedded database for local storage. No external database needed.
+- **Node.js sidecar** — Handles PDF generation, email, and SMS.
+- **Offline-first storage** — All data stays on your machine. Optionally sync to a server.
+
+## System Requirements
+
+| Platform | Minimum                                    |
+|----------|--------------------------------------------|
+| macOS    | macOS 11 (Big Sur) or later, Intel or Apple Silicon |
+| Windows  | Windows 10 or later, 64-bit, WebView2      |
+| Linux    | Ubuntu 20.04+ or equivalent, WebKitGTK 4.1 |
+
+## Platform Files
+
+| Platform | Format      | Filename Example                    |
+|----------|-------------|-------------------------------------|
+| macOS    | `.dmg`      | `Permish_0.1.0_aarch64.dmg`        |
+| Windows  | `.nsis`     | `Permish_0.1.0_x64-setup.exe`      |
+| Linux    | `.appimage` | `Permish_0.1.0_amd64.AppImage`     |
+
+## Installation
+
+### macOS
+
+1. Download the `.dmg` file.
+2. Open it and drag Permish to your Applications folder.
+3. On first launch, macOS may warn about an unidentified developer. Right-click the app and select **Open**.
+
+### Windows
+
+1. Download the `.exe` installer.
+2. Run the installer and follow the prompts.
+3. Windows SmartScreen may show a warning. Click **More info** then **Run anyway**.
+
+### Linux
+
+1. Download the `.AppImage` file.
+2. Make it executable: `chmod +x Permish_0.1.0_amd64.AppImage`
+3. Run it: `./Permish_0.1.0_amd64.AppImage`
+
+## Auto-Update
+
+The desktop app checks for updates on launch. When a new version is available, you are prompted to download and install it.
+
+## Next Steps
+
+- [Mobile app](/PermissionForm/downloads/mobile/) — iOS and Android (coming soon)
+- [Self-hosting](/PermissionForm/self-hosting/docker-compose/) — Deploy on your own server instead
