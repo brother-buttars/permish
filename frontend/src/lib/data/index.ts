@@ -1,8 +1,10 @@
 import type { DataRepository } from './repository';
 import type { SyncManager } from './sync/manager';
+import type { BackupManager } from './backup/manager';
 
 let repo: DataRepository | null = null;
 let syncManager: SyncManager | null = null;
+let backupManager: BackupManager | null = null;
 
 export type DataMode = 'online' | 'local' | 'hybrid';
 
@@ -35,6 +37,9 @@ export async function initRepository(): Promise<DataRepository> {
     const db = await SqlJsDatabase.create();
     await initializeLocalSchema(db);
     repo = createLocalRepository(db);
+
+    const { BackupManager: BackupManagerClass } = await import('./backup/manager');
+    backupManager = new BackupManagerClass(db);
   } else if (mode === 'hybrid') {
     const { SqlJsDatabase } = await import('./local/database');
     const { initializeLocalSchema } = await import('./local/schema');
@@ -52,6 +57,9 @@ export async function initRepository(): Promise<DataRepository> {
 
     // Start background sync
     syncManager.start();
+
+    const { BackupManager: BackupManagerClass } = await import('./backup/manager');
+    backupManager = new BackupManagerClass(db);
   } else {
     // online mode — direct PocketBase
     const { createPocketBaseRepository } = await import('./adapters/pocketbase');
@@ -70,6 +78,14 @@ export function getRepository(): DataRepository {
 
 export function getSyncManager(): SyncManager | null {
   return syncManager;
+}
+
+/**
+ * Returns the BackupManager when running in local or hybrid mode.
+ * Returns null in online-only mode (no local database to back up).
+ */
+export function getBackupManager(): BackupManager | null {
+  return backupManager;
 }
 
 // Re-export types for convenience

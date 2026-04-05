@@ -15,9 +15,14 @@
 		"build:desktop": "PUBLIC_BACKEND=pocketbase PUBLIC_PB_URL=http://127.0.0.1:8090 PUBLIC_SIDECAR_URL=http://127.0.0.1:3002 vite build",
 		"tauri": "tauri",
 		"tauri:dev": "tauri dev",
-		"tauri:build": "tauri build"
+		"tauri:build": "tauri build",
+		"cap": "cap",
+		"cap:sync": "cap sync",
+		"mobile:ios": "pnpm build && cap sync ios && cap open ios",
+		"mobile:android": "pnpm build && cap sync android && cap open android"
 	},
 	"devDependencies": {
+		"@capacitor/cli": "^8.3.0",
 		"@sveltejs/adapter-auto": "^7.0.0",
 		"@sveltejs/adapter-node": "^5.5.4",
 		"@sveltejs/kit": "^2.50.2",
@@ -32,6 +37,12 @@
 		"vitest": "^4.1.0"
 	},
 	"dependencies": {
+		"@capacitor-community/sqlite": "^8.1.0",
+		"@capacitor/app": "^8.1.0",
+		"@capacitor/core": "^8.3.0",
+		"@capacitor/filesystem": "^8.1.2",
+		"@capacitor/preferences": "^8.0.1",
+		"@capacitor/status-bar": "^8.0.2",
 		"@tailwindcss/vite": "^4.2.2",
 		"@tauri-apps/api": "^2.10.1",
 		"@tauri-apps/plugin-dialog": "^2.7.0",

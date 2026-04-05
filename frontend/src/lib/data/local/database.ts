@@ -13,6 +13,10 @@ export interface LocalDatabase {
   execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number }>;
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
   close(): void;
+  /** Export the raw database bytes (sql.js specific). */
+  exportDatabase?(): Uint8Array;
+  /** Replace the live database with raw bytes and persist (sql.js specific). */
+  importDatabase?(data: Uint8Array): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +136,21 @@ export class SqlJsDatabase implements LocalDatabase {
     }
     this.persistSync();
     this.db.close();
+  }
+
+  /** Export the raw database as a Uint8Array (for backup). */
+  exportDatabase(): Uint8Array {
+    return this.db.export();
+  }
+
+  /** Replace the live database with raw bytes and persist to IndexedDB. */
+  async importDatabase(data: Uint8Array): Promise<void> {
+    const SQL = await initSqlJs({
+      locateFile: (file: string) => `https://sql.js.org/dist/${file}`
+    });
+    this.db.close();
+    this.db = new SQL.Database(data);
+    await this.persist();
   }
 
   /** Force an immediate persist (useful before page unload). */
