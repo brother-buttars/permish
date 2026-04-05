@@ -2,6 +2,8 @@
 // for information about these interfaces
 import type PocketBase from 'pocketbase';
 
+declare const __APP_VERSION__: string;
+
 declare global {
 	namespace App {
 		// interface Error {}

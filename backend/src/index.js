@@ -37,9 +37,10 @@ if (!app.locals.db) {
   app.locals.db = getDb();
 }
 
-// Health check
+// Health check + version info
+const pkg = require('../package.json');
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', version: pkg.version });
 });
 
 // Auth rate limiters + auth routes
