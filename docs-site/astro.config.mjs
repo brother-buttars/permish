@@ -42,6 +42,7 @@ export default defineConfig({
 						{ label: 'HTTPS & SSL', slug: 'self-hosting/https-ssl' },
 						{ label: 'Environment Variables', slug: 'self-hosting/environment-variables' },
 						{ label: 'Data Backup', slug: 'self-hosting/data-backup' },
+						{ label: 'PWA Configuration', slug: 'self-hosting/pwa' },
 						{ label: 'Updating', slug: 'self-hosting/updating' },
 					],
 				},

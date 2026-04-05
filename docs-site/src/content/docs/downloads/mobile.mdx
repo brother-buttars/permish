@@ -1,48 +1,44 @@
 ---
 title: Mobile App
-description: Permish on iOS and Android via Tauri Mobile
+description: Install Permish on iOS and Android
 ---
 
 <span class="version-badge">v0.1.0 — Last updated: April 2026</span>
 
-:::note[Coming Soon]
-The Permish mobile app is currently in development. The web app already works on mobile browsers. Native apps will add offline-first capability and a smoother experience.
+## Install as PWA (Recommended)
+
+Install Permish directly from your browser — no App Store needed.
+
+### iPhone / iPad
+
+1. Open **Safari** and visit your Permish instance.
+2. Tap the **Share** button (square with arrow pointing up).
+3. Tap **"Add to Home Screen."**
+4. Tap **"Add."**
+
+### Android
+
+1. Open **Chrome** and visit your Permish instance.
+2. Tap the menu (**three dots**), then **"Add to Home screen"** or **"Install app."**
+3. Tap **"Install."**
+
+The app works offline, syncs when connected, and receives updates automatically.
+
+### What You Get
+
+- Full-screen standalone app (no browser chrome)
+- Offline support with local data caching
+- Signature capture with touch input
+- Automatic updates — no store downloads needed
+- Push-capable when supported by the browser
+
+## Native Mobile Apps
+
+:::note[Planned]
+Native iOS and Android builds via [Tauri Mobile](https://tauri.app/) are planned for a future release. The PWA provides the same core experience today.
 :::
-
-## How It Will Work
-
-The mobile app uses [Tauri Mobile](https://tauri.app/) to wrap the same SvelteKit frontend in a native iOS and Android shell. It includes the same features as the desktop app:
-
-- Offline-first local storage with embedded PocketBase
-- PDF generation and signature capture
-- Optional sync to a self-hosted server
-- Push notifications for form submissions
-
-## Planned Platforms
-
-| Platform | Format | Distribution        |
-|----------|--------|---------------------|
-| iOS      | `.ipa` | App Store / TestFlight |
-| Android  | `.apk` / `.aab` | Google Play / Direct download |
-
-## Beta Testing
-
-Beta builds will be available through:
-
-- **iOS:** TestFlight — Sign up for the beta on the [GitHub Releases page](https://github.com/brother-buttars/permish/releases/latest).
-- **Android:** Direct `.apk` download from GitHub Releases, or the Google Play closed testing track.
-
-## Using the Web App on Mobile (Now)
-
-The web app is fully responsive and works on any mobile browser today. If you have a self-hosted instance:
-
-1. Open your Permish URL in Safari (iOS) or Chrome (Android).
-2. The interface adapts to your screen size.
-3. Signature capture works with touch input.
-
-For local HTTPS development on mobile devices, see [Mobile Testing](/permish/development/mobile-testing/).
 
 ## Next Steps
 
-- [Desktop app](/permish/downloads/desktop/) — Available now for macOS, Windows, and Linux
+- [Desktop app](/permish/downloads/desktop/) — PWA or native app for macOS, Windows, and Linux
 - [Mobile testing](/permish/development/mobile-testing/) — Test the web app on your phone during development

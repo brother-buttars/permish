@@ -1,0 +1,59 @@
+---
+title: PWA Configuration
+description: Configure Progressive Web App settings for your Permish instance
+---
+
+<span class="version-badge">v0.1.0 — Last updated: April 2026</span>
+
+Permish is a Progressive Web App (PWA) by default. When users visit your instance over HTTPS, they can install it as a standalone app on any device.
+
+## Requirements
+
+- **HTTPS** — Required for service workers. See [HTTPS & SSL](/permish/self-hosting/https-ssl/).
+- That's it. PWA is enabled automatically.
+
+## How It Works
+
+- **Service Worker** — Caches the app shell and static assets for offline use. Registered automatically on first visit.
+- **Web Manifest** — Defines the app name, icons, theme color, and display mode. Tells the browser this site is installable.
+- **Offline Data** — The app uses local SQLite (sql.js) for offline-first data storage. Forms can be filled and submitted offline, then synced when a connection is available.
+
+## Customizing
+
+The PWA manifest is configured in `frontend/vite.config.ts`. Key settings you may want to change for your instance:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `name` | Full app name shown on install prompts | Permish |
+| `short_name` | Short name for home screen icons | Permish |
+| `theme_color` | Status bar and title bar color on mobile | `#ea580c` |
+| `background_color` | Splash screen background color | `#ffffff` |
+| `icons` | App icons (192x192 and 512x512 required) | Permish logo |
+
+After changing these values, rebuild the frontend and redeploy.
+
+## Cache Strategy
+
+| Resource Type | Strategy | Details |
+|---------------|----------|---------|
+| Static assets (JS, CSS, HTML, images) | Cache-first | Served from cache immediately, updated in background |
+| API calls | Network-first | Tries the network, falls back to 24-hour cached response |
+
+The service worker updates automatically. When a new version of Permish is deployed, users receive the update the next time they open the app.
+
+## Troubleshooting
+
+**PWA install prompt does not appear**
+- Verify your instance is served over HTTPS. Service workers require a secure context.
+- Check that the web manifest is accessible at `/manifest.webmanifest`.
+- Open browser DevTools, go to the Application tab, and check for service worker and manifest errors.
+
+**Users see stale content after an update**
+- The service worker caches aggressively. Users may need to close all tabs and reopen to receive the latest version.
+- You can force an update by incrementing the service worker version in the build configuration.
+
+## Next Steps
+
+- [HTTPS & SSL](/permish/self-hosting/https-ssl/) — Set up the HTTPS requirement for PWA
+- [Docker Compose](/permish/self-hosting/docker-compose/) — Deploy your Permish instance
+- [Environment Variables](/permish/self-hosting/environment-variables/) — Configure your instance
