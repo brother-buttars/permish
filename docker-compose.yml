@@ -1,6 +1,14 @@
+# Permish — Docker Compose
+# Express mode (default): docker compose up
+# PocketBase mode:        docker compose --profile pocketbase up
+
 services:
+  # =========================================================================
+  # Express Backend (default mode)
+  # =========================================================================
   backend:
     build: ./backend
+    profiles: ["", "express"]
     ports:
       - "3001:3001"
     volumes:
@@ -13,17 +21,74 @@ services:
       - DATA_DIR=/app/data
       - PDF_DIR=/app/pdfs
       - UPLOADS_DIR=/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/auth/me').catch(()=>{})"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
+  # =========================================================================
+  # PocketBase (pocketbase mode)
+  # =========================================================================
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    profiles: ["pocketbase"]
+    ports:
+      - "8090:8090"
+    volumes:
+      - pb-data:/pb/pb_data
+      - ./pb_migrations:/pb/pb_migrations
+    command: serve --http=0.0.0.0:8090
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8090/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # =========================================================================
+  # Node.js Sidecar — PDF, email, SMS (pocketbase mode)
+  # =========================================================================
+  sidecar:
+    build: ./sidecar
+    profiles: ["pocketbase"]
+    ports:
+      - "3002:3002"
+    volumes:
+      - pdf-storage:/app/pdfs
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - PORT=3002
+      - PB_URL=http://pocketbase:8090
+      - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL:-}
+      - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD:-}
+      - PDF_DIR=/app/pdfs
+      - FRONTEND_URL=http://frontend:3000
+
+  # =========================================================================
+  # SvelteKit Frontend (both modes)
+  # =========================================================================
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        - PUBLIC_BACKEND=${PUBLIC_BACKEND:-express}
+        - PUBLIC_API_URL=${PUBLIC_API_URL:-http://backend:3001}
+        - PUBLIC_PB_URL=${PUBLIC_PB_URL:-http://pocketbase:8090}
+        - PUBLIC_SIDECAR_URL=${PUBLIC_SIDECAR_URL:-http://sidecar:3002}
     ports:
       - "3000:3000"
-    depends_on:
-      - backend
     environment:
-      - PUBLIC_API_URL=http://backend:3001
+      - PUBLIC_BACKEND=${PUBLIC_BACKEND:-express}
+      - PUBLIC_API_URL=${PUBLIC_API_URL:-http://backend:3001}
+      - PUBLIC_PB_URL=${PUBLIC_PB_URL:-http://pocketbase:8090}
+      - PUBLIC_SIDECAR_URL=${PUBLIC_SIDECAR_URL:-http://sidecar:3002}
 
 volumes:
   db-data:
   pdf-storage:
   uploads-storage:
+  pb-data:

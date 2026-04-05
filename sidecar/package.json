@@ -1,0 +1,18 @@
+{
+  "name": "permish-sidecar",
+  "version": "1.0.0",
+  "description": "PDF generation and notification sidecar for Permish",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "postinstall": "mkdir -p src/templates && cp ../backend/src/templates/permission-form.pdf src/templates/ 2>/dev/null || true"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "nodemailer": "^6.9.15",
+    "pdf-lib": "^1.17.1",
+    "pocketbase": "^0.26.8"
+  }
+}
