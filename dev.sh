@@ -44,9 +44,9 @@ echo "Starting backend..."
 (cd backend && pnpm dev) &
 BACKEND_PID=$!
 
-# Start frontend with HTTPS proxy config
+# Start frontend on port 5173 (Caddy proxies HTTPS:443 → HTTP:5173)
 echo "Starting frontend..."
-(cd frontend && VITE_DEV_HTTPS=true PUBLIC_API_URL=https://dev.permish.app/api pnpm dev --host 0.0.0.0) &
+(cd frontend && VITE_DEV_HTTPS=true PUBLIC_API_URL=https://dev.permish.app/api pnpm exec vite dev --host 0.0.0.0 --port 5173) &
 FRONTEND_PID=$!
 
 # Wait for services to start

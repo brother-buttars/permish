@@ -1,15 +1,13 @@
 # Local development Caddyfile with HTTPS + hot reload
 #
-# Start backend:  cd backend && pnpm dev
-# Start frontend: cd frontend && pnpm dev --host 0.0.0.0
-# Start Caddy:    caddy run --config Caddyfile.dev
+# Usage: ./dev.sh (starts everything automatically)
 #
 # Access from this machine:  https://dev.permish.app
 # Access from mobile/LAN:   https://192.168.3.1
 #
 # Prerequisites:
 #   sudo mkcert -install
-#   Add "127.0.0.1 dev.permish.app" to /etc/hosts
+#   echo "127.0.0.1 dev.permish.app" | sudo tee -a /etc/hosts
 
 {
 	auto_https off
@@ -18,21 +16,13 @@
 https://dev.permish.app, https://192.168.3.1, https://localhost {
 	tls certs/dev.pem certs/dev-key.pem
 
-	# Backend API — proxy before frontend catch-all
+	# Backend API — must come before the frontend catch-all
 	handle /api/* {
 		reverse_proxy 127.0.0.1:3001
 	}
 
-	# Vite HMR websocket
-	@hmr {
-		path /_vite/*
-		header Connection *Upgrade*
-	}
-	handle @hmr {
-		reverse_proxy 127.0.0.1:5173
-	}
-
-	# SvelteKit dev server — everything else
+	# SvelteKit dev server (Vite on port 5173)
+	# Caddy automatically handles WebSocket upgrades for Vite HMR
 	reverse_proxy 127.0.0.1:5173
 
 	encode gzip
