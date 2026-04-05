@@ -39,14 +39,22 @@ if ! mkcert -install 2>/dev/null; then
   echo "⚠  Run: sudo mkcert -install"
 fi
 
+# Write frontend env file for HTTPS dev mode
+cat > frontend/.env.development << ENVFILE
+PUBLIC_API_URL=https://dev.permish.app
+PUBLIC_BACKEND=express
+VITE_DEV_HTTPS=true
+VITE_HMR_HOST=dev.permish.app
+ENVFILE
+
 # Start backend with CORS allowing the HTTPS dev domain
 echo "Starting backend..."
-(cd backend && CORS_ORIGINS="https://dev.permish.app,https://192.168.3.1" FRONTEND_URL="https://dev.permish.app" pnpm dev) &
+(cd backend && CORS_ORIGINS="https://dev.permish.app,https://192.168.3.1,https://${LOCAL_IP}" FRONTEND_URL="https://dev.permish.app" pnpm dev) &
 BACKEND_PID=$!
 
 # Start frontend on port 5173 (Caddy proxies HTTPS:443 → HTTP:5173)
 echo "Starting frontend..."
-(cd frontend && VITE_DEV_HTTPS=true PUBLIC_API_URL=https://dev.permish.app CORS_ORIGINS=https://dev.permish.app pnpm exec vite dev --host 0.0.0.0 --port 5173) &
+(cd frontend && pnpm exec vite dev --host 0.0.0.0 --port 5173) &
 FRONTEND_PID=$!
 
 # Wait for services to start
