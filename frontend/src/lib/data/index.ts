@@ -30,25 +30,25 @@ export async function initRepository(): Promise<DataRepository> {
 
   // PocketBase backend supports all three modes
   if (mode === 'local') {
-    const { SqlJsDatabase } = await import('./local/database');
+    const { createPlatformDatabase } = await import('./local/platform-database');
     const { initializeLocalSchema } = await import('./local/schema');
     const { createLocalRepository } = await import('./adapters/local');
 
-    const db = await SqlJsDatabase.create();
+    const db = await createPlatformDatabase();
     await initializeLocalSchema(db);
     repo = createLocalRepository(db);
 
     const { BackupManager: BackupManagerClass } = await import('./backup/manager');
     backupManager = new BackupManagerClass(db);
   } else if (mode === 'hybrid') {
-    const { SqlJsDatabase } = await import('./local/database');
+    const { createPlatformDatabase } = await import('./local/platform-database');
     const { initializeLocalSchema } = await import('./local/schema');
     const { createLocalRepository } = await import('./adapters/local');
     const { createPocketBaseRepository } = await import('./adapters/pocketbase');
     const { SyncManager: SyncManagerClass } = await import('./sync/manager');
     const { createHybridRepository } = await import('./sync/hybrid');
 
-    const db = await SqlJsDatabase.create();
+    const db = await createPlatformDatabase();
     await initializeLocalSchema(db);
     const local = createLocalRepository(db);
     const remote = createPocketBaseRepository();

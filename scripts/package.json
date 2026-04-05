@@ -5,7 +5,8 @@
   "description": "Migration and utility scripts for Permish",
   "scripts": {
     "migrate": "node migrate-to-pocketbase.js",
-    "migrate:dry": "DRY_RUN=true node migrate-to-pocketbase.js"
+    "migrate:dry": "DRY_RUN=true node migrate-to-pocketbase.js",
+    "test:e2e": "node test-pocketbase-e2e.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
