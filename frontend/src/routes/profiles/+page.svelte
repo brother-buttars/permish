@@ -232,12 +232,12 @@
 </script>
 
 <svelte:head>
-	<title>Child Profiles</title>
+	<title>Youth Profiles</title>
 </svelte:head>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<h1 class="text-3xl font-bold">Child Profiles</h1>
+		<h1 class="text-3xl font-bold">Youth Profiles</h1>
 		{#if !showNewForm && !editingId}
 			<Button onclick={startNew}>Add New Profile</Button>
 		{/if}
@@ -354,7 +354,7 @@
 		{#if profiles.length === 0 && !showNewForm}
 			<Card>
 				<CardContent class="py-12 text-center">
-					<p class="text-muted-foreground">No child profiles yet.</p>
+					<p class="text-muted-foreground">No youth profiles yet.</p>
 					<Button variant="link" onclick={startNew}>Add your first profile</Button>
 				</CardContent>
 			</Card>

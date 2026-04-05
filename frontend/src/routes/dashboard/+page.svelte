@@ -222,15 +222,15 @@
 		{:else}
 			<section class="mb-10">
 				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<h2 class="text-xl font-semibold">Child Profiles</h2>
+					<h2 class="text-xl font-semibold">Youth Profiles</h2>
 					<Button variant="outline" onclick={() => goto("/profiles")}>Manage Profiles</Button>
 				</div>
 
 				{#if profiles.length === 0}
 					<Card>
 						<CardContent class="py-8 text-center">
-							<p class="text-muted-foreground">No child profiles yet.</p>
-							<Button variant="link" onclick={() => goto("/profiles")}>Add a child profile</Button>
+							<p class="text-muted-foreground">No youth profiles yet.</p>
+							<Button variant="link" onclick={() => goto("/profiles")}>Add a youth profile</Button>
 						</CardContent>
 					</Card>
 				{:else}
