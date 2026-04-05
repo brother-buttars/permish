@@ -12,6 +12,7 @@
   } from "$lib/components/ui/sheet/index.js";
   import ToastContainer from "$lib/components/ToastContainer.svelte";
   import UserMenu from "$lib/components/UserMenu.svelte";
+  import SyncStatusIndicator from "$lib/components/SyncStatusIndicator.svelte";
 
   import { onMount } from "svelte";
 
@@ -126,6 +127,7 @@
               >Submissions</a
             >
             <a href="/profiles" class={navClass("/profiles")}>Profiles</a>
+            <SyncStatusIndicator />
             <div class="ml-2">
               <UserMenu user={currentUser} {pathname} />
             </div>
@@ -176,6 +178,7 @@
       <SheetTitle>Menu</SheetTitle>
     </SheetHeader>
     <nav class="flex flex-col gap-1 mt-6">
+      <SyncStatusIndicator />
       {#if !loading}
         {#if currentUser}
           <a

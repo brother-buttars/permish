@@ -2,13 +2,15 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { getRepository } from '$lib/data';
+	import { getRepository, getDataMode, setDataMode, getBackupManager } from '$lib/data';
+	import type { DataMode } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
 	import SignaturePad from "$lib/components/SignaturePad.svelte";
+	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import AlertBox from "$lib/components/AlertBox.svelte";
@@ -29,6 +31,21 @@
 	let stateProvince = $state("");
 	let guardianSigValue = $state("");
 	let guardianSigType = $state<"drawn" | "typed">("typed");
+
+	// Data mode state
+	let dataMode = $state<DataMode>(getDataMode());
+	let initialDataMode = $state<DataMode>(getDataMode());
+	let applyingMode = $state(false);
+
+	// Backup state
+	let backupPassphrase = $state('');
+	let exporting = $state(false);
+	let restoreFile = $state<File | null>(null);
+	let restorePassphrase = $state('');
+	let restoring = $state(false);
+
+	// Confirm modal for restore
+	let showRestoreConfirm = $state(false);
 
 	const repo = getRepository();
 	const unsub = user.subscribe((u) => {
@@ -109,6 +126,63 @@
 			passwordError = err.message || "Failed to change password.";
 		} finally {
 			changingPassword = false;
+		}
+	}
+
+	async function applyDataMode() {
+		applyingMode = true;
+		try {
+			setDataMode(dataMode);
+			initialDataMode = dataMode;
+			toastSuccess(`Data storage mode changed to "${dataMode}". Reloading...`);
+			// Need to reload to reinitialize repository with new mode
+			setTimeout(() => window.location.reload(), 1500);
+		} catch (err: any) {
+			toastError(err.message || 'Failed to change data mode.');
+		} finally {
+			applyingMode = false;
+		}
+	}
+
+	async function handleExport() {
+		const mgr = getBackupManager();
+		if (!mgr) {
+			toastError('Backup is only available in local or hybrid mode.');
+			return;
+		}
+		exporting = true;
+		try {
+			const { blob, metadata } = await mgr.createBackup(backupPassphrase || undefined);
+			mgr.downloadBackup(blob);
+			toastSuccess(`Backup exported: ${metadata.recordCounts.events} events, ${metadata.recordCounts.submissions} submissions.`);
+			backupPassphrase = '';
+		} catch (err: any) {
+			toastError(err.message || 'Export failed.');
+		} finally {
+			exporting = false;
+		}
+	}
+
+	function handleFileSelect(e: Event) {
+		const input = e.target as HTMLInputElement;
+		restoreFile = input.files?.[0] || null;
+	}
+
+	async function handleRestore() {
+		const mgr = getBackupManager();
+		if (!mgr || !restoreFile) return;
+
+		restoring = true;
+		try {
+			const metadata = await mgr.restoreBackup(restoreFile, restorePassphrase || undefined);
+			toastSuccess(`Backup restored: ${metadata.recordCounts.events} events, ${metadata.recordCounts.submissions} submissions. Reloading...`);
+			restoreFile = null;
+			restorePassphrase = '';
+			setTimeout(() => window.location.reload(), 1500);
+		} catch (err: any) {
+			toastError(err.message || 'Restore failed.');
+		} finally {
+			restoring = false;
 		}
 	}
 </script>
@@ -218,5 +292,110 @@
 				</form>
 			</CardContent>
 		</Card>
+
+		<Separator class="my-8" />
+
+		<!-- Data Storage Mode -->
+		<Card>
+			<CardHeader>
+				<CardTitle>Data Storage</CardTitle>
+				<p class="text-sm text-muted-foreground">
+					Choose how your data is stored and synced.
+				</p>
+			</CardHeader>
+			<CardContent class="space-y-4">
+				<div class="space-y-3">
+					<label class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors {dataMode === 'online' ? 'border-primary bg-primary/5' : ''}">
+						<input type="radio" name="dataMode" value="online" bind:group={dataMode} class="mt-1" />
+						<div>
+							<div class="font-medium">Online only</div>
+							<div class="text-sm text-muted-foreground">All data stored on server. Requires internet.</div>
+						</div>
+					</label>
+
+					<label class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors {dataMode === 'hybrid' ? 'border-primary bg-primary/5' : ''}">
+						<input type="radio" name="dataMode" value="hybrid" bind:group={dataMode} class="mt-1" />
+						<div>
+							<div class="font-medium">Hybrid</div>
+							<div class="text-sm text-muted-foreground">Works offline, syncs when connected. Recommended for desktop and mobile.</div>
+						</div>
+					</label>
+
+					<label class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors {dataMode === 'local' ? 'border-primary bg-primary/5' : ''}">
+						<input type="radio" name="dataMode" value="local" bind:group={dataMode} class="mt-1" />
+						<div>
+							<div class="font-medium">Local only</div>
+							<div class="text-sm text-muted-foreground">Data never leaves this device. No sync, complete privacy.</div>
+						</div>
+					</label>
+				</div>
+
+				{#if dataMode !== initialDataMode}
+					<div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-sm">
+						{#if initialDataMode === 'online' && dataMode === 'hybrid'}
+							Switching to hybrid will download your data for offline use. This may take a moment.
+						{:else if initialDataMode === 'local' && dataMode === 'hybrid'}
+							Switching to hybrid will upload your local data to the server.
+						{:else if dataMode === 'local'}
+							Local-only mode means no sync. Pending changes will remain pending until you switch back.
+						{:else if initialDataMode === 'hybrid' && dataMode === 'online'}
+							Switching to online will push pending changes first, then remove local data.
+						{/if}
+					</div>
+					<Button onclick={applyDataMode} variant="outline" class="w-full" disabled={applyingMode}>
+						{applyingMode ? "Applying..." : "Apply Changes"}
+					</Button>
+				{/if}
+			</CardContent>
+		</Card>
+
+		<!-- Backup & Restore (only visible in local/hybrid mode) -->
+		{#if dataMode === 'local' || dataMode === 'hybrid'}
+			<Card>
+				<CardHeader>
+					<CardTitle>Backup & Restore</CardTitle>
+					<p class="text-sm text-muted-foreground">
+						Export your data as an encrypted backup file, or restore from a previous backup.
+					</p>
+				</CardHeader>
+				<CardContent class="space-y-4">
+					<!-- Export section -->
+					<div class="space-y-2">
+						<Label for="backupPassphrase">Encryption Passphrase (optional)</Label>
+						<Input id="backupPassphrase" type="password" bind:value={backupPassphrase} placeholder="Leave empty for unencrypted backup" />
+					</div>
+					<Button onclick={handleExport} variant="outline" class="w-full" disabled={exporting}>
+						{exporting ? "Exporting..." : "Export Backup"}
+					</Button>
+
+					<Separator />
+
+					<!-- Import section -->
+					<div class="space-y-2">
+						<Label for="restoreFile">Restore from Backup</Label>
+						<Input id="restoreFile" type="file" accept=".permish-backup" onchange={handleFileSelect} />
+					</div>
+					{#if restoreFile}
+						<div class="space-y-2">
+							<Label for="restorePassphrase">Decryption Passphrase</Label>
+							<Input id="restorePassphrase" type="password" bind:value={restorePassphrase} placeholder="Enter passphrase if backup was encrypted" />
+						</div>
+						<Button onclick={() => showRestoreConfirm = true} variant="destructive" class="w-full" disabled={restoring}>
+							{restoring ? "Restoring..." : "Restore Backup"}
+						</Button>
+					{/if}
+				</CardContent>
+			</Card>
+		{/if}
+
+		<!-- Confirm modal for restore -->
+		<ConfirmModal
+			open={showRestoreConfirm}
+			title="Restore Backup"
+			message="This will replace all local data with the backup contents. This action cannot be undone."
+			confirmLabel="Restore"
+			onConfirm={() => { showRestoreConfirm = false; handleRestore(); }}
+			onCancel={() => showRestoreConfirm = false}
+		/>
 	{/if}
 </div>
