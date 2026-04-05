@@ -5,6 +5,8 @@
 	import { getRepository, getDataMode, setDataMode, getBackupManager, getSyncManager } from '$lib/data';
 	import type { DataMode } from '$lib/data';
 	import type { SyncStatus } from '$lib/data/sync/manager';
+	import { pullDataToLocal, pushPendingToRemote, clearLocalDatabase } from '$lib/data/migration';
+	import type { MigrationProgress } from '$lib/data/migration';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
@@ -56,6 +58,10 @@
 	let syncPollTimer: ReturnType<typeof setInterval> | null = null;
 	let showDiscardConfirm = $state(false);
 	let discardTargetId = $state<string | null>(null);
+
+	// Migration state
+	let migrationProgress = $state('');
+	let showOnlineWarning = $state(false);
 
 	const repo = getRepository();
 	const unsub = user.subscribe((u) => {
@@ -160,15 +166,82 @@
 	}
 
 	async function applyDataMode() {
+		// Switching TO online from local/hybrid may lose data — confirm first
+		if (dataMode === 'online' && (initialDataMode === 'local' || initialDataMode === 'hybrid')) {
+			showOnlineWarning = true;
+			return;
+		}
+		await doModeSwitch();
+	}
+
+	async function doModeSwitch() {
 		applyingMode = true;
+		migrationProgress = '';
+
 		try {
-			setDataMode(dataMode);
-			initialDataMode = dataMode;
-			toastSuccess(`Data storage mode changed to "${dataMode}". Reloading...`);
-			// Need to reload to reinitialize repository with new mode
-			setTimeout(() => window.location.reload(), 1500);
+			const from = initialDataMode;
+			const to = dataMode;
+
+			// Online → Hybrid or Local: pull data from server to local DB
+			if (from === 'online' && (to === 'hybrid' || to === 'local')) {
+				migrationProgress = 'Preparing local database...';
+
+				// Create local DB, initialize schema
+				const { createPlatformDatabase } = await import('$lib/data/local/platform-database');
+				const { initializeLocalSchema } = await import('$lib/data/local/schema');
+				const db = await createPlatformDatabase();
+				await initializeLocalSchema(db);
+
+				// Also create the local user account (copy from current auth)
+				if (currentUser) {
+					const existing = await db.query('SELECT id FROM users WHERE email = ?', [currentUser.email]);
+					if (existing.length === 0) {
+						// Create with a placeholder password — user re-enters on local login
+						const encoder = new TextEncoder();
+						const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode('temp-migration'));
+						const hash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+						await db.execute(
+							'INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)',
+							[currentUser.id, currentUser.email, hash, currentUser.name, currentUser.role]
+						);
+					}
+				}
+
+				migrationProgress = 'Downloading your data...';
+				const result = await pullDataToLocal(repo, db, (p) => {
+					migrationProgress = p.step;
+				});
+
+				toastSuccess(`Downloaded ${result.events} events, ${result.profiles} profiles, ${result.submissions} submissions.`);
+				db.close();
+			}
+
+			// Local/Hybrid → Online: push pending changes first
+			if (to === 'online' && (from === 'hybrid' || from === 'local')) {
+				if (from === 'hybrid') {
+					const mgr = getSyncManager();
+					if (mgr) {
+						const count = await mgr.getPendingCount();
+						if (count > 0) {
+							migrationProgress = `Pushing ${count} pending changes...`;
+							await mgr.sync();
+						}
+					}
+				}
+				// Note: local → online can't push because there's no remote connection in local mode
+				// The warning modal handles this case
+			}
+
+			// Local → Hybrid: pending changes will sync automatically when SyncManager starts
+			// No special migration needed — SyncManager picks up pending_changes on start
+
+			setDataMode(to);
+			initialDataMode = to;
+			migrationProgress = 'Reloading...';
+			setTimeout(() => window.location.reload(), 1000);
 		} catch (err: any) {
-			toastError(err.message || 'Failed to change data mode.');
+			toastError(err.message || 'Failed to switch data mode.');
+			migrationProgress = '';
 		} finally {
 			applyingMode = false;
 		}
@@ -400,8 +473,17 @@
 							Switching to online will push pending changes first, then remove local data.
 						{/if}
 					</div>
+					{#if migrationProgress}
+						<div class="flex items-center gap-2 text-sm text-muted-foreground">
+							<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+							</svg>
+							{migrationProgress}
+						</div>
+					{/if}
 					<Button onclick={applyDataMode} variant="outline" class="w-full" disabled={applyingMode}>
-						{applyingMode ? "Applying..." : "Apply Changes"}
+						{applyingMode ? "Migrating..." : "Apply Changes"}
 					</Button>
 				{/if}
 			</CardContent>
@@ -527,4 +609,15 @@
 			onCancel={() => showRestoreConfirm = false}
 		/>
 	{/if}
+
+	<ConfirmModal
+		open={showOnlineWarning}
+		title="Switch to Online Only"
+		message={initialDataMode === 'local'
+			? "Local-only data cannot be uploaded to the server. Any data that hasn't been manually exported will only exist on this device. Continue?"
+			: "Pending changes will be synced first, then local data will be removed. Continue?"}
+		confirmLabel="Switch to Online"
+		onConfirm={() => { showOnlineWarning = false; doModeSwitch(); }}
+		onCancel={() => showOnlineWarning = false}
+	/>
 </div>
