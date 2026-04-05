@@ -65,7 +65,7 @@
 				disabled={isOffline}
 			>
 				<div class="flex items-start gap-3">
-					<div class="mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center {selectedMode === 'online' ? 'border-primary' : 'border-muted-foreground/40'}">
+					<div class="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center {selectedMode === 'online' ? 'border-primary' : 'border-muted-foreground/40'}">
 						{#if selectedMode === 'online'}
 							<div class="h-2.5 w-2.5 rounded-full bg-primary"></div>
 						{/if}
@@ -86,7 +86,7 @@
 				disabled={isOffline}
 			>
 				<div class="flex items-start gap-3">
-					<div class="mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center {selectedMode === 'hybrid' ? 'border-primary' : 'border-muted-foreground/40'}">
+					<div class="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center {selectedMode === 'hybrid' ? 'border-primary' : 'border-muted-foreground/40'}">
 						{#if selectedMode === 'hybrid'}
 							<div class="h-2.5 w-2.5 rounded-full bg-primary"></div>
 						{/if}
@@ -112,7 +112,7 @@
 				onclick={() => chooseMode('local')}
 			>
 				<div class="flex items-start gap-3">
-					<div class="mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center {selectedMode === 'local' ? 'border-primary' : 'border-muted-foreground/40'}">
+					<div class="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center {selectedMode === 'local' ? 'border-primary' : 'border-muted-foreground/40'}">
 						{#if selectedMode === 'local'}
 							<div class="h-2.5 w-2.5 rounded-full bg-primary"></div>
 						{/if}

@@ -15,11 +15,14 @@ export default defineConfig({
 			logo: {
 				dark: './src/assets/logo-dark.svg',
 				light: './src/assets/logo-light.svg',
-				replacesTitle: false,
+				replacesTitle: true,
 			},
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/brother-buttars/permish' },
 			],
+			components: {
+				SiteTitle: './src/components/SiteTitle.astro',
+			},
 			customCss: ['./src/styles/custom.css'],
 			head: [
 				{
