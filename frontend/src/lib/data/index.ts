@@ -13,6 +13,12 @@ export function getDataMode(): DataMode {
   return (localStorage.getItem('permish_data_mode') as DataMode) || 'online';
 }
 
+/** Returns true if the user has explicitly chosen a data mode (completed setup). */
+export function hasCompletedSetup(): boolean {
+  if (typeof window === 'undefined') return true;
+  return localStorage.getItem('permish_data_mode') !== null;
+}
+
 export function setDataMode(mode: DataMode): void {
   localStorage.setItem('permish_data_mode', mode);
 }
