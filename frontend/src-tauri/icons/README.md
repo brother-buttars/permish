@@ -1,0 +1,1 @@
+Generate icons using `pnpm tauri icon <path-to-1024x1024-png>`. This creates all required platform icons.

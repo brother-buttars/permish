@@ -6,3 +6,9 @@ pdfs/
 .svelte-kit/
 build/
 dist/
+
+# Tauri
+frontend/src-tauri/target/
+frontend/src-tauri/sidecars/pocketbase*
+frontend/src-tauri/sidecars/node-sidecar*
+!frontend/src-tauri/sidecars/README.md
