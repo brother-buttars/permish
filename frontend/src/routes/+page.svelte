@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { user, authLoading } from '$lib/stores/auth';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import InstallPrompt from '$lib/components/InstallPrompt.svelte';
 
 	let currentUser: any = $state(null);
 	let loading = $state(true);
@@ -36,6 +37,10 @@
 				<a href="/register">
 					<Button size="lg" class="w-full sm:w-auto">Register</Button>
 				</a>
+			</div>
+
+			<div class="max-w-xs mx-auto">
+				<InstallPrompt />
 			</div>
 		{/if}
 	</div>

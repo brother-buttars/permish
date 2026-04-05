@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
 	import AlertBox from "$lib/components/AlertBox.svelte";
+	import InstallPrompt from "$lib/components/InstallPrompt.svelte";
 
 	let email = $state('');
 	let password = $state('');
@@ -72,6 +73,8 @@
 					Don't have an account?
 					<a href="/register" class="text-primary underline hover:no-underline">Register</a>
 				</p>
+				<InstallPrompt />
+
 				<a href="/server-settings" class="text-xs text-muted-foreground hover:text-foreground transition-colors">
 					Connect to a different server
 				</a>
