@@ -13,6 +13,7 @@
 	import YouthIcon from "$lib/components/YouthIcon.svelte";
 	import { inferProgramFromOrgs } from "$lib/utils/organizations";
 	import { Select } from "$lib/components/ui/select";
+	import { getSubmissionPdfUrl } from "$lib/services/pdfHelper";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 
 	function parseSubOrgs(sub: any): string[] {
@@ -140,9 +141,7 @@
 		pdfLoading = true;
 		pdfModalOpen = true;
 		try {
-			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
-			const blob = await res.blob();
-			pdfModalUrl = URL.createObjectURL(blob);
+			pdfModalUrl = await getSubmissionPdfUrl(submissionId);
 		} catch {
 			toastError('Failed to load PDF');
 			pdfModalOpen = false;

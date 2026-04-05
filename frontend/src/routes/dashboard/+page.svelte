@@ -13,6 +13,7 @@
 	import PdfModal from "$lib/components/PdfModal.svelte";
 	import { isPastEvent } from "$lib/utils/events";
 	import LoadingState from "$lib/components/LoadingState.svelte";
+	import { getSubmissionPdfUrl } from "$lib/services/pdfHelper";
 	import { Badge } from "$lib/components/ui/badge";
 
 	let events: any[] = $state([]);
@@ -81,10 +82,7 @@
 		pdfLoading = true;
 		pdfModalOpen = true;
 		try {
-			const repo = getRepository();
-			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
-			const blob = await res.blob();
-			pdfModalUrl = URL.createObjectURL(blob);
+			pdfModalUrl = await getSubmissionPdfUrl(submissionId);
 		} catch {
 			toastError('Failed to load PDF');
 			pdfModalOpen = false;

@@ -21,6 +21,7 @@
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { createShareLink } from "$lib/utils/eventShare";
+	import { getSubmissionPdfUrl, generatePdfForSubmission } from "$lib/services/pdfHelper";
 
 	let { data } = $props();
 
@@ -164,9 +165,10 @@
 
 			await Promise.all(
 				submissions.map(async (sub, i) => {
-					const url = repo.submissions.getPdfUrl(sub.id);
-					const res = await fetch(url, { credentials: "include" });
+					const pdfUrl = await generatePdfForSubmission(sub.id);
+					const res = await fetch(pdfUrl);
 					const blob = await res.blob();
+					URL.revokeObjectURL(pdfUrl);
 					const name = sub.participant_name
 						? `${sub.participant_name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`
 						: `submission_${i + 1}.pdf`;
@@ -220,9 +222,7 @@
 		pdfLoading = true;
 		pdfModalOpen = true;
 		try {
-			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
-			const blob = await res.blob();
-			pdfModalUrl = URL.createObjectURL(blob);
+			pdfModalUrl = await getSubmissionPdfUrl(submissionId);
 		} catch {
 			toastError('Failed to load PDF');
 			pdfModalOpen = false;

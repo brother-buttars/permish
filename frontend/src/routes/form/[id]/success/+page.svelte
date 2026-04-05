@@ -7,6 +7,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 	import PdfViewer from "$lib/components/PdfViewer.svelte";
+	import { getSubmissionPdfUrl } from "$lib/services/pdfHelper";
 
 	let { data } = $props();
 
@@ -34,12 +35,7 @@
 
 	async function loadPdf() {
 		try {
-			const repo = getRepository();
-			const res = await fetch(repo.submissions.getPdfUrl(submissionId), { credentials: 'include' });
-			if (res.ok) {
-				const blob = await res.blob();
-				pdfUrl = URL.createObjectURL(blob);
-			}
+			pdfUrl = await getSubmissionPdfUrl(submissionId);
 		} catch {
 			// PDF preview is optional
 		} finally {
