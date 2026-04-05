@@ -72,6 +72,7 @@ export default defineConfig({
 		}),
 	],
 	server: {
+		allowedHosts: ['dev.permish.app'],
 		hmr: process.env.VITE_DEV_HTTPS
 			? {
 					protocol: 'wss',
