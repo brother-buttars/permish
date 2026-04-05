@@ -12,7 +12,8 @@ import type {
   EventRepository,
   ProfileRepository,
   SubmissionRepository,
-  AttachmentRepository
+  AttachmentRepository,
+  GroupRepository
 } from '../repository';
 import type { LocalDatabase } from '../local/database';
 import type { SyncManager } from './manager';
@@ -146,6 +147,67 @@ export function createHybridRepository(
   };
 
   // -------------------------------------------------------------------------
+  // Groups — reads from local, mutations queue for sync
+  // -------------------------------------------------------------------------
+
+  const groups: GroupRepository = {
+    list: local.groups.list.bind(local.groups),
+    getById: local.groups.getById.bind(local.groups),
+
+    async create(data) {
+      const result = await local.groups.create(data);
+      await queueChange(db, syncManager, 'groups', result.id, 'create', data);
+      return result;
+    },
+
+    async update(id, data) {
+      const result = await local.groups.update(id, data);
+      await queueChange(db, syncManager, 'groups', id, 'update', data);
+      return result;
+    },
+
+    async join(inviteCode) {
+      const result = await local.groups.join(inviteCode);
+      await queueChange(db, syncManager, 'group_members', result.group.id, 'create', {
+        invite_code: inviteCode
+      });
+      return result;
+    },
+
+    async invite(groupId, email, role) {
+      const result = await local.groups.invite(groupId, email, role);
+      await queueChange(db, syncManager, 'group_members', result.member.membership_id, 'create', {
+        group_id: groupId,
+        email,
+        role
+      });
+      return result;
+    },
+
+    async updateMemberRole(groupId, userId, role) {
+      await local.groups.updateMemberRole(groupId, userId, role);
+      await queueChange(db, syncManager, 'group_members', `${groupId}:${userId}`, 'update', {
+        group_id: groupId,
+        user_id: userId,
+        role
+      });
+    },
+
+    async removeMember(groupId, userId) {
+      await local.groups.removeMember(groupId, userId);
+      await queueChange(db, syncManager, 'group_members', `${groupId}:${userId}`, 'delete');
+    },
+
+    async regenerateInvite(groupId) {
+      const result = await local.groups.regenerateInvite(groupId);
+      await queueChange(db, syncManager, 'groups', groupId, 'update', {
+        invite_code: result.invite_code
+      });
+      return result;
+    }
+  };
+
+  // -------------------------------------------------------------------------
   // Assemble the hybrid DataRepository
   // -------------------------------------------------------------------------
 
@@ -155,6 +217,7 @@ export function createHybridRepository(
     profiles,
     submissions,
     attachments,
-    admin: local.admin // Admin is always local in hybrid mode
+    admin: local.admin, // Admin is always local in hybrid mode
+    groups
   };
 }

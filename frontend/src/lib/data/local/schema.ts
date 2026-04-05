@@ -5,7 +5,7 @@
 
 import type { LocalDatabase } from './database';
 
-export const LOCAL_SCHEMA_VERSION = 1;
+export const LOCAL_SCHEMA_VERSION = 2;
 
 export const SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS local_meta (
@@ -32,6 +32,7 @@ export const SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
     created_by TEXT NOT NULL REFERENCES users(id),
+    group_id TEXT REFERENCES groups(id),
     event_name TEXT NOT NULL,
     event_dates TEXT NOT NULL,
     event_start TEXT,
@@ -143,12 +144,39 @@ export const SCHEMA_DDL = `
     last_error TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('stake', 'ward', 'custom')),
+    parent_id TEXT REFERENCES groups(id),
+    ward TEXT,
+    stake TEXT,
+    leader_name TEXT,
+    leader_phone TEXT,
+    leader_email TEXT,
+    invite_code TEXT UNIQUE,
+    created TEXT DEFAULT (datetime('now')),
+    updated TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS group_members (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL REFERENCES groups(id),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
+    joined_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(group_id, user_id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_events_created_by ON events(created_by);
   CREATE INDEX IF NOT EXISTS idx_submissions_event_id ON submissions(event_id);
   CREATE INDEX IF NOT EXISTS idx_submissions_submitted_by ON submissions(submitted_by);
   CREATE INDEX IF NOT EXISTS idx_child_profiles_user_id ON child_profiles(user_id);
   CREATE INDEX IF NOT EXISTS idx_event_attachments_event_id ON event_attachments(event_id);
   CREATE INDEX IF NOT EXISTS idx_pending_unsynced ON pending_changes(synced_at) WHERE synced_at IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+  CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
+  CREATE INDEX IF NOT EXISTS idx_groups_parent ON groups(parent_id);
 `;
 
 /**
@@ -178,6 +206,54 @@ export async function initializeLocalSchema(db: LocalDatabase): Promise<void> {
       'schema_version',
       String(LOCAL_SCHEMA_VERSION)
     ]);
+  } else {
+    const currentVersion = parseInt(meta[0].value, 10);
+
+    // Migration: v1 -> v2 — add groups, group_members tables and group_id on events
+    if (currentVersion < 2) {
+      const v2Statements = [
+        `CREATE TABLE IF NOT EXISTS groups (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL CHECK(type IN ('stake', 'ward', 'custom')),
+          parent_id TEXT REFERENCES groups(id),
+          ward TEXT,
+          stake TEXT,
+          leader_name TEXT,
+          leader_phone TEXT,
+          leader_email TEXT,
+          invite_code TEXT UNIQUE,
+          created TEXT DEFAULT (datetime('now')),
+          updated TEXT DEFAULT (datetime('now'))
+        )`,
+        `CREATE TABLE IF NOT EXISTS group_members (
+          id TEXT PRIMARY KEY,
+          group_id TEXT NOT NULL REFERENCES groups(id),
+          user_id TEXT NOT NULL REFERENCES users(id),
+          role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
+          joined_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(group_id, user_id)
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_groups_parent ON groups(parent_id)`
+      ];
+
+      for (const stmt of v2Statements) {
+        await db.execute(stmt);
+      }
+
+      // Add group_id column to events if it doesn't exist
+      try {
+        await db.execute('ALTER TABLE events ADD COLUMN group_id TEXT REFERENCES groups(id)');
+      } catch {
+        // Column may already exist — ignore
+      }
+
+      await db.execute(
+        'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
+        ['schema_version', '2']
+      );
+    }
   }
-  // Future: add migration logic when LOCAL_SCHEMA_VERSION increments
 }

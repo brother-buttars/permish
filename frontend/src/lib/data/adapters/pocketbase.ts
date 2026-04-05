@@ -6,6 +6,7 @@ import type {
   SubmissionRepository,
   AttachmentRepository,
   AdminRepository,
+  GroupRepository,
   SubscriptionManager,
   DataRepository
 } from '../repository';
@@ -17,7 +18,10 @@ import type {
   AllSubmission,
   Attachment,
   SystemStats,
-  RealtimeEvent
+  RealtimeEvent,
+  Group,
+  GroupDetail,
+  GroupMember
 } from '../types';
 
 const PB_URL = import.meta.env.PUBLIC_PB_URL || 'http://localhost:8090';
@@ -547,6 +551,174 @@ function createAdminRepository(): AdminRepository {
   };
 }
 
+function mapGroup(r: RecordModel): Group {
+  return {
+    id: r.id,
+    name: r.name,
+    type: r.type,
+    parent_id: r.parent_id || undefined,
+    ward: r.ward || undefined,
+    stake: r.stake || undefined,
+    leader_name: r.leader_name || undefined,
+    leader_phone: r.leader_phone || undefined,
+    leader_email: r.leader_email || undefined,
+    invite_code: r.invite_code || undefined,
+    member_role: r.member_role || undefined,
+    member_count: r.member_count ?? undefined,
+    created_at: r.created
+  };
+}
+
+function mapGroupMember(r: RecordModel): GroupMember {
+  return {
+    membership_id: r.id,
+    user_id: r.user_id || r.expand?.user_id?.id,
+    name: r.expand?.user_id?.name || r.name || '',
+    email: r.expand?.user_id?.email || r.email || '',
+    role: r.role,
+    joined_at: r.joined_at || r.created
+  };
+}
+
+function createGroupRepository(): GroupRepository {
+  return {
+    async list(): Promise<Group[]> {
+      const userId = pb.authStore.record?.id;
+      // Get groups the user is a member of
+      const memberships = await pb.collection('group_members').getFullList({
+        filter: `user_id = "${userId}"`,
+        expand: 'group_id'
+      });
+      return memberships.map((m) => {
+        const group = mapGroup(m.expand?.group_id as RecordModel);
+        group.member_role = m.role;
+        return group;
+      });
+    },
+
+    async getById(id: string): Promise<GroupDetail> {
+      const record = await pb.collection('groups').getOne(id);
+      const group = mapGroup(record);
+
+      // Get members with expanded user data
+      const memberRecords = await pb.collection('group_members').getFullList({
+        filter: `group_id = "${id}"`,
+        expand: 'user_id'
+      });
+      const members = memberRecords.map(mapGroupMember);
+
+      // Get subgroups
+      const subgroupRecords = await pb.collection('groups').getFullList({
+        filter: `parent_id = "${id}"`
+      });
+      const subgroups = subgroupRecords.map((r) => ({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        ward: r.ward || undefined
+      }));
+
+      // Get parent if exists
+      let parent: Group['parent'];
+      if (record.parent_id) {
+        const parentRecord = await pb.collection('groups').getOne(record.parent_id);
+        parent = {
+          id: parentRecord.id,
+          name: parentRecord.name,
+          type: parentRecord.type,
+          stake: parentRecord.stake || undefined
+        };
+      }
+
+      return { ...group, members, subgroups, parent };
+    },
+
+    async create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string }): Promise<Group> {
+      const record = await pb.collection('groups').create({
+        ...data,
+        invite_code: crypto.randomUUID().slice(0, 8)
+      });
+      // Auto-add creator as admin
+      await pb.collection('group_members').create({
+        group_id: record.id,
+        user_id: pb.authStore.record!.id,
+        role: 'admin'
+      });
+      return mapGroup(record);
+    },
+
+    async update(id: string, data: Partial<Group>): Promise<Group> {
+      const record = await pb.collection('groups').update(id, data);
+      return mapGroup(record);
+    },
+
+    async join(inviteCode: string): Promise<{ group: Group; message: string }> {
+      // Find group by invite code
+      const records = await pb.collection('groups').getFullList({
+        filter: `invite_code = "${inviteCode}"`
+      });
+      if (records.length === 0) throw new Error('Invalid invite code');
+
+      const group = mapGroup(records[0]);
+      // Add user as member
+      await pb.collection('group_members').create({
+        group_id: group.id,
+        user_id: pb.authStore.record!.id,
+        role: 'member'
+      });
+
+      return { group, message: `Joined ${group.name}` };
+    },
+
+    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; member: GroupMember }> {
+      // Find user by email
+      const users = await pb.collection('users').getFullList({
+        filter: `email = "${email}"`
+      });
+      if (users.length === 0) throw new Error('User not found');
+
+      const record = await pb.collection('group_members').create({
+        group_id: groupId,
+        user_id: users[0].id,
+        role: role || 'member'
+      });
+
+      const member: GroupMember = {
+        membership_id: record.id,
+        user_id: users[0].id,
+        name: users[0].name,
+        email: users[0].email,
+        role: record.role,
+        joined_at: record.created
+      };
+
+      return { message: `Invited ${email}`, member };
+    },
+
+    async updateMemberRole(groupId: string, userId: string, role: string): Promise<void> {
+      const memberships = await pb.collection('group_members').getFullList({
+        filter: `group_id = "${groupId}" && user_id = "${userId}"`
+      });
+      if (memberships.length === 0) throw new Error('Member not found');
+      await pb.collection('group_members').update(memberships[0].id, { role });
+    },
+
+    async removeMember(groupId: string, userId: string): Promise<void> {
+      const memberships = await pb.collection('group_members').getFullList({
+        filter: `group_id = "${groupId}" && user_id = "${userId}"`
+      });
+      if (memberships.length === 0) throw new Error('Member not found');
+      await pb.collection('group_members').delete(memberships[0].id);
+    },
+
+    async regenerateInvite(groupId: string): Promise<{ invite_code: string }> {
+      const newCode = crypto.randomUUID().slice(0, 8);
+      await pb.collection('groups').update(groupId, { invite_code: newCode });
+      return { invite_code: newCode };
+    }
+  };
+}
+
 function createSubscriptionManager(): SubscriptionManager {
   const activeSubscriptions: Array<() => void> = [];
 
@@ -586,6 +758,7 @@ export function createPocketBaseRepository(): DataRepository {
     submissions: createSubmissionRepository(),
     attachments: createAttachmentRepository(),
     admin: createAdminRepository(),
+    groups: createGroupRepository(),
     subscriptions: createSubscriptionManager()
   };
 }

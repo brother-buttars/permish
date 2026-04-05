@@ -11,6 +11,7 @@ import type {
   SubmissionRepository,
   AttachmentRepository,
   AdminRepository,
+  GroupRepository,
   DataRepository
 } from '../repository';
 import type {
@@ -20,7 +21,10 @@ import type {
   Submission,
   AllSubmission,
   Attachment,
-  SystemStats
+  SystemStats,
+  Group,
+  GroupDetail,
+  GroupMember
 } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -999,6 +1003,284 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
   };
 
   // -----------------------------------------------------------------------
+  // Groups
+  // -----------------------------------------------------------------------
+  const groups: GroupRepository = {
+    async list(): Promise<Group[]> {
+      const user = requireUser();
+      const rows = await db.query<any>(
+        `SELECT g.*, gm.role AS member_role,
+          (SELECT COUNT(*) FROM group_members WHERE group_id = g.id) AS member_count
+         FROM groups g
+         JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = ?
+         ORDER BY g.name`,
+        [user.id]
+      );
+      return rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        parent_id: row.parent_id || undefined,
+        ward: row.ward || undefined,
+        stake: row.stake || undefined,
+        leader_name: row.leader_name || undefined,
+        leader_phone: row.leader_phone || undefined,
+        leader_email: row.leader_email || undefined,
+        invite_code: row.invite_code || undefined,
+        member_role: row.member_role,
+        member_count: row.member_count,
+        created_at: row.created
+      }));
+    },
+
+    async getById(id: string): Promise<GroupDetail> {
+      const rows = await db.query<any>('SELECT * FROM groups WHERE id = ?', [id]);
+      if (rows.length === 0) throw new Error('Group not found');
+      const row = rows[0];
+
+      // Get members
+      const memberRows = await db.query<any>(
+        `SELECT gm.id AS membership_id, gm.user_id, u.name, u.email, gm.role, gm.joined_at
+         FROM group_members gm
+         JOIN users u ON u.id = gm.user_id
+         WHERE gm.group_id = ?
+         ORDER BY gm.joined_at`,
+        [id]
+      );
+      const members: GroupMember[] = memberRows.map((m: any) => ({
+        membership_id: m.membership_id,
+        user_id: m.user_id,
+        name: m.name,
+        email: m.email,
+        role: m.role,
+        joined_at: m.joined_at
+      }));
+
+      // Get subgroups
+      const subgroupRows = await db.query<any>(
+        'SELECT id, name, type, ward FROM groups WHERE parent_id = ?',
+        [id]
+      );
+      const subgroups = subgroupRows.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        ward: s.ward || undefined
+      }));
+
+      // Get parent
+      let parent: Group['parent'];
+      if (row.parent_id) {
+        const parentRows = await db.query<any>(
+          'SELECT id, name, type, stake FROM groups WHERE id = ?',
+          [row.parent_id]
+        );
+        if (parentRows.length > 0) {
+          parent = {
+            id: parentRows[0].id,
+            name: parentRows[0].name,
+            type: parentRows[0].type,
+            stake: parentRows[0].stake || undefined
+          };
+        }
+      }
+
+      return {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        parent_id: row.parent_id || undefined,
+        ward: row.ward || undefined,
+        stake: row.stake || undefined,
+        leader_name: row.leader_name || undefined,
+        leader_phone: row.leader_phone || undefined,
+        leader_email: row.leader_email || undefined,
+        invite_code: row.invite_code || undefined,
+        member_count: members.length,
+        created_at: row.created,
+        members,
+        subgroups,
+        parent
+      };
+    },
+
+    async create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string }): Promise<Group> {
+      const user = requireUser();
+      const id = crypto.randomUUID();
+      const inviteCode = crypto.randomUUID().slice(0, 8);
+      const ts = now();
+
+      await db.execute(
+        `INSERT INTO groups (id, name, type, parent_id, ward, stake, leader_name, leader_phone, leader_email, invite_code, created, updated)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, data.name, data.type, data.parent_id ?? null, data.ward ?? null, data.stake ?? null, data.leader_name ?? null, data.leader_phone ?? null, data.leader_email ?? null, inviteCode, ts, ts]
+      );
+
+      // Auto-add creator as admin
+      await db.execute(
+        `INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)`,
+        [crypto.randomUUID(), id, user.id, 'admin', ts]
+      );
+
+      return {
+        id,
+        name: data.name,
+        type: data.type as Group['type'],
+        parent_id: data.parent_id,
+        ward: data.ward,
+        stake: data.stake,
+        leader_name: data.leader_name,
+        leader_phone: data.leader_phone,
+        leader_email: data.leader_email,
+        invite_code: inviteCode,
+        member_role: 'admin',
+        member_count: 1,
+        created_at: ts
+      };
+    },
+
+    async update(id: string, data: Partial<Group>): Promise<Group> {
+      requireUser();
+      const fields: string[] = [];
+      const values: unknown[] = [];
+
+      const allowedFields = ['name', 'type', 'parent_id', 'ward', 'stake', 'leader_name', 'leader_phone', 'leader_email'] as const;
+      for (const key of allowedFields) {
+        if (key in data) {
+          fields.push(`${key} = ?`);
+          values.push((data as any)[key] ?? null);
+        }
+      }
+
+      if (fields.length === 0) {
+        return (await groups.getById(id)) as Group;
+      }
+
+      fields.push('updated = ?');
+      values.push(now());
+      values.push(id);
+
+      await db.execute(`UPDATE groups SET ${fields.join(', ')} WHERE id = ?`, values);
+
+      const rows = await db.query<any>('SELECT * FROM groups WHERE id = ?', [id]);
+      const row = rows[0];
+      return {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        parent_id: row.parent_id || undefined,
+        ward: row.ward || undefined,
+        stake: row.stake || undefined,
+        leader_name: row.leader_name || undefined,
+        leader_phone: row.leader_phone || undefined,
+        leader_email: row.leader_email || undefined,
+        invite_code: row.invite_code || undefined,
+        created_at: row.created
+      };
+    },
+
+    async join(inviteCode: string): Promise<{ group: Group; message: string }> {
+      const user = requireUser();
+      const rows = await db.query<any>('SELECT * FROM groups WHERE invite_code = ?', [inviteCode]);
+      if (rows.length === 0) throw new Error('Invalid invite code');
+
+      const row = rows[0];
+
+      // Check if already a member
+      const existing = await db.query(
+        'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
+        [row.id, user.id]
+      );
+      if (existing.length > 0) throw new Error('Already a member of this group');
+
+      const ts = now();
+      await db.execute(
+        'INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)',
+        [crypto.randomUUID(), row.id, user.id, 'member', ts]
+      );
+
+      const group: Group = {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        parent_id: row.parent_id || undefined,
+        ward: row.ward || undefined,
+        stake: row.stake || undefined,
+        member_role: 'member',
+        created_at: row.created
+      };
+
+      return { group, message: `Joined ${group.name}` };
+    },
+
+    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; member: GroupMember }> {
+      requireUser();
+      const userRows = await db.query<any>('SELECT * FROM users WHERE email = ?', [email]);
+      if (userRows.length === 0) throw new Error('User not found');
+
+      const targetUser = userRows[0];
+      const existing = await db.query(
+        'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, targetUser.id]
+      );
+      if (existing.length > 0) throw new Error('User is already a member');
+
+      const membershipId = crypto.randomUUID();
+      const ts = now();
+      const memberRole = role || 'member';
+
+      await db.execute(
+        'INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)',
+        [membershipId, groupId, targetUser.id, memberRole, ts]
+      );
+
+      const member: GroupMember = {
+        membership_id: membershipId,
+        user_id: targetUser.id,
+        name: targetUser.name,
+        email: targetUser.email,
+        role: memberRole as 'admin' | 'member',
+        joined_at: ts
+      };
+
+      return { message: `Invited ${email}`, member };
+    },
+
+    async updateMemberRole(groupId: string, userId: string, role: string): Promise<void> {
+      requireUser();
+      const result = await db.query(
+        'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, userId]
+      );
+      if (result.length === 0) throw new Error('Member not found');
+
+      await db.execute(
+        'UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?',
+        [role, groupId, userId]
+      );
+    },
+
+    async removeMember(groupId: string, userId: string): Promise<void> {
+      requireUser();
+      await db.execute(
+        'DELETE FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, userId]
+      );
+    },
+
+    async regenerateInvite(groupId: string): Promise<{ invite_code: string }> {
+      requireUser();
+      const newCode = crypto.randomUUID().slice(0, 8);
+      await db.execute('UPDATE groups SET invite_code = ?, updated = ? WHERE id = ?', [
+        newCode,
+        now(),
+        groupId
+      ]);
+      return { invite_code: newCode };
+    }
+  };
+
+  // -----------------------------------------------------------------------
   // Assemble the DataRepository
   // -----------------------------------------------------------------------
   return {
@@ -1007,6 +1289,7 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
     profiles,
     submissions,
     attachments,
-    admin
+    admin,
+    groups
   };
 }

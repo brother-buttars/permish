@@ -5,6 +5,7 @@ import type {
   SubmissionRepository,
   AttachmentRepository,
   AdminRepository,
+  GroupRepository,
   DataRepository
 } from '../repository';
 import type {
@@ -14,7 +15,10 @@ import type {
   Submission,
   AllSubmission,
   Attachment,
-  SystemStats
+  SystemStats,
+  Group,
+  GroupDetail,
+  GroupMember
 } from '../types';
 
 /**
@@ -332,6 +336,69 @@ function createAdminRepository(): AdminRepository {
   };
 }
 
+function createGroupRepository(): GroupRepository {
+  return {
+    async list(): Promise<Group[]> {
+      const data = await apiFetch('/api/groups');
+      return data.groups;
+    },
+
+    async getById(id: string): Promise<GroupDetail> {
+      const data = await apiFetch(`/api/groups/${id}`);
+      return data.group;
+    },
+
+    async create(groupData: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string }): Promise<Group> {
+      const data = await apiFetch('/api/groups', {
+        method: 'POST',
+        body: JSON.stringify(groupData)
+      });
+      return data.group;
+    },
+
+    async update(id: string, groupData: Partial<Group>): Promise<Group> {
+      const data = await apiFetch(`/api/groups/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(groupData)
+      });
+      return data.group;
+    },
+
+    async join(inviteCode: string): Promise<{ group: Group; message: string }> {
+      return await apiFetch('/api/groups/join', {
+        method: 'POST',
+        body: JSON.stringify({ invite_code: inviteCode })
+      });
+    },
+
+    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; member: GroupMember }> {
+      return await apiFetch(`/api/groups/${groupId}/invite`, {
+        method: 'POST',
+        body: JSON.stringify({ email, role })
+      });
+    },
+
+    async updateMemberRole(groupId: string, userId: string, role: string): Promise<void> {
+      await apiFetch(`/api/groups/${groupId}/members/${userId}/role`, {
+        method: 'PUT',
+        body: JSON.stringify({ role })
+      });
+    },
+
+    async removeMember(groupId: string, userId: string): Promise<void> {
+      await apiFetch(`/api/groups/${groupId}/members/${userId}`, {
+        method: 'DELETE'
+      });
+    },
+
+    async regenerateInvite(groupId: string): Promise<{ invite_code: string }> {
+      return await apiFetch(`/api/groups/${groupId}/regenerate-invite`, {
+        method: 'POST'
+      });
+    }
+  };
+}
+
 export function createExpressRepository(): DataRepository {
   return {
     auth: createAuthRepository(),
@@ -339,6 +406,7 @@ export function createExpressRepository(): DataRepository {
     profiles: createProfileRepository(),
     submissions: createSubmissionRepository(),
     attachments: createAttachmentRepository(),
-    admin: createAdminRepository()
+    admin: createAdminRepository(),
+    groups: createGroupRepository()
   };
 }

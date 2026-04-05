@@ -6,7 +6,10 @@ import type {
   AllSubmission,
   Attachment,
   SystemStats,
-  RealtimeEvent
+  RealtimeEvent,
+  Group,
+  GroupDetail,
+  GroupMember
 } from './types';
 
 export interface AuthRepository {
@@ -68,6 +71,18 @@ export interface AdminRepository {
   deleteUser(id: string): Promise<void>;
 }
 
+export interface GroupRepository {
+  list(): Promise<Group[]>;
+  getById(id: string): Promise<GroupDetail>;
+  create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string }): Promise<Group>;
+  update(id: string, data: Partial<Group>): Promise<Group>;
+  join(inviteCode: string): Promise<{ group: Group; message: string }>;
+  invite(groupId: string, email: string, role?: string): Promise<{ message: string; member: GroupMember }>;
+  updateMemberRole(groupId: string, userId: string, role: string): Promise<void>;
+  removeMember(groupId: string, userId: string): Promise<void>;
+  regenerateInvite(groupId: string): Promise<{ invite_code: string }>;
+}
+
 export interface SubscriptionManager {
   subscribe(collection: string, callback: (event: RealtimeEvent) => void): () => void;
   unsubscribeAll(): void;
@@ -80,5 +95,6 @@ export interface DataRepository {
   submissions: SubmissionRepository;
   attachments: AttachmentRepository;
   admin: AdminRepository;
+  groups: GroupRepository;
   subscriptions?: SubscriptionManager;
 }

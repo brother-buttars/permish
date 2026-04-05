@@ -18,6 +18,7 @@ export interface User {
 export interface Event {
   id: string;
   created_by: string;
+  group_id?: string;
   event_name: string;
   event_dates: string;
   event_start?: string;
@@ -125,6 +126,37 @@ export interface AllSubmission extends Submission {
   event_name: string;
   event_dates: string;
   organizations: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  type: 'stake' | 'ward' | 'custom';
+  parent_id?: string;
+  ward?: string;
+  stake?: string;
+  leader_name?: string;
+  leader_phone?: string;
+  leader_email?: string;
+  invite_code?: string;
+  member_role?: 'admin' | 'member'; // current user's role in this group
+  member_count?: number;
+  parent?: { id: string; name: string; type: string; stake?: string };
+  subgroups?: { id: string; name: string; type: string; ward?: string }[];
+  created_at?: string;
+}
+
+export interface GroupMember {
+  membership_id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'member';
+  joined_at: string;
+}
+
+export interface GroupDetail extends Group {
+  members: GroupMember[];
 }
 
 export interface RealtimeEvent {

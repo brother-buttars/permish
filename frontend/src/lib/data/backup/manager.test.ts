@@ -70,7 +70,7 @@ describe('BackupManager', () => {
       expect(blob.size).toBeGreaterThan(0);
 
       expect(metadata.version).toBe(1);
-      expect(metadata.schemaVersion).toBe(1);
+      expect(metadata.schemaVersion).toBe(2);
       expect(metadata.recordCounts.users).toBe(1);
       expect(metadata.recordCounts.events).toBe(1);
       expect(metadata.recordCounts.profiles).toBe(1);
