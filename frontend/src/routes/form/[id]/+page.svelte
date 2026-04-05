@@ -172,7 +172,7 @@
 			event = result.event;
 			attachments = result.attachments || [];
 		} catch (err: any) {
-			error = err.message || "Failed to load event";
+			error = err.message || "Failed to load activity";
 		} finally {
 			loading = false;
 		}
@@ -343,7 +343,7 @@
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
-		<LoadingState message="Loading event..." />
+		<LoadingState message="Loading activity..." />
 	{:else if error}
 		<Card>
 			<CardContent class="py-12 text-center">

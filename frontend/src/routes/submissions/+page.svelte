@@ -176,7 +176,7 @@
 				class="flex-1 {view !== 'planner' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
 				onclick={() => view = 'planner'}
 			>
-				Event Manager
+				Activity Manager
 			</Button>
 			<Button
 				variant={view === 'parent' ? 'default' : 'outline'}
@@ -198,7 +198,7 @@
 				</div>
 				{#if view === 'planner' && uniqueEvents.length > 0}
 					<Select bind:value={eventFilter}>
-						<option value="">All Events</option>
+						<option value="">All Activities</option>
 						{#each uniqueEvents as ev}
 							<option value={ev.id}>{ev.name}</option>
 						{/each}
@@ -275,7 +275,7 @@
 							<thead>
 								<tr class="border-b">
 									<th class="px-4 py-3 text-left font-medium">Participant</th>
-									<th class="px-4 py-3 text-left font-medium">Event</th>
+									<th class="px-4 py-3 text-left font-medium">Activity</th>
 									<th class="px-4 py-3 text-left font-medium">Emergency Contact</th>
 									<th class="px-4 py-3 text-left font-medium">Submitted</th>
 									<th class="px-4 py-3 text-left font-medium">Actions</th>
@@ -384,7 +384,7 @@
 						<table class="w-full text-sm">
 							<thead>
 								<tr class="border-b">
-									<th class="px-4 py-3 text-left font-medium">Event</th>
+									<th class="px-4 py-3 text-left font-medium">Activity</th>
 									<th class="px-4 py-3 text-left font-medium">Participant</th>
 									<th class="px-4 py-3 text-left font-medium">Submitted</th>
 									<th class="px-4 py-3 text-left font-medium">Actions</th>

@@ -120,7 +120,7 @@
 		try {
 			await repo.events.update(data.eventId, { is_active: !event.is_active });
 			event = { ...event, is_active: !event.is_active };
-			toastSuccess(event.is_active ? "Event activated." : "Event deactivated.");
+			toastSuccess(event.is_active ? "Activity activated." : "Activity deactivated.");
 		} catch (err) {
 			console.error("Failed to toggle event:", err);
 		} finally {
@@ -279,14 +279,14 @@
 </script>
 
 <svelte:head>
-	<title>{event?.event_name || "Event Dashboard"}</title>
+	<title>{event?.event_name || "Activity Dashboard"}</title>
 </svelte:head>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
 		<LoadingState />
 	{:else if !event}
-		<p class="text-center text-destructive">Event not found.</p>
+		<p class="text-center text-destructive">Activity not found.</p>
 	{:else}
 		<!-- Header -->
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -315,7 +315,7 @@
 		<!-- Event Details Card -->
 		<Card class="mb-6">
 			<CardHeader>
-				<CardTitle>Event Details</CardTitle>
+				<CardTitle>Activity Details</CardTitle>
 			</CardHeader>
 			<CardContent class="space-y-3">
 				{#if event.event_description}
@@ -423,7 +423,7 @@
 								<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
 								<line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
 							</svg>
-							Share Event
+							Share Activity
 						</Button>
 					</div>
 				</div>
@@ -576,8 +576,8 @@
 {#if event}
 <ConfirmModal
 	bind:open={toggleModalOpen}
-	title={event.is_active ? "Deactivate Event" : "Activate Event"}
-	message={event.is_active ? "Are you sure you want to deactivate this event? The form will no longer accept new submissions." : "Are you sure you want to activate this event? The form will start accepting submissions."}
+	title={event.is_active ? "Deactivate Activity" : "Activate Activity"}
+	message={event.is_active ? "Are you sure you want to deactivate this activity? The form will no longer accept new submissions." : "Are you sure you want to activate this activity? The form will start accepting submissions."}
 	confirmLabel={event.is_active ? "Deactivate" : "Activate"}
 	confirmVariant={event.is_active ? "destructive" : "default"}
 	onConfirm={toggleActive}

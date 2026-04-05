@@ -27,7 +27,7 @@
 		const data = params.get('data');
 
 		if (!data) {
-			decodeError = 'No event data found in link.';
+			decodeError = 'No activity data found in link.';
 			loading = false;
 			return;
 		}
@@ -35,7 +35,7 @@
 		try {
 			eventData = decodeShareData(data);
 		} catch (err: any) {
-			decodeError = err.message || 'Invalid event link.';
+			decodeError = err.message || 'Invalid activity link.';
 		}
 
 		// Check auth status
@@ -78,9 +78,9 @@
 			} as any);
 
 			added = true;
-			toastSuccess(`"${eventData.event_name}" added to your events.`);
+			toastSuccess(`"${eventData.event_name}" added to your activities.`);
 		} catch (err: any) {
-			toastError(err.message || 'Failed to add event.');
+			toastError(err.message || 'Failed to add activity.');
 		} finally {
 			adding = false;
 		}
@@ -95,7 +95,7 @@
 </script>
 
 <svelte:head>
-	<title>{eventData ? `Import: ${eventData.event_name}` : 'Import Event'} — Permish</title>
+	<title>{eventData ? `Import: ${eventData.event_name}` : 'Import Activity'} — Permish</title>
 </svelte:head>
 
 <div class="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-8">
@@ -103,18 +103,18 @@
 		<CardHeader>
 			<CardTitle>
 				{#if added}
-					Event Added
+					Activity Added
 				{:else}
-					Shared Event
+					Shared Activity
 				{/if}
 			</CardTitle>
 			<CardDescription>
 				{#if added}
-					This event has been added to your events.
+					This activity has been added to your activities.
 				{:else if eventData}
-					Someone shared an event with you. Review the details below.
+					Someone shared an activity with you. Review the details below.
 				{:else}
-					Loading event details...
+					Loading activity details...
 				{/if}
 			</CardDescription>
 		</CardHeader>
@@ -149,7 +149,7 @@
 					</div>
 
 					<div class="text-sm">
-						<span class="text-muted-foreground">Event Leader</span>
+						<span class="text-muted-foreground">Activity Leader</span>
 						<p class="font-medium">{eventData.leader_name}</p>
 						<p class="text-muted-foreground">{eventData.leader_phone} · {eventData.leader_email}</p>
 					</div>
@@ -179,16 +179,16 @@
 				{#if added}
 					<div class="space-y-2">
 						<Button class="w-full" onclick={() => goto('/events')}>
-							View My Events
+							View My Activities
 						</Button>
 					</div>
 				{:else if needsAuth}
 					<div class="space-y-3">
 						<div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-sm text-center">
-							Sign in to add this event to your account.
+							Sign in to add this activity to your account.
 						</div>
 						<Button class="w-full" onclick={loginThenReturn}>
-							Sign In & Add Event
+							Sign In & Add Activity
 						</Button>
 						<p class="text-xs text-muted-foreground text-center">
 							Don't have an account?
@@ -197,7 +197,7 @@
 					</div>
 				{:else}
 					<Button class="w-full" onclick={addToMyEvents} disabled={adding}>
-						{adding ? 'Adding...' : 'Add to My Events'}
+						{adding ? 'Adding...' : 'Add to My Activities'}
 					</Button>
 				{/if}
 			{/if}

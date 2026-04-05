@@ -122,7 +122,7 @@
 						class="flex-1 {view !== 'planner' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
 						onclick={() => view = 'planner'}
 					>
-						Event Manager
+						Activity Manager
 					</Button>
 					<Button
 						variant={view === 'parent' ? 'default' : 'outline'}
@@ -136,14 +136,14 @@
 			{/if}
 		</div>
 
-		<!-- ═══════ Event Manager View ═══════ -->
+		<!-- ═══════ Activity Manager View ═══════ -->
 		{#if view === 'planner' && (currentUser?.role === 'planner' || currentUser?.role === 'super')}
 			<!-- Summary stats -->
 			<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
 				<Card>
 					<CardContent class="pt-6 text-center">
 						<p class="text-3xl font-bold">{events.length}</p>
-						<p class="text-sm text-muted-foreground">Total Events</p>
+						<p class="text-sm text-muted-foreground">Total Activities</p>
 					</CardContent>
 				</Card>
 				<Card>
@@ -168,18 +168,18 @@
 
 			<section class="mb-10">
 				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<h2 class="text-xl font-semibold">Recent Events</h2>
+					<h2 class="text-xl font-semibold">Recent Activities</h2>
 					<div class="flex gap-2">
-						<Button variant="outline" onclick={() => goto("/events")}>View All Events</Button>
-						<Button onclick={() => goto("/create")}>Create New Event</Button>
+						<Button variant="outline" onclick={() => goto("/events")}>View All Activities</Button>
+						<Button onclick={() => goto("/create")}>Create New Activity</Button>
 					</div>
 				</div>
 
 				{#if events.length === 0}
 					<Card>
 						<CardContent class="py-8 text-center">
-							<p class="text-muted-foreground">You haven't created any events yet.</p>
-							<Button variant="link" onclick={() => goto("/create")}>Create your first event</Button>
+							<p class="text-muted-foreground">You haven't created any activities yet.</p>
+							<Button variant="link" onclick={() => goto("/create")}>Create your first activity</Button>
 						</CardContent>
 					</Card>
 				{:else}
@@ -212,7 +212,7 @@
 					</div>
 					{#if events.length > 5}
 						<div class="mt-3 text-center">
-							<Button variant="link" onclick={() => goto("/events")}>View all {events.length} events</Button>
+							<Button variant="link" onclick={() => goto("/events")}>View all {events.length} activities</Button>
 						</div>
 					{/if}
 				{/if}
@@ -303,7 +303,7 @@
 						<table class="w-full text-sm">
 							<thead>
 								<tr class="border-b">
-									<th class="px-4 py-3 text-left font-medium">Event</th>
+									<th class="px-4 py-3 text-left font-medium">Activity</th>
 									<th class="px-4 py-3 text-left font-medium">Participant</th>
 									<th class="px-4 py-3 text-left font-medium">Submitted</th>
 									<th class="px-4 py-3 text-left font-medium">Actions</th>

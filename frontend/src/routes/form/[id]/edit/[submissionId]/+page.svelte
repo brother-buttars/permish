@@ -223,7 +223,7 @@
 		<Card>
 			<CardContent class="py-12 text-center">
 				<p class="text-destructive">{error}</p>
-				<Button variant="link" onclick={() => goto(`/event/${data.eventId}`)}>Back to event</Button>
+				<Button variant="link" onclick={() => goto(`/event/${data.eventId}`)}>Back to activity</Button>
 			</CardContent>
 		</Card>
 	{:else if event}
@@ -259,7 +259,7 @@
 		</Card>
 
 		<div class="mb-6">
-			<Button variant="outline" onclick={() => goto(`/event/${data.eventId}`)}>Back to Event</Button>
+			<Button variant="outline" onclick={() => goto(`/event/${data.eventId}`)}>Back to Activity</Button>
 		</div>
 
 		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">

@@ -31,7 +31,7 @@
 <Card>
 	<CardHeader>
 		<CardTitle>Organizations</CardTitle>
-		<p class="text-sm text-muted-foreground">Select which groups are included in this event</p>
+		<p class="text-sm text-muted-foreground">Select which groups are included in this activity</p>
 	</CardHeader>
 	<CardContent class="space-y-4">
 		{#each orgGroups as group}

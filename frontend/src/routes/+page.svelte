@@ -25,7 +25,7 @@
 	<div class="max-w-xl text-center space-y-6">
 		<h1 class="text-4xl font-bold tracking-tight sm:text-5xl">per<span class="text-primary">mish</span></h1>
 		<p class="text-lg text-muted-foreground">
-			Simplify event permission management. Create events, collect signed forms from
+			Simplify activity permission management. Create activities, collect signed forms from
 			parents, and keep everything organized in one place.
 		</p>
 

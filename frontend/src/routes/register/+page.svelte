@@ -93,7 +93,7 @@
 									bind:group={role}
 									class="accent-primary"
 								/>
-								<span class="text-sm">Event Planner</span>
+								<span class="text-sm">Activity Planner</span>
 							</label>
 						</div>
 					</div>

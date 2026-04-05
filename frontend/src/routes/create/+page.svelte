@@ -80,8 +80,8 @@
 	function validate(): boolean {
 		const newErrors: Record<string, string> = {};
 
-		if (!eventName.trim()) newErrors.eventName = "Event name is required";
-		if (!startDate) newErrors.startDate = "Event date is required";
+		if (!eventName.trim()) newErrors.eventName = "Activity name is required";
+		if (!startDate) newErrors.startDate = "Activity date is required";
 		if (isMultiDay && !endDate) newErrors.endDate = "End date is required";
 		if (isMultiDay && startDate && endDate) {
 			const start = buildDatetime(startDate, startTime);
@@ -149,9 +149,9 @@
 
 			formUrl = result.formUrl || result.form_url || "";
 			createdEventId = newEventId;
-			toastSuccess("Event created successfully!");
+			toastSuccess("Activity created successfully!");
 		} catch (err: any) {
-			errors = { form: err.message || "Failed to create event" };
+			errors = { form: err.message || "Failed to create activity" };
 		} finally {
 			submitting = false;
 		}
@@ -169,7 +169,7 @@
 </script>
 
 <svelte:head>
-	<title>Create Event</title>
+	<title>Create Activity</title>
 </svelte:head>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
@@ -177,7 +177,7 @@
 		<!-- Success state -->
 		<Card>
 			<CardHeader>
-				<CardTitle>Event Created!</CardTitle>
+				<CardTitle>Activity Created!</CardTitle>
 			</CardHeader>
 			<CardContent class="space-y-4">
 				<p class="text-sm text-muted-foreground">Share this URL with parents to collect forms:</p>
@@ -191,13 +191,13 @@
 			<CardFooter class="flex gap-2">
 				<Button variant="outline" onclick={() => goto("/dashboard")}>Back to Dashboard</Button>
 				{#if createdEventId}
-					<Button onclick={() => goto(`/event/${createdEventId}`)}>View Event Dashboard</Button>
+					<Button onclick={() => goto(`/event/${createdEventId}`)}>View Activity Dashboard</Button>
 				{/if}
 			</CardFooter>
 		</Card>
 	{:else}
 		<!-- Form -->
-		<h1 class="mb-6 text-3xl font-bold">Create New Event</h1>
+		<h1 class="mb-6 text-3xl font-bold">Create New Activity</h1>
 
 		{#if errors.form}
 			<AlertBox message={errors.form} class="mb-4" />
@@ -207,11 +207,11 @@
 			<!-- Event Details -->
 			<Card>
 				<CardHeader>
-					<CardTitle>Event Details</CardTitle>
+					<CardTitle>Activity Details</CardTitle>
 				</CardHeader>
 				<CardContent class="space-y-4">
 					<div class="space-y-2">
-						<Label for="eventName">Event Name *</Label>
+						<Label for="eventName">Activity Name *</Label>
 						<Input id="eventName" bind:value={eventName} placeholder="e.g., Youth Camp 2026" />
 						{#if errors.eventName}<p class="text-sm text-destructive">{errors.eventName}</p>{/if}
 					</div>
@@ -219,7 +219,7 @@
 					<div class="space-y-4">
 						<div class="grid gap-4 sm:grid-cols-2">
 							<div class="space-y-2">
-								<Label for="startDate">{isMultiDay ? 'Start Date' : 'Event Date'} *</Label>
+								<Label for="startDate">{isMultiDay ? 'Start Date' : 'Activity Date'} *</Label>
 								<Input id="startDate" type="date" bind:value={startDate} />
 								{#if errors.startDate}<p class="text-sm text-destructive">{errors.startDate}</p>{/if}
 							</div>
@@ -231,7 +231,7 @@
 
 						<label class="flex items-center gap-2 cursor-pointer">
 							<input type="checkbox" bind:checked={isMultiDay} class="h-4 w-4 rounded border-input" />
-							<span class="text-sm font-medium">Multi-day event</span>
+							<span class="text-sm font-medium">Multi-day activity</span>
 						</label>
 
 						{#if isMultiDay}
@@ -259,7 +259,7 @@
 
 					<div class="space-y-2">
 						<Label for="description">Description *</Label>
-						<Textarea id="description" bind:value={description} placeholder="Describe the event..." rows={4} />
+						<Textarea id="description" bind:value={description} placeholder="Describe the activity..." rows={4} />
 						{#if errors.description}<p class="text-sm text-destructive">{errors.description}</p>{/if}
 					</div>
 
@@ -361,7 +361,7 @@
 			<NotificationSettings bind:notifyEmail bind:notifyPhone bind:notifyCarrier emailError={errors.notifyEmail} />
 
 			<Button type="submit" class="w-full" disabled={submitting}>
-				{submitting ? "Creating..." : "Create Event"}
+				{submitting ? "Creating..." : "Create Activity"}
 			</Button>
 		</form>
 	{/if}

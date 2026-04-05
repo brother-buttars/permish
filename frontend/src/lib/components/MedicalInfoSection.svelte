@@ -204,5 +204,5 @@
 <!-- Other Accommodations -->
 <section>
 	<h2 class="mb-4 text-xl font-semibold">Other Accommodations</h2>
-	<Textarea bind:value={otherAccommodations} placeholder="Any other accommodations or information the event organizer should know..." />
+	<Textarea bind:value={otherAccommodations} placeholder="Any other accommodations or information the activity organizer should know..." />
 </section>

@@ -69,19 +69,19 @@
 </script>
 
 <!-- Template -->
-<svelte:head><title>Events</title></svelte:head>
+<svelte:head><title>Activities</title></svelte:head>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<h1 class="text-3xl font-bold">Events</h1>
-		<Button onclick={() => goto('/create')}>Create New Event</Button>
+		<h1 class="text-3xl font-bold">Activities</h1>
+		<Button onclick={() => goto('/create')}>Create New Activity</Button>
 	</div>
 
 	<!-- Filters -->
 	<Card class="mb-6">
 		<CardContent class="space-y-4 pt-6">
 			<!-- Search -->
-			<Input type="text" placeholder="Search events..." bind:value={search} />
+			<Input type="text" placeholder="Search activities..." bind:value={search} />
 
 			<!-- Status tabs -->
 			<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
@@ -132,11 +132,11 @@
 	{:else if filteredEvents.length === 0}
 		<Card>
 			<CardContent class="py-12 text-center">
-				<p class="text-muted-foreground">No events match your filters.</p>
+				<p class="text-muted-foreground">No activities match your filters.</p>
 			</CardContent>
 		</Card>
 	{:else}
-		<p class="mb-3 text-sm text-muted-foreground">{filteredEvents.length} event{filteredEvents.length === 1 ? '' : 's'}</p>
+		<p class="mb-3 text-sm text-muted-foreground">{filteredEvents.length} {filteredEvents.length === 1 ? 'activity' : 'activities'}</p>
 		<div class="grid gap-4">
 			{#each filteredEvents as event}
 				<Card class="cursor-pointer transition-shadow hover:shadow-md" onclick={() => goto(`/event/${event.id}`)}>

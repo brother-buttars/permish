@@ -178,7 +178,7 @@
 				<Card>
 					<CardContent class="py-4 text-center">
 						<p class="text-2xl font-bold">{stats.activeEventCount}</p>
-						<p class="text-xs text-muted-foreground">Active Events</p>
+						<p class="text-xs text-muted-foreground">Active Activities</p>
 					</CardContent>
 				</Card>
 				<Card>
@@ -224,7 +224,7 @@
 								<Label for="newRole">Role</Label>
 								<Select id="newRole" bind:value={newRole}>
 									<option value="parent">Parent</option>
-									<option value="planner">Event Planner</option>
+									<option value="planner">Activity Planner</option>
 									<option value="super">Super Admin</option>
 								</Select>
 							</div>

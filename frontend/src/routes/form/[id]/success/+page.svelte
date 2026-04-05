@@ -87,7 +87,7 @@
 		</div>
 		<h1 class="text-2xl font-bold">Form Submitted Successfully!</h1>
 		<p class="mt-2 text-muted-foreground">
-			Your form has been submitted. The event organizer will be notified.
+			Your form has been submitted. The activity organizer will be notified.
 		</p>
 	</div>
 

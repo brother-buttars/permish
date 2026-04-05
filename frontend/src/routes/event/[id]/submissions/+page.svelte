@@ -179,14 +179,14 @@
 </script>
 
 <svelte:head>
-	<title>Submissions — {event?.event_name || "Event"}</title>
+	<title>Submissions — {event?.event_name || "Activity"}</title>
 </svelte:head>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
 	{#if loading}
 		<LoadingState />
 	{:else if !event}
-		<p class="text-center text-destructive">Event not found.</p>
+		<p class="text-center text-destructive">Activity not found.</p>
 	{:else}
 		<!-- Header -->
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -197,7 +197,7 @@
 				</p>
 			</div>
 			<div class="flex gap-2">
-				<Button variant="outline" onclick={() => goto(`/event/${data.eventId}`)}>Back to Event</Button>
+				<Button variant="outline" onclick={() => goto(`/event/${data.eventId}`)}>Back to Activity</Button>
 				{#if submissions.length > 0}
 					<Button variant="outline" onclick={downloadAllZip} disabled={downloading}>
 						{downloading ? "Creating ZIP..." : "Download All as ZIP"}
