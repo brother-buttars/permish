@@ -2,8 +2,9 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { user, authLoading } from "$lib/stores/auth";
-	import { getRepository, getDataMode, setDataMode, getBackupManager } from '$lib/data';
+	import { getRepository, getDataMode, setDataMode, getBackupManager, getSyncManager } from '$lib/data';
 	import type { DataMode } from '$lib/data';
+	import type { SyncStatus } from '$lib/data/sync/manager';
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
@@ -47,6 +48,15 @@
 	// Confirm modal for restore
 	let showRestoreConfirm = $state(false);
 
+	// Sync state (hybrid mode)
+	let syncStatus = $state<SyncStatus>('idle');
+	let pendingCount = $state(0);
+	let failedChanges = $state<any[]>([]);
+	let syncUnsub: (() => void) | null = null;
+	let syncPollTimer: ReturnType<typeof setInterval> | null = null;
+	let showDiscardConfirm = $state(false);
+	let discardTargetId = $state<string | null>(null);
+
 	const repo = getRepository();
 	const unsub = user.subscribe((u) => {
 		currentUser = u;
@@ -75,9 +85,29 @@
 			}
 		});
 
+		// Set up sync monitoring for hybrid mode
+		if (getDataMode() === 'hybrid') {
+			const mgr = getSyncManager();
+			if (mgr) {
+				syncStatus = mgr.status;
+				syncUnsub = mgr.onStatusChange((s) => { syncStatus = s; });
+
+				async function refreshSyncState() {
+					if (mgr) {
+						pendingCount = await mgr.getPendingCount();
+						failedChanges = await mgr.getFailedChanges();
+					}
+				}
+				refreshSyncState();
+				syncPollTimer = setInterval(refreshSyncState, 5000);
+			}
+		}
+
 		return () => {
 			unsubLoading();
 			unsub();
+			syncUnsub?.();
+			if (syncPollTimer) clearInterval(syncPollTimer);
 		};
 	});
 
@@ -161,6 +191,34 @@
 		} finally {
 			exporting = false;
 		}
+	}
+
+	async function triggerSync() {
+		const mgr = getSyncManager();
+		await mgr?.sync();
+		if (mgr) {
+			pendingCount = await mgr.getPendingCount();
+			failedChanges = await mgr.getFailedChanges();
+		}
+	}
+
+	async function handleRetry(changeId: string) {
+		const mgr = getSyncManager();
+		await mgr?.retryChange(changeId);
+		if (mgr) {
+			pendingCount = await mgr.getPendingCount();
+			failedChanges = await mgr.getFailedChanges();
+		}
+	}
+
+	async function handleDiscard(changeId: string) {
+		const mgr = getSyncManager();
+		await mgr?.discardChange(changeId);
+		if (mgr) {
+			pendingCount = await mgr.getPendingCount();
+			failedChanges = await mgr.getFailedChanges();
+		}
+		toastSuccess('Change discarded.');
 	}
 
 	function handleFileSelect(e: Event) {
@@ -387,6 +445,77 @@
 				</CardContent>
 			</Card>
 		{/if}
+
+		<!-- Pending Changes (hybrid mode only) -->
+		{#if dataMode === 'hybrid'}
+			<Card>
+				<CardHeader>
+					<CardTitle class="flex items-center justify-between">
+						<span>Pending Changes</span>
+						<span class="text-sm font-normal text-muted-foreground">
+							{#if syncStatus === 'syncing'}
+								Syncing...
+							{:else if syncStatus === 'offline'}
+								Offline
+							{:else if syncStatus === 'error'}
+								Sync error
+							{:else}
+								Synced
+							{/if}
+						</span>
+					</CardTitle>
+					<p class="text-sm text-muted-foreground">
+						Changes made while offline are queued and synced when connected.
+					</p>
+				</CardHeader>
+				<CardContent class="space-y-4">
+					{#if pendingCount === 0 && failedChanges.length === 0}
+						<p class="text-sm text-muted-foreground text-center py-4">All changes synced.</p>
+					{:else}
+						{#if pendingCount > 0}
+							<div class="flex items-center justify-between rounded-lg border p-3">
+								<div>
+									<span class="font-medium">{pendingCount}</span>
+									<span class="text-sm text-muted-foreground"> change{pendingCount !== 1 ? 's' : ''} waiting to sync</span>
+								</div>
+								<Button variant="outline" size="sm" onclick={triggerSync} disabled={syncStatus === 'syncing'}>
+									{syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+								</Button>
+							</div>
+						{/if}
+
+						{#if failedChanges.length > 0}
+							<div class="space-y-2">
+								<p class="text-sm font-medium text-destructive">Failed Changes</p>
+								{#each failedChanges as change}
+									<div class="flex items-start justify-between gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+										<div class="min-w-0 flex-1">
+											<div class="text-sm font-medium capitalize">{change.operation} {change.collection}</div>
+											<div class="text-xs text-muted-foreground truncate">{change.last_error || 'Unknown error'}</div>
+											<div class="text-xs text-muted-foreground">Retries: {change.retry_count}</div>
+										</div>
+										<div class="flex gap-1">
+											<Button variant="outline" size="sm" onclick={() => handleRetry(change.id)}>Retry</Button>
+											<Button variant="ghost" size="sm" onclick={() => { discardTargetId = change.id; showDiscardConfirm = true; }}>Discard</Button>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					{/if}
+				</CardContent>
+			</Card>
+		{/if}
+
+		<!-- Confirm modal for discard -->
+		<ConfirmModal
+			open={showDiscardConfirm}
+			title="Discard Change"
+			message="This change will be permanently removed and will not be synced to the server. This action cannot be undone."
+			confirmLabel="Discard"
+			onConfirm={() => { showDiscardConfirm = false; if (discardTargetId) handleDiscard(discardTargetId); }}
+			onCancel={() => { showDiscardConfirm = false; discardTargetId = null; }}
+		/>
 
 		<!-- Confirm modal for restore -->
 		<ConfirmModal

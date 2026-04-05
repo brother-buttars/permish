@@ -13,6 +13,7 @@
   import ToastContainer from "$lib/components/ToastContainer.svelte";
   import UserMenu from "$lib/components/UserMenu.svelte";
   import SyncStatusIndicator from "$lib/components/SyncStatusIndicator.svelte";
+  import OfflineBanner from "$lib/components/OfflineBanner.svelte";
 
   import { onMount } from "svelte";
 
@@ -171,6 +172,8 @@
       </div>
     </div>
   </header>
+
+  <OfflineBanner />
 
   <!-- Mobile Sheet -->
   <SheetContent open={mobileMenuOpen} side="right" onclose={closeMobile}>
