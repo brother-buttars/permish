@@ -1,0 +1,44 @@
+# Permish — Caddy reverse proxy configuration
+#
+# Automatic HTTPS via Let's Encrypt.
+# Certs are auto-obtained on first request and renewed 30 days before expiry.
+#
+# Set DOMAIN env var to your domain (e.g., permish.app)
+
+{$DOMAIN:localhost} {
+	# Frontend — all non-API traffic
+	reverse_proxy frontend:3000
+
+	# API routes — proxy to backend (Express) or PocketBase depending on mode
+	# Express mode: backend handles /api/*
+	# PocketBase mode: PocketBase handles /api/* except submit/PDF routes
+
+	handle /api/* {
+		reverse_proxy backend:3001
+	}
+
+	# Compression
+	encode gzip zstd
+
+	# Security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-Server
+	}
+
+	# Logging
+	log {
+		output stdout
+		format console
+	}
+}
+
+# PocketBase admin UI — only accessible via /pb-admin path on main domain
+# Uncomment if you want to expose PocketBase admin through Caddy:
+# {$DOMAIN:localhost}/pb-admin/* {
+#     uri strip_prefix /pb-admin
+#     reverse_proxy pocketbase:8090
+# }

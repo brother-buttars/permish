@@ -1,21 +1,47 @@
 # Permish — Docker Compose
 #
-# Express mode (default):
+# Local development (no HTTPS):
 #   docker compose up -d
 #
-# PocketBase mode:
-#   docker compose --profile pocketbase up -d
+# Production with HTTPS:
+#   DOMAIN=permish.app docker compose --profile production up -d
 #
-# Both modes serve the frontend on :3000
+# PocketBase mode:
+#   PUBLIC_BACKEND=pocketbase docker compose --profile pocketbase up -d
+#
+# PocketBase + HTTPS:
+#   DOMAIN=permish.app PUBLIC_BACKEND=pocketbase docker compose --profile pocketbase --profile production up -d
 
 services:
   # =========================================================================
-  # Express Backend (runs by default, excluded with --profile pocketbase)
+  # Caddy — Reverse proxy with automatic HTTPS (production profile)
+  # =========================================================================
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["production"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - PUBLIC_BACKEND=${PUBLIC_BACKEND:-express}
+
+  # =========================================================================
+  # Express Backend (default mode)
   # =========================================================================
   backend:
     build: ./backend
+    restart: unless-stopped
+    expose:
+      - "3001"
     ports:
-      - "3001:3001"
+      - "${BACKEND_PORT:-3001}:3001"
     volumes:
       - db-data:/app/data
       - pdf-storage:/app/pdfs
@@ -38,8 +64,11 @@ services:
   pocketbase:
     image: ghcr.io/muchobien/pocketbase:latest
     profiles: ["pocketbase"]
+    restart: unless-stopped
+    expose:
+      - "8090"
     ports:
-      - "8090:8090"
+      - "${PB_PORT:-8090}:8090"
     volumes:
       - pb-data:/pb/pb_data
       - ./pb_migrations:/pb/pb_migrations
@@ -56,8 +85,11 @@ services:
   sidecar:
     build: ./sidecar
     profiles: ["pocketbase"]
+    restart: unless-stopped
+    expose:
+      - "3002"
     ports:
-      - "3002:3002"
+      - "${SIDECAR_PORT:-3002}:3002"
     volumes:
       - pdf-storage:/app/pdfs
     depends_on:
@@ -71,22 +103,24 @@ services:
       - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL:-}
       - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD:-}
       - PDF_DIR=/app/pdfs
-      - FRONTEND_URL=http://localhost:3000
+      - FRONTEND_URL=${DOMAIN:+https://${DOMAIN}}
 
   # =========================================================================
-  # SvelteKit Frontend (runs in both modes)
+  # SvelteKit Frontend (runs in all modes)
   # =========================================================================
   frontend:
     build:
       context: ./frontend
       args:
-        # Build-time env vars baked into the SvelteKit bundle
         - PUBLIC_BACKEND=${PUBLIC_BACKEND:-express}
         - PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:3001}
         - PUBLIC_PB_URL=${PUBLIC_PB_URL:-http://localhost:8090}
         - PUBLIC_SIDECAR_URL=${PUBLIC_SIDECAR_URL:-http://localhost:3002}
+    restart: unless-stopped
+    expose:
+      - "3000"
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -101,3 +135,5 @@ volumes:
   pdf-storage:
   uploads-storage:
   pb-data:
+  caddy_data:
+  caddy_config:
