@@ -12,6 +12,7 @@
     "process:default",
     "dialog:allow-save",
     "dialog:allow-open",
-    "dialog:allow-message"
+    "dialog:allow-message",
+    "sql:default"
   ]
 }
