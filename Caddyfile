@@ -36,9 +36,22 @@
 	}
 }
 
-# PocketBase admin UI — only accessible via /pb-admin path on main domain
-# Uncomment if you want to expose PocketBase admin through Caddy:
-# {$DOMAIN:localhost}/pb-admin/* {
-#     uri strip_prefix /pb-admin
-#     reverse_proxy pocketbase:8090
+# PocketBase admin UI (PocketBase mode only)
+# Accessible at https://admin.{DOMAIN}/_/
+# Protected by basic auth — generate a hash with: caddy hash-password
+#
+# To enable:
+# 1. Set PB_ADMIN_HASH env var (run: caddy hash-password)
+# 2. Add DNS record for admin.permish.app → your server IP
+# 3. Uncomment the block below
+#
+# admin.{$DOMAIN:localhost} {
+# 	basicauth {
+# 		admin {$PB_ADMIN_HASH}
+# 	}
+# 	reverse_proxy pocketbase:8090
+# 	log {
+# 		output stdout
+# 		format console
+# 	}
 # }
