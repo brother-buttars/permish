@@ -6,7 +6,7 @@ updated: 2026-04-01
 # Active Work
 
 ## Current
-_No active work._
+- **Production hardening** (2026-04-05) — Health checks, CORS fixes, Caddy HTTPS setup.
 
 ## Blocked
 _Nothing blocked._

@@ -10,9 +10,17 @@ const { sendSmsNotification } = require('./services/sms');
 const app = express();
 app.use(express.json({ limit: '5mb' }));
 
-// CORS
+// CORS — allow frontend origin and Caddy-proxied requests
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', config.frontendUrl);
+  const origin = req.headers.origin;
+  const allowed = [config.frontendUrl, 'tauri://localhost'];
+  // In production behind Caddy, requests may come from the domain
+  if (process.env.DOMAIN) allowed.push(`https://${process.env.DOMAIN}`);
+  if (origin && allowed.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', config.frontendUrl);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');

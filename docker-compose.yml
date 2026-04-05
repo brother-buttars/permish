@@ -104,6 +104,12 @@ services:
       - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD:-}
       - PDF_DIR=/app/pdfs
       - FRONTEND_URL=${DOMAIN:+https://${DOMAIN}}
+      - DOMAIN=${DOMAIN:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/health').then(r=>{if(!r.ok)throw 1})"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # =========================================================================
   # SvelteKit Frontend (runs in all modes)
@@ -129,6 +135,11 @@ services:
       - PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:3001}
       - PUBLIC_PB_URL=${PUBLIC_PB_URL:-http://localhost:8090}
       - PUBLIC_SIDECAR_URL=${PUBLIC_SIDECAR_URL:-http://localhost:3002}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>{if(!r.ok)throw 1})"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   db-data:
