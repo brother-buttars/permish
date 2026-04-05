@@ -6,11 +6,12 @@ updated: 2026-04-01
 # Active Work
 
 ## Current
-- **PocketBase migration** (2026-04-04) — Phase 4a complete (sidecar + Docker Compose). Phases 1-4a done. Ready for Phase 4b (Tauri desktop).
+_No active work._
 
 ## Blocked
 _Nothing blocked._
 
 ## Recently Completed
-- **Medical preset pickers** (2026-04-01) — Added toggleable pill presets for allergies, dietary needs, and chronic conditions on the permission form. 2 files created, 1 modified.
-- **Full code review** (2026-03-29) — 5-agent audit: security, backend, frontend, database, testing. 87 issues found (1 critical, 20 high). Reports in `btrs/evidence/reviews/`.
+- **PocketBase migration — all 9 phases** (2026-04-04/05) — Full architecture migration: repository pattern, PocketBase adapter, Node sidecar, Docker Compose, Tauri desktop, offline-first SQLite, sync manager, encrypted backup, Capacitor mobile, data migration script. 8 commits, ~6500 lines added.
+- **Medical preset pickers** (2026-04-01) — Added toggleable pill presets for allergies, dietary needs, and chronic conditions on the permission form.
+- **Full code review** (2026-03-29) — 5-agent audit: security, backend, frontend, database, testing. 87 issues found (1 critical, 20 high).

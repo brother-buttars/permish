@@ -15,15 +15,18 @@ Overview of agent ownership and file scopes for **PermissionForm**.
 
 | Aspect | Value |
 |--------|-------|
-| Framework | SvelteKit 2 + Express 5 |
+| Framework | SvelteKit 2 + Express 5 / PocketBase |
 | Language | TypeScript (frontend) / JavaScript (backend) |
 | Component library | shadcn-svelte (hand-built, Svelte 5 runes) |
 | Styling | Tailwind CSS v4 (oklch theme) |
-| ORM | better-sqlite3 (raw SQL) |
+| Data layer | Repository pattern with adapters (Express, PocketBase, local SQLite, hybrid) |
+| Desktop | Tauri v2 with PocketBase + Node sidecar |
+| Mobile | Capacitor (iOS/Android) with @capacitor-community/sqlite |
+| Offline | sql.js (WASM) + IndexedDB persistence + SyncManager |
 | Test framework | Jest + supertest |
 | State management | Svelte stores (writable) |
 | Package manager | pnpm |
-| Monorepo | No (two separate package.json: backend/, frontend/) |
+| Monorepo | No (frontend/, backend/, sidecar/, scripts/) |
 
 ## Agent scopes
 
@@ -59,8 +62,20 @@ Overview of agent ownership and file scopes for **PermissionForm**.
 ### btrs-documentation
 - **primary**: `CLAUDE.md`, `README.md`
 
+### btrs-desktop-engineer
+- **primary**: `frontend/src-tauri/**`
+- **shared**: `frontend/src/lib/utils/platform.ts`
+
+### btrs-mobile-engineer
+- **primary**: `frontend/capacitor.config.ts`, `frontend/src/lib/data/local/capacitor-driver.ts`
+- **shared**: `frontend/src/lib/utils/platform.ts`
+
 ### Shared paths
+- `frontend/src/lib/data/**` -- repository pattern, adapters, sync, backup
 - `frontend/src/lib/utils/**` -- shared utilities
 - `frontend/src/lib/stores/**` -- shared state
 - `backend/src/config.js` -- environment config
 - `backend/src/services/**` -- email, SMS, PDF services
+- `sidecar/src/**` -- PDF/email/SMS sidecar for PocketBase mode
+- `pb_migrations/**` -- PocketBase schema
+- `scripts/**` -- migration and utility scripts
