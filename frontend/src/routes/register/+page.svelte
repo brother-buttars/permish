@@ -10,7 +10,6 @@
 	let name = $state('');
 	let email = $state('');
 	let password = $state('');
-	let role = $state<'planner' | 'parent'>('parent');
 	let error = $state('');
 	let submitting = $state(false);
 
@@ -19,7 +18,7 @@
 		error = '';
 		submitting = true;
 		try {
-			await register(email, password, name, role);
+			await register(email, password, name, 'user');
 			goto('/dashboard');
 		} catch (err: any) {
 			error = err.message || 'Registration failed';
@@ -71,31 +70,6 @@
 							required
 							minlength={6}
 						/>
-					</div>
-					<div class="space-y-2">
-						<Label>Role</Label>
-						<div class="flex gap-4">
-							<label class="flex items-center gap-2 cursor-pointer">
-								<input
-									type="radio"
-									name="role"
-									value="parent"
-									bind:group={role}
-									class="accent-primary"
-								/>
-								<span class="text-sm">Parent</span>
-							</label>
-							<label class="flex items-center gap-2 cursor-pointer">
-								<input
-									type="radio"
-									name="role"
-									value="planner"
-									bind:group={role}
-									class="accent-primary"
-								/>
-								<span class="text-sm">Activity Planner</span>
-							</label>
-						</div>
 					</div>
 				</div>
 			</CardContent>

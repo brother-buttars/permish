@@ -55,6 +55,7 @@
     if (href === "/events")
       return pathname === "/events" || pathname.startsWith("/event/");
     if (href === "/submissions") return pathname === "/submissions";
+    if (href === "/groups") return pathname === "/groups" || pathname.startsWith("/groups/");
     if (href === "/profiles") return pathname === "/profiles";
     if (href === "/create") return pathname === "/create";
     if (href === "/account") return pathname === "/account";
@@ -127,6 +128,7 @@
             <a href="/submissions" class={navClass("/submissions")}
               >Submissions</a
             >
+            <a href="/groups" class={navClass("/groups")}>Groups</a>
             <a href="/profiles" class={navClass("/profiles")}>Profiles</a>
             <SyncStatusIndicator />
             <div class="ml-2">
@@ -200,6 +202,11 @@
             href="/submissions"
             class={mobileNavClass("/submissions")}
             onclick={closeMobile}>Submissions</a
+          >
+          <a
+            href="/groups"
+            class={mobileNavClass("/groups")}
+            onclick={closeMobile}>Groups</a
           >
           <a
             href="/profiles"

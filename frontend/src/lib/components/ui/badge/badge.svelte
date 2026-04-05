@@ -2,7 +2,7 @@
 	import { cn } from "$lib/utils";
 	import type { Snippet } from "svelte";
 
-	type BadgeVariant = "active" | "inactive" | "past" | "default";
+	type BadgeVariant = "active" | "inactive" | "past" | "default" | "secondary";
 
 	let {
 		variant = "default",
@@ -19,6 +19,7 @@
 		inactive: "border-border bg-muted text-muted-foreground",
 		past: "border-muted-foreground/20 bg-muted text-muted-foreground",
 		default: "border-border bg-muted text-muted-foreground",
+		secondary: "border-border bg-secondary text-secondary-foreground",
 	};
 </script>
 

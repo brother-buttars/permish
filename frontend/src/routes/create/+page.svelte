@@ -15,7 +15,13 @@
 	import { formatEventDates } from "$lib/utils/formatDate";
 	import AlertBox from "$lib/components/AlertBox.svelte";
 
+	import type { Group } from '$lib/data/types';
+
 	let currentUser: any = $state(null);
+
+	// Groups
+	let adminGroups: Group[] = $state([]);
+	let selectedGroupId = $state('');
 
 	// Organizations
 	let selectedOrgs: string[] = $state([]);
@@ -55,10 +61,19 @@
 	});
 
 	onMount(() => {
-		const unsubLoading = authLoading.subscribe((isLoading) => {
+		const unsubLoading = authLoading.subscribe(async (isLoading) => {
 			if (isLoading) return;
 			if (!currentUser || (currentUser.role !== "planner" && currentUser.role !== "super")) {
 				goto("/login");
+				return;
+			}
+			// Load groups where user is admin
+			try {
+				const repo = getRepository();
+				const allGroups = await repo.groups.list();
+				adminGroups = allGroups.filter(g => g.member_role === 'admin');
+			} catch {
+				// Non-critical — groups are optional
 			}
 		});
 
@@ -67,6 +82,17 @@
 			unsubAuth();
 		};
 	});
+
+	function onGroupSelected() {
+		if (!selectedGroupId) return;
+		const group = adminGroups.find(g => g.id === selectedGroupId);
+		if (!group) return;
+		if (group.ward) ward = group.ward;
+		if (group.stake) stake = group.stake;
+		if (group.leader_name) leaderName = group.leader_name;
+		if (group.leader_phone) leaderPhone = group.leader_phone;
+		if (group.leader_email) leaderEmail = group.leader_email;
+	}
 
 	function validateEmail(email: string): boolean {
 		return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -119,6 +145,7 @@
 			const eventDatesDisplay = formatEventDates(eventStartDt, isMultiDay ? eventEndDt : buildDatetime(startDate, endTime));
 			const repo = getRepository();
 			const result = await repo.events.create({
+				group_id: selectedGroupId || undefined,
 				event_name: eventName,
 				event_dates: eventDatesDisplay,
 				event_start: eventStartDt,
@@ -204,6 +231,36 @@
 		{/if}
 
 		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
+			<!-- Group Selection -->
+			{#if adminGroups.length > 0}
+				<Card>
+					<CardHeader>
+						<CardTitle>Group</CardTitle>
+					</CardHeader>
+					<CardContent class="space-y-2">
+						<Label for="groupSelect">Associate with a group</Label>
+						<select
+							id="groupSelect"
+							bind:value={selectedGroupId}
+							onchange={onGroupSelected}
+							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						>
+							<option value="">No group</option>
+							{#each adminGroups as group}
+								<option value={group.id}>{group.name}{group.ward ? ` (${group.ward})` : ''}</option>
+							{/each}
+						</select>
+						<p class="text-xs text-muted-foreground">Selecting a group will auto-fill ward, stake, and leader info.</p>
+					</CardContent>
+				</Card>
+			{:else}
+				<Card>
+					<CardContent class="py-4">
+						<p class="text-sm text-muted-foreground">Activities created without a group are visible only to you. <a href="/groups" class="text-primary underline hover:no-underline">Join or create a group</a> to share activities.</p>
+					</CardContent>
+				</Card>
+			{/if}
+
 			<!-- Event Details -->
 			<Card>
 				<CardHeader>
