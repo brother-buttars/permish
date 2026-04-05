@@ -20,6 +20,7 @@
 	import YouthIcon from "$lib/components/YouthIcon.svelte";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import { Badge } from "$lib/components/ui/badge";
+	import { createShareLink } from "$lib/utils/eventShare";
 
 	let { data } = $props();
 
@@ -185,6 +186,33 @@
 
 	function getFormUrl() {
 		return `${typeof window !== 'undefined' ? window.location.origin : ''}/form/${data.eventId}`;
+	}
+
+	async function shareEvent() {
+		if (!event) return;
+		const shareUrl = createShareLink(event);
+
+		// Use Web Share API on mobile if available
+		if (navigator.share) {
+			try {
+				await navigator.share({
+					title: event.event_name,
+					text: `${event.event_name} — ${event.event_dates}`,
+					url: shareUrl,
+				});
+				return;
+			} catch {
+				// User cancelled or API not available — fall through to clipboard
+			}
+		}
+
+		// Fallback: copy to clipboard
+		try {
+			await navigator.clipboard.writeText(shareUrl);
+			toastSuccess('Share link copied to clipboard.');
+		} catch {
+			toastError('Failed to copy share link.');
+		}
 	}
 
 	async function openPdfPreview(submissionId: string, participantName: string) {
@@ -389,6 +417,13 @@
 								<rect x="18" y="18" width="3" height="3" />
 							</svg>
 							QR Code
+						</Button>
+						<Button variant="outline" onclick={shareEvent}>
+							<svg xmlns="http://www.w3.org/2000/svg" class="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+								<line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+							</svg>
+							Share Event
 						</Button>
 					</div>
 				</div>

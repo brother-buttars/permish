@@ -19,7 +19,14 @@
 		submitting = true;
 		try {
 			await login(email, password);
-			goto('/dashboard');
+			// Check for a return URL (e.g., from /import-event)
+			const returnUrl = typeof window !== 'undefined' && localStorage.getItem('permish_return_url');
+			if (returnUrl) {
+				localStorage.removeItem('permish_return_url');
+				goto(returnUrl);
+			} else {
+				goto('/dashboard');
+			}
 		} catch (err: any) {
 			error = err.message || 'Login failed';
 		} finally {
