@@ -1,0 +1,144 @@
+name: Desktop Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            args: ''
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: ''
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+          cache-dependency-path: 'frontend/pnpm-lock.yaml'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+
+      # Linux dependencies for Tauri
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      # Download PocketBase sidecar for the target platform
+      - name: Download PocketBase sidecar
+        shell: bash
+        run: |
+          PB_VERSION="0.27.2"
+          SIDECAR_DIR="frontend/src-tauri/sidecars"
+          mkdir -p "$SIDECAR_DIR"
+
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin)
+              curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_darwin_arm64.zip" -o /tmp/pb.zip
+              cd /tmp && unzip -o pb.zip pocketbase
+              mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-aarch64-apple-darwin"
+              chmod +x "$SIDECAR_DIR/pocketbase-aarch64-apple-darwin"
+              ;;
+            x86_64-apple-darwin)
+              curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_darwin_amd64.zip" -o /tmp/pb.zip
+              cd /tmp && unzip -o pb.zip pocketbase
+              mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-x86_64-apple-darwin"
+              chmod +x "$SIDECAR_DIR/pocketbase-x86_64-apple-darwin"
+              ;;
+            x86_64-unknown-linux-gnu)
+              curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_amd64.zip" -o /tmp/pb.zip
+              cd /tmp && unzip -o pb.zip pocketbase
+              mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-x86_64-unknown-linux-gnu"
+              chmod +x "$SIDECAR_DIR/pocketbase-x86_64-unknown-linux-gnu"
+              ;;
+            x86_64-pc-windows-msvc)
+              curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_windows_amd64.zip" -o pb.zip
+              unzip -o pb.zip pocketbase.exe
+              mv pocketbase.exe "$SIDECAR_DIR/pocketbase-x86_64-pc-windows-msvc.exe"
+              ;;
+          esac
+
+      # Build Node sidecar for the target platform
+      # For now, skip this step -- the sidecar needs bun or pkg to compile
+      # TODO: Add bun build --compile step when sidecar is production-ready
+      - name: Create Node sidecar placeholder
+        shell: bash
+        run: |
+          SIDECAR_DIR="frontend/src-tauri/sidecars"
+          # Create a placeholder script that will be replaced with compiled binary
+          case "${{ matrix.target }}" in
+            *windows*)
+              echo "@echo off" > "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}.exe"
+              echo "echo Node sidecar placeholder" >> "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}.exe"
+              ;;
+            *)
+              echo "#!/bin/sh" > "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}"
+              echo "echo Node sidecar placeholder" >> "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}"
+              chmod +x "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}"
+              ;;
+          esac
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing (optional -- set these secrets for signed builds)
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: frontend
+          tauriScript: pnpm tauri
+          args: ${{ matrix.args }}
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Permish ${{ github.ref_name }}'
+          releaseBody: 'Desktop release for Permish ${{ github.ref_name }}'
+          releaseDraft: true
+          prerelease: false

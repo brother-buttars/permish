@@ -63,5 +63,4 @@ jobs:
 
       - name: Run tests
         working-directory: frontend
-        continue-on-error: true
-        run: pnpm test 2>/dev/null || echo "No test script found, skipping"
+        run: pnpm test
