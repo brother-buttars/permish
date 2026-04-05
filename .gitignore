@@ -28,3 +28,4 @@ docs-site/node_modules/
 docs-site/dist/
 .bun-build
 package-lock.json
+sidecar/.18a387dd7fcdbff7-00000000.bun-build
