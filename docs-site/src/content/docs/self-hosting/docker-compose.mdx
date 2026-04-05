@@ -19,8 +19,8 @@ Permish supports two backend modes via Docker Compose profiles. Choose the one t
 The default deployment. Uses Express with SQLite for data storage.
 
 ```bash
-git clone https://github.com/brandonbuttars/PermissionForm.git
-cd PermissionForm
+git clone https://github.com/brandonbuttars/permish.git
+cd permish
 cp .env.example .env
 # Edit .env with your values (JWT_SECRET, email settings, etc.)
 
@@ -59,7 +59,7 @@ The `backend` container still starts because the frontend depends on it for heal
 
 ## Production HTTPS
 
-Add automatic HTTPS with Caddy. See [HTTPS & SSL](/PermissionForm/self-hosting/https-ssl/) for full details.
+Add automatic HTTPS with Caddy. See [HTTPS & SSL](/permish/self-hosting/https-ssl/) for full details.
 
 ```bash
 DOMAIN=permish.app docker compose --profile production up -d
@@ -98,6 +98,6 @@ All persistent data lives in Docker volumes, which survive container rebuilds:
 
 ## Next Steps
 
-- [HTTPS & SSL](/PermissionForm/self-hosting/https-ssl/) — Set up automatic HTTPS with Caddy
-- [Environment variables](/PermissionForm/self-hosting/environment-variables/) — Full configuration reference
-- [Data backup](/PermissionForm/self-hosting/data-backup/) — Back up your database and files
+- [HTTPS & SSL](/permish/self-hosting/https-ssl/) — Set up automatic HTTPS with Caddy
+- [Environment variables](/permish/self-hosting/environment-variables/) — Full configuration reference
+- [Data backup](/permish/self-hosting/data-backup/) — Back up your database and files

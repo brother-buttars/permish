@@ -18,8 +18,8 @@ Run Permish locally without Docker for development. This gives you hot module re
 ## Clone and Install
 
 ```bash
-git clone https://github.com/brandonbuttars/PermissionForm.git
-cd PermissionForm
+git clone https://github.com/brandonbuttars/permish.git
+cd permish
 ```
 
 Set up the environment file:
@@ -66,13 +66,13 @@ Starts the SvelteKit dev server on port 3000 with hot module replacement.
 The frontend proxies API calls to the backend automatically.
 
 :::caution
-HTTP mode does not set secure cookies and does not test CORS or mixed-content behavior. Use [HTTPS development mode](/PermissionForm/development/https-dev/) to catch production issues early.
+HTTP mode does not set secure cookies and does not test CORS or mixed-content behavior. Use [HTTPS development mode](/permish/development/https-dev/) to catch production issues early.
 :::
 
 ## Project Structure
 
 ```
-PermissionForm/
+permish/
 ├── backend/               Express API server (Node.js)
 │   ├── src/
 │   │   ├── index.js       Entry point, middleware, route mounting
@@ -123,6 +123,6 @@ pnpm rebuild better-sqlite3
 
 ## Next Steps
 
-- [HTTPS development](/PermissionForm/development/https-dev/) — Recommended for catching production issues
-- [Testing](/PermissionForm/development/testing/) — Run the test suites
-- [Architecture](/PermissionForm/development/architecture/) — Understand the codebase structure
+- [HTTPS development](/permish/development/https-dev/) — Recommended for catching production issues
+- [Testing](/permish/development/testing/) — Run the test suites
+- [Architecture](/permish/development/architecture/) — Understand the codebase structure

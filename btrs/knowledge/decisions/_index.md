@@ -8,7 +8,7 @@ tags:
 
 # Decisions
 
-Architecture Decision Records for PermissionForm.
+Architecture Decision Records for permish.
 
 - [[decisions/ADR-001-pdf-generation|ADR-001: PDF generation via pdf-lib]] -- Fill official church PDF directly instead of HTML-to-PDF
 - [[decisions/ADR-002-auth-strategy|ADR-002: JWT auth via HttpOnly cookies]] -- No refresh tokens, 24-hour expiry

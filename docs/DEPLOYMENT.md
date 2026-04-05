@@ -44,8 +44,8 @@ This guide covers all deployment targets for Permish: Docker Compose on a VPS, d
 The simplest deployment. Uses the Express backend with SQLite for data storage.
 
 ```bash
-git clone https://github.com/your-org/PermissionForm.git
-cd PermissionForm
+git clone https://github.com/your-org/permish.git
+cd permish
 cp .env.example .env
 # Edit .env with your values (JWT_SECRET, email settings, etc.)
 
@@ -186,7 +186,7 @@ docker compose cp pocketbase:/pb/pb_data ./backup-pb-data
 ### Updating and Upgrading
 
 ```bash
-cd /path/to/PermissionForm
+cd /path/to/permish
 
 # Pull latest code
 git pull

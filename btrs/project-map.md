@@ -9,7 +9,7 @@ tags:
 
 # Project map
 
-Overview of agent ownership and file scopes for **PermissionForm**.
+Overview of agent ownership and file scopes for **permish**.
 
 ## Stack summary
 

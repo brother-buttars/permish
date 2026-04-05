@@ -13,7 +13,7 @@ tags:
 
 # Full Code Review — 2026-03-29
 
-Consolidated findings from 5 specialist agents reviewing the entire PermissionForm codebase.
+Consolidated findings from 5 specialist agents reviewing the entire permish codebase.
 
 ## Issue Counts
 

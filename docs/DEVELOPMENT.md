@@ -22,8 +22,8 @@ This guide covers local development setup for all platforms: web, desktop (Tauri
 The fastest path from clone to running app:
 
 ```bash
-git clone https://github.com/your-org/PermissionForm.git
-cd PermissionForm
+git clone https://github.com/your-org/permish.git
+cd permish
 ```
 
 Terminal 1 (backend):
@@ -377,7 +377,7 @@ node test-pocketbase-e2e.js
 ### Repository Structure
 
 ```
-PermissionForm/
+permish/
 ├── backend/           Express API server (Node.js)
 │   ├── src/
 │   │   ├── index.js       Entry point, middleware, route mounting

@@ -10,7 +10,7 @@ status: complete
 # Tech Debt & Codebase Quality Scan
 
 **Date:** 2026-03-22
-**Scope:** Full codebase scan of PermissionForm project
+**Scope:** Full codebase scan of permish project
 **Agent:** Research
 
 ## Summary

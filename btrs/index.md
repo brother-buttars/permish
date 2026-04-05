@@ -6,9 +6,9 @@ tags:
   - index
 ---
 
-# PermissionForm -- BTRS vault
+# permish -- BTRS vault
 
-Welcome to the BTRS knowledge vault for **PermissionForm**.
+Welcome to the BTRS knowledge vault for **permish**.
 
 ## Navigation
 

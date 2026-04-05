@@ -8,6 +8,6 @@ tags:
 
 # Specs
 
-Feature specifications for PermissionForm.
+Feature specifications for permish.
 
 - [[specs/SPEC-001-permission-form-app-design|SPEC-001: Permission & Medical Release Form App]] -- Original design spec (complete)

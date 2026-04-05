@@ -3,7 +3,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 const SITE_URL = 'https://brandonbuttars.github.io';
-const BASE_PATH = '/PermissionForm';
+const BASE_PATH = '/permish';
 
 export default defineConfig({
 	site: SITE_URL,
@@ -18,7 +18,7 @@ export default defineConfig({
 				replacesTitle: false,
 			},
 			social: [
-				{ icon: 'github', label: 'GitHub', href: 'https://github.com/brandonbuttars/PermissionForm' },
+				{ icon: 'github', label: 'GitHub', href: 'https://github.com/brandonbuttars/permish' },
 			],
 			customCss: ['./src/styles/custom.css'],
 			head: [

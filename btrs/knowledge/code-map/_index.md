@@ -8,7 +8,7 @@ tags:
 
 # Code map
 
-Module documentation for PermissionForm.
+Module documentation for permish.
 
 - [[code-map/frontend|Frontend]] -- SvelteKit pages, components, stores
 - [[code-map/api-layer|API layer]] -- Express routes, middleware, services

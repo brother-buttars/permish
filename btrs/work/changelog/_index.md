@@ -8,7 +8,7 @@ tags:
 
 # Changelog
 
-Daily change logs for PermissionForm.
+Daily change logs for permish.
 
 - [[changelog/2026-03-22|2026-03-22]] -- BTRS vault, tech debt scan, testing, CI pipeline
 - [[changelog/2026-03-21|2026-03-21]] -- Theme, dark mode, event editing, dashboard tabs

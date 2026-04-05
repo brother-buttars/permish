@@ -8,7 +8,7 @@ tags:
 
 # Conventions
 
-Project conventions and patterns for PermissionForm.
+Project conventions and patterns for permish.
 
 - [[conventions/registry|Component and utility registry]] -- existing components, utilities, stores
 - [[conventions/ui|UI conventions]] -- Svelte 5 runes, shadcn-svelte patterns
