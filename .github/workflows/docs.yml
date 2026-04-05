@@ -26,14 +26,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+          cache-dependency-path: 'docs-site/pnpm-lock.yaml'
 
       - name: Install dependencies
         working-directory: docs-site
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Inject build timestamp
         working-directory: docs-site
@@ -45,7 +52,7 @@ jobs:
 
       - name: Build docs
         working-directory: docs-site
-        run: npm run build
+        run: pnpm build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
