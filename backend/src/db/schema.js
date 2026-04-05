@@ -200,6 +200,80 @@ function migrate(db) {
     );
   `);
 
+  // Create groups and group_members tables (idempotent)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('stake', 'ward', 'custom')),
+      parent_id TEXT REFERENCES groups(id),
+      ward TEXT,
+      stake TEXT,
+      leader_name TEXT,
+      leader_phone TEXT,
+      leader_email TEXT,
+      invite_code TEXT UNIQUE,
+      created_at DATETIME DEFAULT (datetime('now')),
+      updated_at DATETIME DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS group_members (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
+      joined_at DATETIME DEFAULT (datetime('now')),
+      UNIQUE(group_id, user_id)
+    );
+  `);
+
+  // Add group_id to events table
+  const eventCols2 = db.prepare("PRAGMA table_info(events)").all().map(c => c.name);
+  if (!eventCols2.includes('group_id')) {
+    db.exec("ALTER TABLE events ADD COLUMN group_id TEXT REFERENCES groups(id)");
+  }
+
+  // Migrate user roles: 'planner' -> 'user', 'parent' -> 'user', keep 'super'
+  let needsRoleMigration = false;
+  try {
+    db.exec("SAVEPOINT check_user_role");
+    db.prepare("INSERT INTO users (id, email, password_hash, name, role) VALUES ('__test_user_role__', '__test__@test', '__hash__', 'test', 'user')").run();
+    db.exec("ROLLBACK TO check_user_role");
+    db.exec("RELEASE check_user_role");
+  } catch {
+    needsRoleMigration = true;
+    try { db.exec("ROLLBACK TO check_user_role"); } catch {}
+    try { db.exec("RELEASE check_user_role"); } catch {}
+  }
+  if (needsRoleMigration) {
+    // Temporarily disable foreign keys for table recreation
+    db.pragma('foreign_keys = OFF');
+    db.exec(`
+      DROP TABLE IF EXISTS users_migrated;
+      CREATE TABLE users_migrated (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('super', 'user')),
+        phone TEXT,
+        address TEXT,
+        city TEXT,
+        state_province TEXT,
+        guardian_signature TEXT,
+        guardian_signature_type TEXT CHECK(guardian_signature_type IN ('drawn', 'typed', 'hand', NULL)),
+        created_at DATETIME DEFAULT (datetime('now'))
+      );
+      INSERT INTO users_migrated SELECT id, email, password_hash, name,
+        CASE WHEN role = 'super' THEN 'super' ELSE 'user' END,
+        phone, address, city, state_province, guardian_signature, guardian_signature_type, created_at
+      FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_migrated RENAME TO users;
+    `);
+    db.pragma('foreign_keys = ON');
+  }
+
   createIndexes(db);
 }
 
@@ -210,6 +284,10 @@ function createIndexes(db) {
     CREATE INDEX IF NOT EXISTS idx_submissions_submitted_by ON submissions(submitted_by);
     CREATE INDEX IF NOT EXISTS idx_child_profiles_user_id ON child_profiles(user_id);
     CREATE INDEX IF NOT EXISTS idx_event_attachments_event_id ON event_attachments(event_id);
+    CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+    CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_groups_parent ON groups(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_groups_invite_code ON groups(invite_code);
   `);
 }
 
@@ -220,7 +298,7 @@ function createTables(db) {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('super', 'planner', 'parent')),
+      role TEXT NOT NULL CHECK(role IN ('super', 'user')),
       phone TEXT,
       address TEXT,
       city TEXT,
@@ -248,6 +326,7 @@ function createTables(db) {
       notify_carrier TEXT,
       organizations TEXT DEFAULT '[]',
       additional_details TEXT,
+      group_id TEXT REFERENCES groups(id),
       is_active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT (datetime('now'))
     );
@@ -336,6 +415,33 @@ function createTables(db) {
       expires_at DATETIME NOT NULL,
       used INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT (datetime('now'))
+    );
+  `);
+
+  // Groups and group membership tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('stake', 'ward', 'custom')),
+      parent_id TEXT REFERENCES groups(id),
+      ward TEXT,
+      stake TEXT,
+      leader_name TEXT,
+      leader_phone TEXT,
+      leader_email TEXT,
+      invite_code TEXT UNIQUE,
+      created_at DATETIME DEFAULT (datetime('now')),
+      updated_at DATETIME DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS group_members (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
+      joined_at DATETIME DEFAULT (datetime('now')),
+      UNIQUE(group_id, user_id)
     );
   `);
 

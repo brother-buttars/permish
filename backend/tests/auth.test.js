@@ -10,22 +10,30 @@ beforeEach(() => {
 afterEach(() => db.close());
 
 describe('POST /api/auth/register', () => {
-  test('registers a new planner', async () => {
+  test('registers a new user (legacy planner role maps to user)', async () => {
     const res = await request(app)
       .post('/api/auth/register')
       .send({ email: 'planner@test.com', password: 'Password123!', name: 'Test Planner', role: 'planner' });
     expect(res.status).toBe(201);
     expect(res.body.user.email).toBe('planner@test.com');
-    expect(res.body.user.role).toBe('planner');
+    expect(res.body.user.role).toBe('user');
     expect(res.body.user).not.toHaveProperty('password_hash');
   });
 
-  test('registers a new parent', async () => {
+  test('registers a new user (legacy parent role maps to user)', async () => {
     const res = await request(app)
       .post('/api/auth/register')
       .send({ email: 'parent@test.com', password: 'Password123!', name: 'Test Parent', role: 'parent' });
     expect(res.status).toBe(201);
-    expect(res.body.user.role).toBe('parent');
+    expect(res.body.user.role).toBe('user');
+  });
+
+  test('registers with explicit user role', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'newuser@test.com', password: 'Password123!', name: 'New User', role: 'user' });
+    expect(res.status).toBe(201);
+    expect(res.body.user.role).toBe('user');
   });
 
   test('rejects duplicate email', async () => {

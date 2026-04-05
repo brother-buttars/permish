@@ -25,9 +25,9 @@ function requireAuth(req, res, next) {
 }
 
 function requirePlanner(req, res, next) {
-  if (!req.user || (req.user.role !== 'planner' && req.user.role !== 'super')) {
-    return res.status(403).json({ error: 'Planner access required' });
-  }
+  // Any authenticated user can now create/manage activities.
+  // Group-level permissions are checked in the route handlers.
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
   next();
 }
 

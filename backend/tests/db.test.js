@@ -33,7 +33,7 @@ describe('Database schema', () => {
 
   test('enforces unique email on users', () => {
     const insert = db.prepare("INSERT INTO users (id, email, password_hash, name, role, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))");
-    insert.run('id1', 'test@test.com', 'hash', 'Test', 'parent');
-    expect(() => insert.run('id2', 'test@test.com', 'hash', 'Test2', 'parent')).toThrow();
+    insert.run('id1', 'test@test.com', 'hash', 'Test', 'user');
+    expect(() => insert.run('id2', 'test@test.com', 'hash', 'Test2', 'user')).toThrow();
   });
 });

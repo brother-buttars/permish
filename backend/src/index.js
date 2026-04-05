@@ -9,6 +9,7 @@ const formRoutes = require('./routes/form');
 const eventsRoutes = require('./routes/events');
 const profilesRoutes = require('./routes/profiles');
 const submissionsRoutes = require('./routes/submissions');
+const groupsRoutes = require('./routes/groups');
 const adminRoutes = require('./routes/admin');
 const { registerLimiter, loginLimiter, submitLimiter, formLoadLimiter } = require('./middleware/rateLimiter');
 
@@ -59,6 +60,9 @@ app.use('/api/profiles', profilesRoutes);
 
 // Submissions routes
 app.use('/api/submissions', submissionsRoutes);
+
+// Groups routes
+app.use('/api/groups', groupsRoutes);
 
 // Admin routes (super admin only)
 app.use('/api/admin', adminRoutes);

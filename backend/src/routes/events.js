@@ -44,7 +44,7 @@ router.use(requireAuth, requirePlanner);
 router.post('/', (req, res) => {
   const db = req.app.locals.db;
   const id = crypto.randomUUID();
-  const { event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations, additional_details } = req.body;
+  const { event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations, additional_details, group_id } = req.body;
 
   if (!event_name || !event_dates || !event_description || !ward || !stake || !leader_name || !leader_phone || !leader_email) {
     return res.status(400).json({ error: 'All event detail fields are required' });
@@ -59,8 +59,18 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'Invalid notification phone number' });
   }
 
-  db.prepare(`INSERT INTO events (id, created_by, event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations, additional_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, req.user.id, sanitizeString(event_name), sanitizeString(event_dates), event_start || null, event_end || null, sanitizeString(event_description, 1000), sanitizeString(ward), sanitizeString(stake), sanitizeString(leader_name), sanitizeString(leader_phone), sanitizeString(leader_email), notify_email || null, notify_phone || null, notify_carrier || null, JSON.stringify(organizations || []), additional_details ? sanitizeString(additional_details, 5000) : null);
+  // Validate group_id if provided
+  if (group_id) {
+    const group = db.prepare('SELECT id FROM groups WHERE id = ?').get(group_id);
+    if (!group) return res.status(400).json({ error: 'Group not found' });
+    const membership = db.prepare('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?').get(group_id, req.user.id);
+    if (!membership && req.user.role !== 'super') {
+      return res.status(403).json({ error: 'Must be a member of the group to create events for it' });
+    }
+  }
+
+  db.prepare(`INSERT INTO events (id, created_by, event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations, additional_details, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, req.user.id, sanitizeString(event_name), sanitizeString(event_dates), event_start || null, event_end || null, sanitizeString(event_description, 1000), sanitizeString(ward), sanitizeString(stake), sanitizeString(leader_name), sanitizeString(leader_phone), sanitizeString(leader_email), notify_email || null, notify_phone || null, notify_carrier || null, JSON.stringify(organizations || []), additional_details ? sanitizeString(additional_details, 5000) : null, group_id || null);
 
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
   const formUrl = `${config.frontendUrl}/form/${id}`;
@@ -71,18 +81,26 @@ router.get('/', (req, res) => {
   const db = req.app.locals.db;
   const showAll = req.query.all === '1';
   const activeFilter = showAll ? '' : 'AND e.is_active = 1';
+
+  // Get events the user created OR events belonging to groups the user is a member of
   const events = db.prepare(`
-    SELECT e.*, COALESCE(sc.count, 0) AS submission_count
+    SELECT DISTINCT e.*, COALESCE(sc.count, 0) AS submission_count
     FROM events e
     LEFT JOIN (SELECT event_id, COUNT(*) AS count FROM submissions GROUP BY event_id) sc
       ON sc.event_id = e.id
-    WHERE e.created_by = ? ${activeFilter}
+    WHERE (e.created_by = ? OR e.group_id IN (SELECT group_id FROM group_members WHERE user_id = ?))
+      ${activeFilter}
     ORDER BY e.created_at DESC
-  `).all(req.user.id);
+  `).all(req.user.id, req.user.id);
+
   const now = new Date();
   const eventsWithPast = events.map(event => {
     const endStr = event.event_end || event.event_start;
     const is_past = endStr ? new Date(endStr) < now : false;
+    // Attach group info if event belongs to a group
+    if (event.group_id) {
+      event.group = db.prepare('SELECT id, name, type FROM groups WHERE id = ?').get(event.group_id);
+    }
     return { ...event, is_past };
   });
   res.json({ events: eventsWithPast });
@@ -105,14 +123,29 @@ router.get('/all-submissions', (req, res) => {
 
 router.get('/:id', (req, res) => {
   const db = req.app.locals.db;
-  const event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+  // Allow access if user created the event OR is a member of the event's group
+  let event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+  if (!event) {
+    event = db.prepare(`SELECT e.* FROM events e
+      JOIN group_members gm ON gm.group_id = e.group_id
+      WHERE e.id = ? AND gm.user_id = ?`).get(req.params.id, req.user.id);
+  }
   if (!event) return res.status(404).json({ error: 'Event not found' });
+  if (event.group_id) {
+    event.group = db.prepare('SELECT id, name, type FROM groups WHERE id = ?').get(event.group_id);
+  }
   res.json({ event });
 });
 
 router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
-  const event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+  let event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+  // Allow group admins to edit group events
+  if (!event) {
+    event = db.prepare(`SELECT e.* FROM events e
+      JOIN group_members gm ON gm.group_id = e.group_id
+      WHERE e.id = ? AND gm.user_id = ? AND gm.role = 'admin'`).get(req.params.id, req.user.id);
+  }
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
   const { event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, is_active, organizations, additional_details } = req.body;
@@ -156,7 +189,12 @@ router.put('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const db = req.app.locals.db;
-  const event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+  let event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+  if (!event) {
+    event = db.prepare(`SELECT e.* FROM events e
+      JOIN group_members gm ON gm.group_id = e.group_id
+      WHERE e.id = ? AND gm.user_id = ? AND gm.role = 'admin'`).get(req.params.id, req.user.id);
+  }
   if (!event) return res.status(404).json({ error: 'Event not found' });
   db.prepare('UPDATE events SET is_active = 0 WHERE id = ?').run(req.params.id);
   res.json({ message: 'Event deactivated' });
@@ -164,7 +202,12 @@ router.delete('/:id', (req, res) => {
 
 router.get('/:id/submissions', (req, res) => {
   const db = req.app.locals.db;
-  const event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+  let event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+  if (!event) {
+    event = db.prepare(`SELECT e.* FROM events e
+      JOIN group_members gm ON gm.group_id = e.group_id
+      WHERE e.id = ? AND gm.user_id = ?`).get(req.params.id, req.user.id);
+  }
   if (!event) return res.status(404).json({ error: 'Event not found' });
   const submissions = db.prepare('SELECT id, participant_name, participant_dob, participant_age, emergency_contact, emergency_phone_primary, submitted_at, pdf_path FROM submissions WHERE event_id = ? ORDER BY submitted_at DESC').all(req.params.id);
   res.json({ submissions });

@@ -39,9 +39,10 @@ describe('POST /api/events', () => {
     expect(res.body.event.id).toBeDefined();
     expect(res.body.formUrl).toContain(res.body.event.id);
   });
-  test('parent cannot create event', async () => {
+  test('any authenticated user can create event', async () => {
     const res = await request(app).post('/api/events').set('Cookie', parentCookie).send(eventData);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
+    expect(res.body.event.event_name).toBe('Youth Camp');
   });
   test('unauthenticated cannot create event', async () => {
     const res = await request(app).post('/api/events').send(eventData);

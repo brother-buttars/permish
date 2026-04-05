@@ -23,8 +23,12 @@ function validateRegistration(req, res, next) {
   if (!email || !validateEmail(email)) errors.push('Valid email is required');
   if (!password || password.length < 8) errors.push('Password must be at least 8 characters');
   if (!name || name.trim().length === 0) errors.push('Name is required');
-  if (!['planner', 'parent'].includes(role)) errors.push('Role must be "planner" or "parent"');
+  // Accept 'user' or legacy 'planner'/'parent' — all map to 'user'
+  const allowedRoles = ['user', 'planner', 'parent'];
+  if (!allowedRoles.includes(role)) errors.push('Role must be "user"');
   if (errors.length) return res.status(400).json({ error: errors.join(', ') });
+  // Normalize legacy roles to 'user'
+  req.body.role = 'user';
   req.body.name = sanitizeString(name);
   next();
 }
