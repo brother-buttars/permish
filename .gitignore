@@ -3,7 +3,12 @@ node_modules/
 .env.development
 .env.local
 *.db
+*.db-wal
+*.db-shm
 /data/
+backend/data/
+backend/uploads/
+backend/pdfs/
 pdfs/
 .svelte-kit/
 build/
@@ -24,8 +29,16 @@ pocketbase
 
 # Tauri mobile generated projects
 frontend/src-tauri/gen/
+# Editor / personal config
+.obsidian/
+.envrc
+
+# Docs site
 docs-site/node_modules/
 docs-site/dist/
+
+# PocketBase test data
+pb_test_data/
 .bun-build
 package-lock.json
 sidecar/.18a387dd7fcdbff7-00000000.bun-build
