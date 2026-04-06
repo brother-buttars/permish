@@ -52,7 +52,8 @@
 
 	async function checkNativeRelease() {
 		try {
-			const res = await fetch(RELEASES_URL, { method: 'HEAD', redirect: 'follow' });
+			// Use GitHub API (has CORS headers) instead of direct URL (blocked by CORS)
+			const res = await fetch('https://api.github.com/repos/brother-buttars/permish/releases/latest');
 			hasNativeRelease = res.ok;
 		} catch {
 			hasNativeRelease = false;
