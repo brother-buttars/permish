@@ -12,7 +12,6 @@
   } from "$lib/components/ui/sheet/index.js";
   import ToastContainer from "$lib/components/ToastContainer.svelte";
   import UserMenu from "$lib/components/UserMenu.svelte";
-  import SyncStatusIndicator from "$lib/components/SyncStatusIndicator.svelte";
   import OfflineBanner from "$lib/components/OfflineBanner.svelte";
 
   import { onMount } from "svelte";
@@ -130,7 +129,7 @@
             >
             <a href="/groups" class={navClass("/groups")}>Groups</a>
             <a href="/profiles" class={navClass("/profiles")}>Profiles</a>
-            <SyncStatusIndicator />
+
             <div class="ml-2">
               <UserMenu user={currentUser} {pathname} />
             </div>

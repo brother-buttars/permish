@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
   import { logout } from "$lib/stores/auth";
+  import { getDataMode, getSyncManager } from "$lib/data";
+  import type { SyncStatus } from "$lib/data/sync/manager";
   import ThemeToggle from "./ThemeToggle.svelte";
 
   interface Props {
@@ -25,6 +28,13 @@
   let popoverRight = $state(0);
   let arrowRight = $state(0);
 
+  // Sync state
+  let syncVisible = $state(false);
+  let syncStatus = $state<SyncStatus>('idle');
+  let pendingCount = $state(0);
+  let syncUnsub: (() => void) | null = null;
+  let syncTimer: ReturnType<typeof setInterval> | null = null;
+
   let initials = $derived(
     user.name
       .split(/\s+/)
@@ -32,6 +42,47 @@
       .map((w) => w[0]?.toUpperCase() ?? "")
       .join("")
   );
+
+  const syncDotColor: Record<SyncStatus, string> = {
+    idle: 'bg-green-500',
+    syncing: 'bg-yellow-500 animate-pulse',
+    error: 'bg-red-500',
+    offline: 'bg-gray-400',
+  };
+
+  const syncLabel: Record<SyncStatus, string> = {
+    idle: 'Synced',
+    syncing: 'Syncing...',
+    error: 'Sync error',
+    offline: 'Offline',
+  };
+
+  onMount(() => {
+    const mode = getDataMode();
+    if (mode !== 'hybrid') return;
+
+    syncVisible = true;
+    const mgr = getSyncManager();
+    if (!mgr) return;
+
+    syncStatus = mgr.status;
+    syncUnsub = mgr.onStatusChange((s) => { syncStatus = s; });
+
+    async function updateCount() {
+      if (mgr) pendingCount = await mgr.getPendingCount();
+    }
+    updateCount();
+    syncTimer = setInterval(updateCount, 10000);
+  });
+
+  onDestroy(() => {
+    syncUnsub?.();
+    if (syncTimer) clearInterval(syncTimer);
+  });
+
+  function triggerSync() {
+    getSyncManager()?.sync();
+  }
 
   function portal(node: HTMLElement) {
     document.body.appendChild(node);
@@ -45,11 +96,9 @@
   function toggleOpen() {
     if (!open && triggerEl) {
       const rect = triggerEl.getBoundingClientRect();
-      // Use clientWidth (excludes scrollbar) to match CSS fixed positioning
       const viewportWidth = document.documentElement.clientWidth;
       popoverTop = rect.bottom + 10;
       popoverRight = viewportWidth - rect.right;
-      // Center arrow under the button: button center offset from popover right edge, minus half arrow size (6px)
       const buttonCenterFromRight = viewportWidth - (rect.left + rect.width / 2);
       arrowRight = buttonCenterFromRight - popoverRight - 6;
     }
@@ -70,16 +119,25 @@
   }
 </script>
 
-<button
-  bind:this={triggerEl}
-  class="flex items-center justify-center rounded-full h-9 w-9 text-sm font-semibold cursor-pointer transition-colors border-2 border-primary {open
-    ? 'bg-primary text-primary-foreground'
-    : 'bg-transparent text-foreground hover:bg-primary/10'}"
-  onclick={toggleOpen}
-  aria-label="User menu"
->
-  {initials}
-</button>
+<!-- Avatar button with optional sync dot overlay -->
+<div class="relative">
+  <button
+    bind:this={triggerEl}
+    class="flex items-center justify-center rounded-full h-9 w-9 text-sm font-semibold cursor-pointer transition-colors border-2 border-primary {open
+      ? 'bg-primary text-primary-foreground'
+      : 'bg-transparent text-foreground hover:bg-primary/10'}"
+    onclick={toggleOpen}
+    aria-label="User menu"
+  >
+    {initials}
+  </button>
+  {#if syncVisible}
+    <span
+      class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background {syncDotColor[syncStatus]}"
+      title={syncLabel[syncStatus]}
+    ></span>
+  {/if}
+</div>
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -100,6 +158,23 @@
         <p class="text-sm font-semibold truncate">{user.name}</p>
         <p class="text-xs text-muted-foreground truncate">{user.email}</p>
       </div>
+
+      <!-- Sync status (hybrid mode only) -->
+      {#if syncVisible}
+        <button
+          class="flex items-center justify-between px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 rounded-sm transition-colors cursor-pointer"
+          onclick={triggerSync}
+          title="Click to sync now"
+        >
+          <span class="flex items-center gap-2">
+            <span class="h-2 w-2 rounded-full {syncDotColor[syncStatus]}"></span>
+            {syncLabel[syncStatus]}
+          </span>
+          {#if pendingCount > 0}
+            <span class="text-xs font-medium">{pendingCount} pending</span>
+          {/if}
+        </button>
+      {/if}
 
       <!-- Menu items -->
       <button
