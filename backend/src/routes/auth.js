@@ -33,7 +33,7 @@ router.post('/login', validateLogin, async (req, res) => {
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
-  const safeUser = { id: user.id, email: user.email, name: user.name, role: user.role };
+  const safeUser = { id: user.id, email: user.email, name: user.name, role: user.role, must_change_password: !!user.must_change_password };
   setAuthCookie(res, safeUser);
   res.json({ user: safeUser });
 });
@@ -50,8 +50,36 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', requireAuth, (req, res) => {
   const db = req.app.locals.db;
-  const fullUser = db.prepare('SELECT id, email, name, role, phone, address, city, state_province, guardian_signature, guardian_signature_type FROM users WHERE id = ?').get(req.user.id);
+  const fullUser = db.prepare('SELECT id, email, name, role, phone, address, city, state_province, guardian_signature, guardian_signature_type, must_change_password FROM users WHERE id = ?').get(req.user.id);
+  if (fullUser) fullUser.must_change_password = !!fullUser.must_change_password;
   res.json({ user: fullUser || req.user });
+});
+
+// Force change credentials (email, name, password) — for first-login setup
+router.put('/setup-credentials', requireAuth, async (req, res) => {
+  const db = req.app.locals.db;
+  const { email, name, password } = req.body;
+
+  if (!email || !name || !password) {
+    return res.status(400).json({ error: 'Email, name, and password are required' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+
+  // Check if email is already taken by another user
+  const existing = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, req.user.id);
+  if (existing) {
+    return res.status(409).json({ error: 'Email is already in use' });
+  }
+
+  const password_hash = await bcrypt.hash(password, 10);
+  db.prepare('UPDATE users SET email = ?, name = ?, password_hash = ?, must_change_password = 0 WHERE id = ?')
+    .run(email, name, password_hash, req.user.id);
+
+  const user = { id: req.user.id, email, name, role: req.user.role, must_change_password: false };
+  setAuthCookie(res, user);
+  res.json({ user });
 });
 
 router.get('/profile', requireAuth, (req, res) => {

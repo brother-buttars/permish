@@ -8,6 +8,7 @@ function migrate(db) {
     state_province: 'TEXT',
     guardian_signature: 'TEXT',
     guardian_signature_type: 'TEXT',
+    must_change_password: 'INTEGER DEFAULT 0',
   };
   for (const [col, type] of Object.entries(newUserCols)) {
     if (!userCols.includes(col)) {
@@ -305,6 +306,7 @@ function createTables(db) {
       state_province TEXT,
       guardian_signature TEXT,
       guardian_signature_type TEXT CHECK(guardian_signature_type IN ('drawn', 'typed', 'hand', NULL)),
+      must_change_password INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT (datetime('now'))
     );
 
@@ -455,10 +457,10 @@ async function bootstrapSuperAdmin(db) {
   const bcrypt = require('bcryptjs');
   const { randomUUID } = require('crypto');
   const id = randomUUID();
-  const password_hash = await bcrypt.hash('#ChildOfGod!', 10);
-  db.prepare('INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)')
-    .run(id, 'brandonbuttars@gmail.com', password_hash, 'Brandon Buttars', 'super');
-  console.log('Super admin account created (username: super)');
+  const password_hash = await bcrypt.hash('childofgod', 10);
+  db.prepare('INSERT INTO users (id, email, password_hash, name, role, must_change_password) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, 'jesus@permish.app', password_hash, 'Admin', 'super', 1);
+  console.log('Default super admin created: jesus@permish.app / childofgod (must change on first login)');
 }
 
 module.exports = { createTables, migrate, createIndexes, bootstrapSuperAdmin };

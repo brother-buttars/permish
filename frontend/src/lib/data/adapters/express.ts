@@ -137,6 +137,15 @@ function createAuthRepository(): AuthRepository & { _authenticated: boolean } {
 
     isAuthenticated(): boolean {
       return state._authenticated;
+    },
+
+    async setupCredentials(email: string, name: string, password: string): Promise<User> {
+      const data = await apiFetch('/api/auth/setup-credentials', {
+        method: 'PUT',
+        body: JSON.stringify({ email, name, password })
+      });
+      state._authenticated = true;
+      return data.user;
     }
   };
 }

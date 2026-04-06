@@ -5,7 +5,8 @@ interface User {
 	id: string;
 	email: string;
 	name: string;
-	role: 'planner' | 'parent';
+	role: 'super' | 'user' | 'planner' | 'parent';
+	must_change_password?: boolean;
 }
 
 export const user = writable<User | null>(null);

@@ -5,8 +5,9 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'super' | 'planner' | 'parent';
+  role: 'super' | 'user' | 'planner' | 'parent';
   phone?: string;
+  must_change_password?: boolean;
   address?: string;
   city?: string;
   state_province?: string;

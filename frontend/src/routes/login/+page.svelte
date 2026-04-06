@@ -18,7 +18,12 @@
 		error = '';
 		submitting = true;
 		try {
-			await login(email, password);
+			const loggedInUser = await login(email, password);
+			// Force credential change on first login
+			if (loggedInUser?.must_change_password) {
+				goto('/setup-credentials');
+				return;
+			}
 			// Check for a return URL (e.g., from /import-event)
 			const returnUrl = typeof window !== 'undefined' && localStorage.getItem('permish_return_url');
 			if (returnUrl) {
