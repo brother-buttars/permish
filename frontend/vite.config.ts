@@ -67,7 +67,9 @@ export default defineConfig({
 				],
 			},
 			devOptions: {
-				enabled: false, // Don't run SW in dev mode (interferes with HMR)
+				enabled: true,
+				type: 'module',
+				navigateFallback: '/',
 			},
 		}),
 	],
