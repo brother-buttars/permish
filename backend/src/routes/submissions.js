@@ -24,11 +24,13 @@ router.get('/:id', (req, res) => {
   const submission = db.prepare('SELECT * FROM submissions WHERE id = ?').get(req.params.id);
   if (!submission) return res.status(404).json({ error: 'Submission not found' });
 
-  const event = db.prepare('SELECT created_by FROM events WHERE id = ?').get(submission.event_id);
-  const isPlanner = event && event.created_by === req.user.id;
-  const isSubmitter = submission.submitted_by === req.user.id;
-  if (!isPlanner && !isSubmitter) {
-    return res.status(403).json({ error: 'Access denied' });
+  if (req.user.role !== 'super') {
+    const event = db.prepare('SELECT created_by FROM events WHERE id = ?').get(submission.event_id);
+    const isPlanner = event && event.created_by === req.user.id;
+    const isSubmitter = submission.submitted_by === req.user.id;
+    if (!isPlanner && !isSubmitter) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
   }
 
   res.json({ submission });
@@ -39,12 +41,13 @@ router.get('/:id/pdf', (req, res) => {
   const submission = db.prepare('SELECT * FROM submissions WHERE id = ?').get(req.params.id);
   if (!submission) return res.status(404).json({ error: 'Submission not found' });
 
-  const event = db.prepare('SELECT created_by FROM events WHERE id = ?').get(submission.event_id);
-  const isPlanner = event && event.created_by === req.user.id;
-  const isSubmitter = submission.submitted_by === req.user.id;
-
-  if (!isPlanner && !isSubmitter) {
-    return res.status(403).json({ error: 'Access denied' });
+  if (req.user.role !== 'super') {
+    const event = db.prepare('SELECT created_by FROM events WHERE id = ?').get(submission.event_id);
+    const isPlanner = event && event.created_by === req.user.id;
+    const isSubmitter = submission.submitted_by === req.user.id;
+    if (!isPlanner && !isSubmitter) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
   }
 
   if (!submission.pdf_path || !fs.existsSync(submission.pdf_path)) {
@@ -62,10 +65,12 @@ router.put('/:id', async (req, res) => {
   if (!submission) return res.status(404).json({ error: 'Submission not found' });
 
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(submission.event_id);
-  const isPlanner = event && event.created_by === req.user.id;
-  const isSubmitter = submission.submitted_by === req.user.id;
-  if (!isPlanner && !isSubmitter) {
-    return res.status(403).json({ error: 'Access denied' });
+  if (req.user.role !== 'super') {
+    const isPlanner = event && event.created_by === req.user.id;
+    const isSubmitter = submission.submitted_by === req.user.id;
+    if (!isPlanner && !isSubmitter) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
   }
 
   const d = req.body;
@@ -124,9 +129,11 @@ router.delete('/:id', (req, res) => {
   const submission = db.prepare('SELECT * FROM submissions WHERE id = ?').get(req.params.id);
   if (!submission) return res.status(404).json({ error: 'Submission not found' });
 
-  const event = db.prepare('SELECT created_by FROM events WHERE id = ?').get(submission.event_id);
-  if (!event || event.created_by !== req.user.id) {
-    return res.status(403).json({ error: 'Access denied' });
+  if (req.user.role !== 'super') {
+    const event = db.prepare('SELECT created_by FROM events WHERE id = ?').get(submission.event_id);
+    if (!event || event.created_by !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
   }
 
   // Delete the PDF file if it exists

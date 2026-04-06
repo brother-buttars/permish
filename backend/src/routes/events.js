@@ -82,16 +82,28 @@ router.get('/', (req, res) => {
   const showAll = req.query.all === '1';
   const activeFilter = showAll ? '' : 'AND e.is_active = 1';
 
-  // Get events the user created OR events belonging to groups the user is a member of
-  const events = db.prepare(`
-    SELECT DISTINCT e.*, COALESCE(sc.count, 0) AS submission_count
-    FROM events e
-    LEFT JOIN (SELECT event_id, COUNT(*) AS count FROM submissions GROUP BY event_id) sc
-      ON sc.event_id = e.id
-    WHERE (e.created_by = ? OR e.group_id IN (SELECT group_id FROM group_members WHERE user_id = ?))
-      ${activeFilter}
-    ORDER BY e.created_at DESC
-  `).all(req.user.id, req.user.id);
+  // Super sees all events; others see own + group events
+  let events;
+  if (req.user.role === 'super') {
+    events = db.prepare(`
+      SELECT DISTINCT e.*, COALESCE(sc.count, 0) AS submission_count
+      FROM events e
+      LEFT JOIN (SELECT event_id, COUNT(*) AS count FROM submissions GROUP BY event_id) sc
+        ON sc.event_id = e.id
+      WHERE 1=1 ${activeFilter}
+      ORDER BY e.created_at DESC
+    `).all();
+  } else {
+    events = db.prepare(`
+      SELECT DISTINCT e.*, COALESCE(sc.count, 0) AS submission_count
+      FROM events e
+      LEFT JOIN (SELECT event_id, COUNT(*) AS count FROM submissions GROUP BY event_id) sc
+        ON sc.event_id = e.id
+      WHERE (e.created_by = ? OR e.group_id IN (SELECT group_id FROM group_members WHERE user_id = ?))
+        ${activeFilter}
+      ORDER BY e.created_at DESC
+    `).all(req.user.id, req.user.id);
+  }
 
   const now = new Date();
   const eventsWithPast = events.map(event => {
@@ -109,26 +121,43 @@ router.get('/', (req, res) => {
 // All submissions across all planner's events
 router.get('/all-submissions', (req, res) => {
   const db = req.app.locals.db;
-  const submissions = db.prepare(`
-    SELECT s.id, s.participant_name, s.participant_dob, s.participant_age,
-           s.emergency_contact, s.emergency_phone_primary, s.submitted_at, s.pdf_path,
-           s.event_id, e.event_name, e.event_dates, e.organizations
-    FROM submissions s
-    JOIN events e ON s.event_id = e.id
-    WHERE e.created_by = ?
-    ORDER BY s.submitted_at DESC
-  `).all(req.user.id);
+  let submissions;
+  if (req.user.role === 'super') {
+    submissions = db.prepare(`
+      SELECT s.id, s.participant_name, s.participant_dob, s.participant_age,
+             s.emergency_contact, s.emergency_phone_primary, s.submitted_at, s.pdf_path,
+             s.event_id, e.event_name, e.event_dates, e.organizations
+      FROM submissions s
+      JOIN events e ON s.event_id = e.id
+      ORDER BY s.submitted_at DESC
+    `).all();
+  } else {
+    submissions = db.prepare(`
+      SELECT s.id, s.participant_name, s.participant_dob, s.participant_age,
+             s.emergency_contact, s.emergency_phone_primary, s.submitted_at, s.pdf_path,
+             s.event_id, e.event_name, e.event_dates, e.organizations
+      FROM submissions s
+      JOIN events e ON s.event_id = e.id
+      WHERE e.created_by = ?
+      ORDER BY s.submitted_at DESC
+    `).all(req.user.id);
+  }
   res.json({ submissions });
 });
 
 router.get('/:id', (req, res) => {
   const db = req.app.locals.db;
-  // Allow access if user created the event OR is a member of the event's group
-  let event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
-  if (!event) {
-    event = db.prepare(`SELECT e.* FROM events e
-      JOIN group_members gm ON gm.group_id = e.group_id
-      WHERE e.id = ? AND gm.user_id = ?`).get(req.params.id, req.user.id);
+  // Super can access any event
+  let event;
+  if (req.user.role === 'super') {
+    event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  } else {
+    event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+    if (!event) {
+      event = db.prepare(`SELECT e.* FROM events e
+        JOIN group_members gm ON gm.group_id = e.group_id
+        WHERE e.id = ? AND gm.user_id = ?`).get(req.params.id, req.user.id);
+    }
   }
   if (!event) return res.status(404).json({ error: 'Event not found' });
   if (event.group_id) {
@@ -139,12 +168,16 @@ router.get('/:id', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
-  let event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
-  // Allow group admins to edit group events
-  if (!event) {
-    event = db.prepare(`SELECT e.* FROM events e
-      JOIN group_members gm ON gm.group_id = e.group_id
-      WHERE e.id = ? AND gm.user_id = ? AND gm.role = 'admin'`).get(req.params.id, req.user.id);
+  let event;
+  if (req.user.role === 'super') {
+    event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  } else {
+    event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+    if (!event) {
+      event = db.prepare(`SELECT e.* FROM events e
+        JOIN group_members gm ON gm.group_id = e.group_id
+        WHERE e.id = ? AND gm.user_id = ? AND gm.role = 'admin'`).get(req.params.id, req.user.id);
+    }
   }
   if (!event) return res.status(404).json({ error: 'Event not found' });
 
@@ -189,11 +222,16 @@ router.put('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const db = req.app.locals.db;
-  let event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
-  if (!event) {
-    event = db.prepare(`SELECT e.* FROM events e
-      JOIN group_members gm ON gm.group_id = e.group_id
-      WHERE e.id = ? AND gm.user_id = ? AND gm.role = 'admin'`).get(req.params.id, req.user.id);
+  let event;
+  if (req.user.role === 'super') {
+    event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  } else {
+    event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+    if (!event) {
+      event = db.prepare(`SELECT e.* FROM events e
+        JOIN group_members gm ON gm.group_id = e.group_id
+        WHERE e.id = ? AND gm.user_id = ? AND gm.role = 'admin'`).get(req.params.id, req.user.id);
+    }
   }
   if (!event) return res.status(404).json({ error: 'Event not found' });
   db.prepare('UPDATE events SET is_active = 0 WHERE id = ?').run(req.params.id);
