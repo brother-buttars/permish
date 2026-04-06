@@ -240,11 +240,16 @@ router.delete('/:id', (req, res) => {
 
 router.get('/:id/submissions', (req, res) => {
   const db = req.app.locals.db;
-  let event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
-  if (!event) {
-    event = db.prepare(`SELECT e.* FROM events e
-      JOIN group_members gm ON gm.group_id = e.group_id
-      WHERE e.id = ? AND gm.user_id = ?`).get(req.params.id, req.user.id);
+  let event;
+  if (req.user.role === 'super') {
+    event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  } else {
+    event = db.prepare('SELECT * FROM events WHERE id = ? AND created_by = ?').get(req.params.id, req.user.id);
+    if (!event) {
+      event = db.prepare(`SELECT e.* FROM events e
+        JOIN group_members gm ON gm.group_id = e.group_id
+        WHERE e.id = ? AND gm.user_id = ?`).get(req.params.id, req.user.id);
+    }
   }
   if (!event) return res.status(404).json({ error: 'Event not found' });
   const submissions = db.prepare('SELECT id, participant_name, participant_dob, participant_age, emergency_contact, emergency_phone_primary, submitted_at, pdf_path FROM submissions WHERE event_id = ? ORDER BY submitted_at DESC').all(req.params.id);

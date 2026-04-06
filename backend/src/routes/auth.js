@@ -86,7 +86,7 @@ router.get('/profile', requireAuth, (req, res) => {
   const db = req.app.locals.db;
   const user = db.prepare('SELECT id, email, name, role, phone, address, city, state_province, guardian_signature, guardian_signature_type FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ profile: user });
+  res.json({ user });
 });
 
 router.put('/profile', requireAuth, (req, res) => {

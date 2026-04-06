@@ -57,7 +57,7 @@
 				goto('/login');
 				return;
 			}
-			isPlanner = currentUser.role === 'planner';
+			isPlanner = currentUser.role === 'planner' || currentUser.role === 'super';
 			view = isPlanner ? 'planner' : 'parent';
 
 			try {

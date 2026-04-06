@@ -451,8 +451,13 @@ function createTables(db) {
 }
 
 async function bootstrapSuperAdmin(db) {
-  const existing = db.prepare("SELECT id FROM users WHERE role = 'super'").get();
-  if (existing) return;
+  // Always ensure the default admin exists (unless already created and credentials changed)
+  const defaultAdmin = db.prepare("SELECT id, must_change_password FROM users WHERE email = 'jesus@permish.app'").get();
+  if (defaultAdmin) return; // Already exists (either active or credentials already changed)
+
+  // Check if there are ANY super users — if yes, don't force a default
+  const anySuper = db.prepare("SELECT id FROM users WHERE role = 'super'").get();
+  if (anySuper) return;
 
   const bcrypt = require('bcryptjs');
   const { randomUUID } = require('crypto');
