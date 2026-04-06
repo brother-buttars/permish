@@ -12,8 +12,15 @@ export async function load({ url }) {
 		redirect(302, '/setup');
 	}
 
-	// Setup page doesn't need repository initialization
-	if (url.pathname === '/setup') return;
+	// These pages don't need repository initialization or auth check
+	const skipInitPaths = ['/setup', '/setup-credentials', '/server-settings'];
+	if (skipInitPaths.includes(url.pathname)) {
+		// Still init repo for setup-credentials (it needs getRepository)
+		if (url.pathname === '/setup-credentials') {
+			await initRepository();
+		}
+		return;
+	}
 
 	await initRepository();
 	await checkAuth();
