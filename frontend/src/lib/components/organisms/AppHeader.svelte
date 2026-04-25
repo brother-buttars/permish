@@ -81,7 +81,7 @@
 		: ''}"
 >
 	<div class="container mx-auto flex h-16 items-center justify-between px-4">
-		<a href="/" class="flex items-center gap-2 text-xl font-bold">
+		<a href="/" class="flex items-center gap-2 text-xl font-bold font-display">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="h-6 w-6 text-primary"
