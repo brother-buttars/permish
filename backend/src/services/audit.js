@@ -71,4 +71,4 @@ function safeJsonParse(s) {
   try { return JSON.parse(s); } catch { return null; }
 }
 
-module.exports = { record, listForGroup };
+module.exports = { record, listForGroup, collectGroupAndDescendantIds };

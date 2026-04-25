@@ -20,8 +20,21 @@ import type {
   GroupDetail,
   GroupMember,
   GroupInvite,
-  InvitePreview
+  InvitePreview,
+  AdminFilter,
+  AdminGroupNode,
+  AdminActivity,
+  AdminSubmission,
+  AdminProfile
 } from '../types';
+
+function adminFilterQuery(filter?: AdminFilter): string {
+  const params = new URLSearchParams();
+  if (filter?.groupId) params.set('groupId', filter.groupId);
+  if (filter?.activityId) params.set('activityId', filter.activityId);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
 
 /**
  * API URL resolution (runtime, not build-time):
@@ -304,12 +317,13 @@ function createAttachmentRepository(): AttachmentRepository {
 
 function createAdminRepository(): AdminRepository {
   return {
-    async getStats(): Promise<SystemStats> {
-      return await apiFetch('/api/admin/stats');
+    async getStats(filter?: AdminFilter): Promise<SystemStats> {
+      const data = await apiFetch(`/api/admin/stats${adminFilterQuery(filter)}`);
+      return data.stats;
     },
 
-    async listUsers(): Promise<User[]> {
-      const data = await apiFetch('/api/admin/users');
+    async listUsers(filter?: AdminFilter): Promise<User[]> {
+      const data = await apiFetch(`/api/admin/users${adminFilterQuery(filter)}`);
       return data.users;
     },
 
@@ -343,6 +357,26 @@ function createAdminRepository(): AdminRepository {
 
     async deleteUser(id: string): Promise<void> {
       await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+    },
+
+    async listGroupsTree(): Promise<AdminGroupNode[]> {
+      const data = await apiFetch('/api/admin/groups-tree');
+      return data.groups;
+    },
+
+    async listActivities(filter?: AdminFilter): Promise<AdminActivity[]> {
+      const data = await apiFetch(`/api/admin/activities${adminFilterQuery(filter)}`);
+      return data.activities;
+    },
+
+    async listSubmissions(filter?: AdminFilter): Promise<AdminSubmission[]> {
+      const data = await apiFetch(`/api/admin/submissions${adminFilterQuery(filter)}`);
+      return data.submissions;
+    },
+
+    async listProfiles(filter?: AdminFilter): Promise<AdminProfile[]> {
+      const data = await apiFetch(`/api/admin/profiles${adminFilterQuery(filter)}`);
+      return data.profiles;
     }
   };
 }

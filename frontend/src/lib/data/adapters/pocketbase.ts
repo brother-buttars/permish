@@ -560,6 +560,19 @@ function createAdminRepository(): AdminRepository {
 
     async deleteUser(id: string): Promise<void> {
       await pb.collection('users').delete(id);
+    },
+
+    async listGroupsTree() {
+      throw new Error('Admin filter is not yet supported in PocketBase mode');
+    },
+    async listActivities() {
+      throw new Error('Admin filter is not yet supported in PocketBase mode');
+    },
+    async listSubmissions() {
+      throw new Error('Admin filter is not yet supported in PocketBase mode');
+    },
+    async listProfiles() {
+      throw new Error('Admin filter is not yet supported in PocketBase mode');
     }
   };
 }

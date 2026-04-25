@@ -196,6 +196,60 @@ export interface AuditEntry {
   created_at: string;
 }
 
+export interface AdminFilter {
+  groupId?: string | null;
+  activityId?: string | null;
+}
+
+export interface AdminGroupNode {
+  id: string;
+  name: string;
+  type: 'stake' | 'ward' | 'custom';
+  parent_id: string | null;
+  depth: number;
+}
+
+export interface AdminActivity {
+  id: string;
+  event_name: string;
+  event_dates: string;
+  event_start?: string | null;
+  event_end?: string | null;
+  ward: string;
+  stake: string;
+  is_active: number;
+  created_at: string;
+  group_id: string | null;
+  group_name?: string | null;
+  submission_count: number;
+}
+
+export interface AdminSubmission {
+  id: string;
+  event_id: string;
+  participant_name: string;
+  participant_age: number;
+  submitted_at: string;
+  submitted_by?: string | null;
+  event_name: string;
+  event_dates: string;
+  group_id?: string | null;
+  group_name?: string | null;
+  submitter_name?: string | null;
+  submitter_email?: string | null;
+}
+
+export interface AdminProfile {
+  id: string;
+  user_id: string;
+  participant_name: string;
+  participant_dob: string;
+  youth_program?: string | null;
+  updated_at: string;
+  owner_name: string;
+  owner_email: string;
+}
+
 export interface RealtimeEvent {
   action: 'create' | 'update' | 'delete';
   record: Record<string, unknown>;

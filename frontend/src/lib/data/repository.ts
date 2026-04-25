@@ -9,7 +9,12 @@ import type {
   RealtimeEvent,
   Group,
   GroupDetail,
-  GroupMember
+  GroupMember,
+  AdminFilter,
+  AdminGroupNode,
+  AdminActivity,
+  AdminSubmission,
+  AdminProfile
 } from './types';
 
 export interface AuthRepository {
@@ -64,13 +69,17 @@ export interface AttachmentRepository {
 }
 
 export interface AdminRepository {
-  getStats(): Promise<SystemStats>;
-  listUsers(): Promise<User[]>;
+  getStats(filter?: AdminFilter): Promise<SystemStats>;
+  listUsers(filter?: AdminFilter): Promise<User[]>;
   getUser(id: string): Promise<User>;
   createUser(data: { email: string; password: string; name: string; role: string }): Promise<User>;
   updateRole(id: string, role: string): Promise<User>;
   resetPassword(id: string, newPassword: string): Promise<void>;
   deleteUser(id: string): Promise<void>;
+  listGroupsTree(): Promise<AdminGroupNode[]>;
+  listActivities(filter?: AdminFilter): Promise<AdminActivity[]>;
+  listSubmissions(filter?: AdminFilter): Promise<AdminSubmission[]>;
+  listProfiles(filter?: AdminFilter): Promise<AdminProfile[]>;
 }
 
 export interface GroupRepository {

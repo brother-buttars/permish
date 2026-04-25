@@ -65,7 +65,11 @@ function createMockRemote(): DataRepository {
       createUser: vi.fn(),
       updateRole: vi.fn(),
       resetPassword: vi.fn(),
-      deleteUser: vi.fn()
+      deleteUser: vi.fn(),
+      listGroupsTree: vi.fn(),
+      listActivities: vi.fn(),
+      listSubmissions: vi.fn(),
+      listProfiles: vi.fn()
     },
     groups: {
       list: vi.fn().mockResolvedValue([]),

@@ -1120,6 +1120,19 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
       await db.execute('DELETE FROM child_profiles WHERE user_id = ?', [id]);
       await db.execute('DELETE FROM events WHERE created_by = ?', [id]);
       await db.execute('DELETE FROM users WHERE id = ?', [id]);
+    },
+
+    async listGroupsTree() {
+      throw new Error('Admin filter is not available in local-only mode');
+    },
+    async listActivities() {
+      throw new Error('Admin filter is not available in local-only mode');
+    },
+    async listSubmissions() {
+      throw new Error('Admin filter is not available in local-only mode');
+    },
+    async listProfiles() {
+      throw new Error('Admin filter is not available in local-only mode');
     }
   };
 
