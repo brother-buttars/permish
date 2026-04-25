@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button } from "$lib/components/ui/button";
+	import { Button, type ButtonVariant } from "$lib/components/ui/button";
 
 	let {
 		open = $bindable(false),
@@ -15,7 +15,7 @@
 		title: string;
 		message: string;
 		confirmLabel?: string;
-		confirmVariant?: string;
+		confirmVariant?: ButtonVariant;
 		onConfirm: () => void;
 		onCancel?: () => void;
 		loading?: boolean;
@@ -64,11 +64,12 @@
 {#if open}
 <div class="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
 	<!-- Backdrop with blur -->
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div
+	<button
+		type="button"
 		class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+		aria-label="Close"
 		onclick={handleCancel}
-	></div>
+	></button>
 	<!-- Modal content -->
 	<div bind:this={modalEl} class="relative z-10 mx-4 w-full max-w-md rounded-lg bg-popover p-6 shadow-xl">
 		<h3 id="confirm-title" class="text-lg font-semibold">{title}</h3>

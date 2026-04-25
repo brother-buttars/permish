@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
+	import { Button } from "$lib/components/ui/button";
 	import { orgGroups } from "$lib/utils/organizations";
 
 	let {
@@ -16,16 +17,33 @@
 		}
 	}
 
-	function toggleGroup(groupKey: string, checked: boolean) {
+	function isGroupFullySelected(groupKey: string): boolean {
+		const group = orgGroups.find(g => g.key === groupKey);
+		if (!group) return false;
+		return group.children.every(c => selectedOrgs.includes(c.key));
+	}
+
+	function toggleGroup(groupKey: string) {
 		const group = orgGroups.find(g => g.key === groupKey);
 		if (!group) return;
 		const childKeys = group.children.map(c => c.key);
-		if (checked) {
-			selectedOrgs = [...new Set([...selectedOrgs, ...childKeys])];
-		} else {
+		if (isGroupFullySelected(groupKey)) {
 			selectedOrgs = selectedOrgs.filter(o => !childKeys.includes(o));
+		} else {
+			selectedOrgs = [...new Set([...selectedOrgs, ...childKeys])];
 		}
 	}
+
+	const groupColors: Record<string, { active: string; inactive: string }> = {
+		young_men: {
+			active: 'bg-blue-500 hover:bg-blue-400 text-white border-blue-500',
+			inactive: 'border-blue-300 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20',
+		},
+		young_women: {
+			active: 'bg-pink-500 hover:bg-pink-400 text-white border-pink-500',
+			inactive: 'border-pink-300 text-pink-600 hover:bg-pink-50 dark:border-pink-700 dark:text-pink-400 dark:hover:bg-pink-900/20',
+		},
+	};
 </script>
 
 <Card>
@@ -33,29 +51,32 @@
 		<CardTitle>Organizations</CardTitle>
 		<p class="text-sm text-muted-foreground">Select which groups are included in this activity</p>
 	</CardHeader>
-	<CardContent class="space-y-4">
+	<CardContent class="space-y-5">
 		{#each orgGroups as group}
+			{@const colors = groupColors[group.key] ?? { active: '', inactive: '' }}
+			{@const allSelected = isGroupFullySelected(group.key)}
 			<div class="space-y-2">
-				<label class="flex items-center gap-2">
-					<input
-						type="checkbox"
-						checked={group.children.every(c => selectedOrgs.includes(c.key))}
-						onchange={(e) => toggleGroup(group.key, e.currentTarget.checked)}
-						class="h-4 w-4 rounded border-input"
-					/>
-					<span class="text-sm font-semibold">{group.label}</span>
-				</label>
-				<div class="ml-6 flex flex-wrap gap-4">
+				<div class="flex flex-wrap items-center gap-2">
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						class="rounded-full text-xs h-7 font-semibold {allSelected ? colors.active : colors.inactive}"
+						onclick={() => toggleGroup(group.key)}
+					>
+						{allSelected ? '✓' : '+'} All {group.label}
+					</Button>
 					{#each group.children as child}
-						<label class="flex items-center gap-2">
-							<input
-								type="checkbox"
-								checked={selectedOrgs.includes(child.key)}
-								onchange={() => toggleOrg(child.key)}
-								class="h-4 w-4 rounded border-input"
-							/>
-							<span class="text-sm">{child.label}</span>
-						</label>
+						{@const selected = selectedOrgs.includes(child.key)}
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							class="rounded-full text-xs h-7 {selected ? colors.active : colors.inactive}"
+							onclick={() => toggleOrg(child.key)}
+						>
+							{child.label}
+						</Button>
 					{/each}
 				</div>
 			</div>

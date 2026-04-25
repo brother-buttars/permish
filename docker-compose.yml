@@ -53,7 +53,7 @@ services:
       - PDF_DIR=/app/pdfs
       - UPLOADS_DIR=/app/uploads
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/auth/me').catch(()=>{})"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>{if(!r.ok)throw 1})"]
       interval: 10s
       timeout: 5s
       retries: 3

@@ -1,11 +1,13 @@
 <script lang="ts">
 	let { program = '', size = 'md' }: { program?: string | null; size?: 'sm' | 'md' | 'lg' } = $props();
 
-	const sizeClass = {
-		sm: 'h-6 w-6',
-		md: 'h-8 w-8',
-		lg: 'h-10 w-10',
-	}[size] || 'h-8 w-8';
+	const sizeClass = $derived(
+		{
+			sm: 'h-6 w-6',
+			md: 'h-8 w-8',
+			lg: 'h-10 w-10',
+		}[size] || 'h-8 w-8'
+	);
 
 	let bgClass = $derived(
 		program === 'young_men'

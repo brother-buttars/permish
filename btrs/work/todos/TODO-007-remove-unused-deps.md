@@ -1,9 +1,9 @@
 ---
 id: TODO-007
 title: "Remove unused dependencies (uuid, handlebars, tailwind-variants)"
-status: pending
+status: completed
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-04-24
 priority: medium
 tags:
   - chore
@@ -22,6 +22,10 @@ Several packages are listed as dependencies but never imported:
 
 ## Acceptance criteria
 
-- [ ] `uuid` removed from backend
-- [ ] `handlebars` removed from backend
-- [ ] `tailwind-variants` verified and removed if unused from frontend
+- [x] `uuid` removed from backend
+- [x] `handlebars` removed from backend
+- [x] `tailwind-variants` verified and removed if unused from frontend
+
+## Resolution (2026-04-24)
+
+Verified zero imports across backend/frontend src. Removed via `pnpm remove`. Backend tests (117) + frontend tests (159) + svelte-check still green.

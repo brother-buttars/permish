@@ -1,15 +1,16 @@
 require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
+const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
 
-if (isProduction && !process.env.JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET environment variable is required in production');
+if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_JWT_SECRET)) {
+  console.error('FATAL: JWT_SECRET must be set to a non-default value in production');
   process.exit(1);
 }
 
 module.exports = {
   port: process.env.PORT || 3001,
-  jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-me',
+  jwtSecret: process.env.JWT_SECRET || DEFAULT_JWT_SECRET,
   jwtExpiry: process.env.JWT_EXPIRY || '24h',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
   email: {

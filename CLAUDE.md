@@ -164,6 +164,10 @@ const events = await repo.events.list();
 - The `cn()` utility at `$lib/utils.ts` merges Tailwind classes.
 - Theme colors use CSS variables defined in `app.css` (oklch format with dark mode).
 
+#### Atomic design
+
+The frontend follows atomic design: **atoms** (`components/ui/`, `components/atoms/`) → **molecules** (`components/molecules/`) → **organisms** (`components/organisms/`) → **composables** (`components/composables/`) → **pages** (`routes/**/+page.svelte`). The 3× rule: if a pattern repeats inline in three places, extract it to a molecule before the fourth. Pages orchestrate; they don't render headers, list cards, status pills, or filter bars inline. Before writing any new component, check `btrs/knowledge/conventions/registry.md` — it lists what exists and what's planned. Full rules: `btrs/knowledge/conventions/ui.md`. Anti-patterns: `btrs/knowledge/conventions/anti-patterns.md`.
+
 ### Field Name Consistency
 
 Domain types in `frontend/src/lib/data/types.ts` are the single source of truth. Field names match the SQLite schema exactly:
@@ -210,7 +214,7 @@ Domain types in `frontend/src/lib/data/types.ts` are the single source of truth.
 ### Organizations
 
 - Young Men: Deacons, Teachers, Priests
-- Young Women: Beehives, Mia Maids, Laurels
+- Young Women: Builders of Faith, Messengers of Hope, Gatherers of Light (DB keys remain `beehives`, `mia_maids`, `laurels`)
 - Stored as JSON array on events table
 - Display uses `getOrgDisplayLabels()` — shows parent label when all children selected
 - Color badges: blue (Young Men family), purple (Young Women family)

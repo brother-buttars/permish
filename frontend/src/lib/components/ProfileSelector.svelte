@@ -23,19 +23,21 @@
 			: profiles
 	);
 
-	onMount(async () => {
-		if (!currentUser) {
-			loading = false;
-			return;
-		}
-		try {
-			const repo = getRepository();
-			profiles = await repo.profiles.list();
-		} catch {
-			profiles = [];
-		} finally {
-			loading = false;
-		}
+	onMount(() => {
+		(async () => {
+			if (!currentUser) {
+				loading = false;
+				return;
+			}
+			try {
+				const repo = getRepository();
+				profiles = await repo.profiles.list();
+			} catch {
+				profiles = [];
+			} finally {
+				loading = false;
+			}
+		})();
 
 		return () => unsub();
 	});

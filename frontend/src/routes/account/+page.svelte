@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { goto } from "$app/navigation";
-	import { user, authLoading } from "$lib/stores/auth";
 	import { getRepository, getDataMode, setDataMode, getBackupManager, getSyncManager } from '$lib/data';
+	import { useAuthRequired } from "$lib/components/composables";
 	import type { DataMode } from '$lib/data';
 	import type { SyncStatus } from '$lib/data/sync/manager';
 	import { pullDataToLocal, pushPendingToRemote, clearLocalDatabase } from '$lib/data/migration';
@@ -17,9 +16,11 @@
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import AlertBox from "$lib/components/AlertBox.svelte";
+	import { PageHeader, PageContainer } from "$lib/components/molecules";
+	import DataModeSection from "./_components/DataModeSection.svelte";
+	import BackupRestoreSection from "./_components/BackupRestoreSection.svelte";
+	import SyncSection from "./_components/SyncSection.svelte";
 
-	let currentUser: any = $state(null);
-	let loading = $state(true);
 	let saving = $state(false);
 	let changingPassword = $state(false);
 	let currentPassword = $state("");
@@ -33,7 +34,7 @@
 	let city = $state("");
 	let stateProvince = $state("");
 	let guardianSigValue = $state("");
-	let guardianSigType = $state<"drawn" | "typed">("typed");
+	let guardianSigType = $state<"drawn" | "typed" | "hand">("typed");
 
 	// Data mode state
 	let dataMode = $state<DataMode>(getDataMode());
@@ -64,17 +65,8 @@
 	let showOnlineWarning = $state(false);
 
 	const repo = getRepository();
-	const unsub = user.subscribe((u) => {
-		currentUser = u;
-	});
-
-	onMount(() => {
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-			if (!currentUser) {
-				goto("/login");
-				return;
-			}
+	const auth = useAuthRequired({
+		onReady: async () => {
 			try {
 				const p = await repo.auth.getProfile();
 				name = p.name || "";
@@ -86,11 +78,11 @@
 				guardianSigType = p.guardian_signature_type || "typed";
 			} catch {
 				// Use defaults
-			} finally {
-				loading = false;
 			}
-		});
+		},
+	});
 
+	onMount(() => {
 		// Set up sync monitoring for hybrid mode
 		if (getDataMode() === 'hybrid') {
 			const mgr = getSyncManager();
@@ -110,8 +102,6 @@
 		}
 
 		return () => {
-			unsubLoading();
-			unsub();
 			syncUnsub?.();
 			if (syncPollTimer) clearInterval(syncPollTimer);
 		};
@@ -193,8 +183,8 @@
 				await initializeLocalSchema(db);
 
 				// Also create the local user account (copy from current auth)
-				if (currentUser) {
-					const existing = await db.query('SELECT id FROM users WHERE email = ?', [currentUser.email]);
+				if (auth.user) {
+					const existing = await db.query('SELECT id FROM users WHERE email = ?', [auth.user.email]);
 					if (existing.length === 0) {
 						// Create with a placeholder password — user re-enters on local login
 						const encoder = new TextEncoder();
@@ -202,7 +192,7 @@
 						const hash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
 						await db.execute(
 							'INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)',
-							[currentUser.id, currentUser.email, hash, currentUser.name, currentUser.role]
+							[auth.user.id, auth.user.email, hash, auth.user.name, auth.user.role]
 						);
 					}
 				}
@@ -322,10 +312,10 @@
 	<title>My Account</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
-	<h1 class="mb-6 text-3xl font-bold">My Account</h1>
+<PageContainer>
+	<PageHeader title="My Account" />
 
-	{#if loading}
+	{#if !auth.ready}
 		<LoadingState />
 	{:else}
 		<form onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="space-y-6">
@@ -341,7 +331,7 @@
 
 					<div class="space-y-2">
 						<Label for="email">Email</Label>
-						<Input id="email" value={currentUser?.email || ""} disabled />
+						<Input id="email" value={auth.user?.email || ""} disabled />
 						<p class="text-xs text-muted-foreground">Email cannot be changed.</p>
 					</div>
 
@@ -426,167 +416,36 @@
 
 		<Separator class="my-8" />
 
-		<!-- Data Storage Mode -->
-		<Card>
-			<CardHeader>
-				<CardTitle>Data Storage</CardTitle>
-				<p class="text-sm text-muted-foreground">
-					Choose how your data is stored and synced.
-				</p>
-			</CardHeader>
-			<CardContent class="space-y-4">
-				<div class="space-y-3">
-					<label class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors {dataMode === 'online' ? 'border-primary bg-primary/5' : ''}">
-						<input type="radio" name="dataMode" value="online" bind:group={dataMode} class="mt-1" />
-						<div>
-							<div class="font-medium">Online only</div>
-							<div class="text-sm text-muted-foreground">All data stored on server. Requires internet.</div>
-						</div>
-					</label>
+		<DataModeSection
+			bind:dataMode
+			{initialDataMode}
+			{migrationProgress}
+			{applyingMode}
+			onApply={applyDataMode}
+		/>
 
-					<label class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors {dataMode === 'hybrid' ? 'border-primary bg-primary/5' : ''}">
-						<input type="radio" name="dataMode" value="hybrid" bind:group={dataMode} class="mt-1" />
-						<div>
-							<div class="font-medium">Hybrid</div>
-							<div class="text-sm text-muted-foreground">Works offline, syncs when connected. Recommended for desktop and mobile.</div>
-						</div>
-					</label>
-
-					<label class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors {dataMode === 'local' ? 'border-primary bg-primary/5' : ''}">
-						<input type="radio" name="dataMode" value="local" bind:group={dataMode} class="mt-1" />
-						<div>
-							<div class="font-medium">Local only</div>
-							<div class="text-sm text-muted-foreground">Data never leaves this device. No sync, complete privacy.</div>
-						</div>
-					</label>
-				</div>
-
-				{#if dataMode !== initialDataMode}
-					<div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-sm">
-						{#if initialDataMode === 'online' && dataMode === 'hybrid'}
-							Switching to hybrid will download your data for offline use. This may take a moment.
-						{:else if initialDataMode === 'local' && dataMode === 'hybrid'}
-							Switching to hybrid will upload your local data to the server.
-						{:else if dataMode === 'local'}
-							Local-only mode means no sync. Pending changes will remain pending until you switch back.
-						{:else if initialDataMode === 'hybrid' && dataMode === 'online'}
-							Switching to online will push pending changes first, then remove local data.
-						{/if}
-					</div>
-					{#if migrationProgress}
-						<div class="flex items-center gap-2 text-sm text-muted-foreground">
-							<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-							</svg>
-							{migrationProgress}
-						</div>
-					{/if}
-					<Button onclick={applyDataMode} variant="outline" class="w-full" disabled={applyingMode}>
-						{applyingMode ? "Migrating..." : "Apply Changes"}
-					</Button>
-				{/if}
-			</CardContent>
-		</Card>
-
-		<!-- Backup & Restore (only visible in local/hybrid mode) -->
 		{#if dataMode === 'local' || dataMode === 'hybrid'}
-			<Card>
-				<CardHeader>
-					<CardTitle>Backup & Restore</CardTitle>
-					<p class="text-sm text-muted-foreground">
-						Export your data as an encrypted backup file, or restore from a previous backup.
-					</p>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					<!-- Export section -->
-					<div class="space-y-2">
-						<Label for="backupPassphrase">Encryption Passphrase (optional)</Label>
-						<Input id="backupPassphrase" type="password" bind:value={backupPassphrase} placeholder="Leave empty for unencrypted backup" />
-					</div>
-					<Button onclick={handleExport} variant="outline" class="w-full" disabled={exporting}>
-						{exporting ? "Exporting..." : "Export Backup"}
-					</Button>
-
-					<Separator />
-
-					<!-- Import section -->
-					<div class="space-y-2">
-						<Label for="restoreFile">Restore from Backup</Label>
-						<Input id="restoreFile" type="file" accept=".permish-backup" onchange={handleFileSelect} />
-					</div>
-					{#if restoreFile}
-						<div class="space-y-2">
-							<Label for="restorePassphrase">Decryption Passphrase</Label>
-							<Input id="restorePassphrase" type="password" bind:value={restorePassphrase} placeholder="Enter passphrase if backup was encrypted" />
-						</div>
-						<Button onclick={() => showRestoreConfirm = true} variant="destructive" class="w-full" disabled={restoring}>
-							{restoring ? "Restoring..." : "Restore Backup"}
-						</Button>
-					{/if}
-				</CardContent>
-			</Card>
+			<BackupRestoreSection
+				bind:backupPassphrase
+				bind:restorePassphrase
+				{restoreFile}
+				{exporting}
+				{restoring}
+				onExport={handleExport}
+				onFileSelect={handleFileSelect}
+				onAskRestore={() => showRestoreConfirm = true}
+			/>
 		{/if}
 
-		<!-- Pending Changes (hybrid mode only) -->
 		{#if dataMode === 'hybrid'}
-			<Card>
-				<CardHeader>
-					<CardTitle class="flex items-center justify-between">
-						<span>Pending Changes</span>
-						<span class="text-sm font-normal text-muted-foreground">
-							{#if syncStatus === 'syncing'}
-								Syncing...
-							{:else if syncStatus === 'offline'}
-								Offline
-							{:else if syncStatus === 'error'}
-								Sync error
-							{:else}
-								Synced
-							{/if}
-						</span>
-					</CardTitle>
-					<p class="text-sm text-muted-foreground">
-						Changes made while offline are queued and synced when connected.
-					</p>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					{#if pendingCount === 0 && failedChanges.length === 0}
-						<p class="text-sm text-muted-foreground text-center py-4">All changes synced.</p>
-					{:else}
-						{#if pendingCount > 0}
-							<div class="flex items-center justify-between rounded-lg border p-3">
-								<div>
-									<span class="font-medium">{pendingCount}</span>
-									<span class="text-sm text-muted-foreground"> change{pendingCount !== 1 ? 's' : ''} waiting to sync</span>
-								</div>
-								<Button variant="outline" size="sm" onclick={triggerSync} disabled={syncStatus === 'syncing'}>
-									{syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
-								</Button>
-							</div>
-						{/if}
-
-						{#if failedChanges.length > 0}
-							<div class="space-y-2">
-								<p class="text-sm font-medium text-destructive">Failed Changes</p>
-								{#each failedChanges as change}
-									<div class="flex items-start justify-between gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
-										<div class="min-w-0 flex-1">
-											<div class="text-sm font-medium capitalize">{change.operation} {change.collection}</div>
-											<div class="text-xs text-muted-foreground truncate">{change.last_error || 'Unknown error'}</div>
-											<div class="text-xs text-muted-foreground">Retries: {change.retry_count}</div>
-										</div>
-										<div class="flex gap-1">
-											<Button variant="outline" size="sm" onclick={() => handleRetry(change.id)}>Retry</Button>
-											<Button variant="ghost" size="sm" onclick={() => { discardTargetId = change.id; showDiscardConfirm = true; }}>Discard</Button>
-										</div>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					{/if}
-				</CardContent>
-			</Card>
+			<SyncSection
+				{syncStatus}
+				{pendingCount}
+				{failedChanges}
+				onSync={triggerSync}
+				onRetry={handleRetry}
+				onAskDiscard={(id) => { discardTargetId = id; showDiscardConfirm = true; }}
+			/>
 		{/if}
 
 		<!-- Confirm modal for discard -->
@@ -620,4 +479,4 @@
 		onConfirm={() => { showOnlineWarning = false; doModeSwitch(); }}
 		onCancel={() => showOnlineWarning = false}
 	/>
-</div>
+</PageContainer>

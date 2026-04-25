@@ -1,9 +1,9 @@
 ---
 id: TODO-005
 title: "Add production JWT secret safety check"
-status: pending
+status: completed
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-04-24
 priority: critical
 tags:
   - security
@@ -18,4 +18,9 @@ tags:
 
 ## Acceptance criteria
 
-- [ ] Backend throws on startup if `NODE_ENV=production` and `JWT_SECRET` is missing or equals the default
+- [x] Backend throws on startup if `NODE_ENV=production` and `JWT_SECRET` is missing or equals the default
+
+## Resolution (2026-04-24)
+
+- `backend/src/config.js` now exits in production when `JWT_SECRET` is missing OR equals `'dev-secret-change-me'`.
+- Added `backend/tests/config.test.js` covering all four cases (missing/default/valid in prod, missing in dev).

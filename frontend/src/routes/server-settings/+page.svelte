@@ -201,10 +201,10 @@
 </div>
 
 <ConfirmModal
-	open={showVersionWarning}
+	bind:open={showVersionWarning}
 	title="Version Mismatch"
 	message="The server is running a different version (v{serverVersion}) than this app (v{APP_VERSION}). The app cache will be cleared and reloaded. Continue?"
-	confirmText="Switch & Reload"
-	onconfirm={() => { showVersionWarning = false; doSave(true); }}
-	oncancel={() => { showVersionWarning = false; }}
+	confirmLabel="Switch & Reload"
+	onConfirm={() => { showVersionWarning = false; doSave(true); }}
+	onCancel={() => { showVersionWarning = false; }}
 />

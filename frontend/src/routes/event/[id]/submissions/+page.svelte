@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { user, authLoading } from "$lib/stores/auth";
 	import { getRepository } from '$lib/data';
+	import { useAuthRequired } from "$lib/components/composables";
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
@@ -16,13 +15,12 @@
 	import { Select } from "$lib/components/ui/select";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import { getSubmissionPdfUrl, generatePdfForSubmission } from "$lib/services/pdfHelper";
+	import { PageContainer } from "$lib/components/molecules";
 
 	let { data } = $props();
 
 	let event: any = $state(null);
 	let submissions: any[] = $state([]);
-	let loading = $state(true);
-	let currentUser: any = $state(null);
 	let downloading = $state(false);
 	let deleting = $state<string | null>(null);
 
@@ -43,8 +41,10 @@
 	let pdfLoading = $state(false);
 
 	const repo = getRepository();
-	const unsubAuth = user.subscribe((u) => {
-		currentUser = u;
+	const auth = useAuthRequired({
+		onReady: async () => {
+			await loadData();
+		},
 	});
 
 	let filteredSubmissions = $derived.by(() => {
@@ -86,28 +86,11 @@
 			]);
 			event = eventData;
 			submissions = subData;
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Failed to load event:", err);
-		} finally {
-			loading = false;
+			toastError(err?.message || "Failed to load event");
 		}
 	}
-
-	onMount(() => {
-		const unsubLoading = authLoading.subscribe((isLoading) => {
-			if (isLoading) return;
-			if (!currentUser) {
-				goto("/login");
-				return;
-			}
-			loadData();
-		});
-
-		return () => {
-			unsubLoading();
-			unsubAuth();
-		};
-	});
 
 	async function confirmDeleteSubmission() {
 		deleteLoading = true;
@@ -147,8 +130,9 @@
 			const content = await zip.generateAsync({ type: "blob" });
 			const eventName = (event?.event_name || "event").replace(/[^a-zA-Z0-9]/g, "_");
 			saveAs(content, `${eventName}_submissions.zip`);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Failed to create ZIP:", err);
+			toastError(err?.message || "Failed to create ZIP download");
 		} finally {
 			downloading = false;
 		}
@@ -182,8 +166,8 @@
 	<title>Submissions — {event?.event_name || "Activity"}</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
-	{#if loading}
+<PageContainer>
+	{#if !auth.ready}
 		<LoadingState />
 	{:else if !event}
 		<p class="text-center text-destructive">Activity not found.</p>
@@ -355,7 +339,7 @@
 			</div>
 		{/if}
 	{/if}
-</div>
+</PageContainer>
 
 <PdfModal bind:open={pdfModalOpen} url={pdfModalUrl} name={pdfModalName} loading={pdfLoading} onclose={closePdfModal} />
 

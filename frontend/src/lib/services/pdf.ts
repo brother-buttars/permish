@@ -232,7 +232,7 @@ export async function downloadPdf(
 	submission: SubmissionData
 ): Promise<void> {
 	const pdfBytes = await generatePdfBytes(event, submission);
-	const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+	const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' });
 	const name = `permish-${submission.participant_name.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.pdf`;
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement('a');
@@ -250,6 +250,6 @@ export async function getPdfBlobUrl(
 	submission: SubmissionData
 ): Promise<string> {
 	const pdfBytes = await generatePdfBytes(event, submission);
-	const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+	const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' });
 	return URL.createObjectURL(blob);
 }

@@ -2,7 +2,6 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { getRepository } from '$lib/data';
-	import { user } from "$lib/stores/auth";
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
@@ -19,6 +18,7 @@
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import AlertBox from "$lib/components/AlertBox.svelte";
 	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
+	import { PageContainer } from "$lib/components/molecules";
 
 	let { data } = $props();
 
@@ -27,11 +27,6 @@
 	let error = $state("");
 	let submitting = $state(false);
 	let validationErrors: string[] = $state([]);
-	let currentUser: any = $state(null);
-
-	const unsub = user.subscribe((u) => {
-		currentUser = u;
-	});
 
 	// Form fields
 	let participantName = $state("");
@@ -135,21 +130,21 @@
 
 	const repo = getRepository();
 
-	onMount(async () => {
-		try {
-			const [eventResult, submission] = await Promise.all([
-				repo.events.getById(data.eventId),
-				repo.submissions.getById(data.submissionId),
-			]);
-			event = eventResult;
-			fillFromSubmission(submission);
-		} catch (err: any) {
-			error = err.message || "Failed to load submission";
-		} finally {
-			loading = false;
-		}
-
-		return () => unsub();
+	onMount(() => {
+		(async () => {
+			try {
+				const [eventResult, submission] = await Promise.all([
+					repo.events.getById(data.eventId),
+					repo.submissions.getById(data.submissionId),
+				]);
+				event = eventResult;
+				fillFromSubmission(submission);
+			} catch (err: any) {
+				error = err.message || "Failed to load submission";
+			} finally {
+				loading = false;
+			}
+		})();
 	});
 
 	function validate(): string[] {
@@ -216,7 +211,7 @@
 	<title>Edit Submission — {event?.event_name || "Permish"}</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
+<PageContainer>
 	{#if loading}
 		<LoadingState message="Loading submission..." />
 	{:else if error}
@@ -399,4 +394,4 @@
 			</div>
 		</form>
 	{/if}
-</div>
+</PageContainer>

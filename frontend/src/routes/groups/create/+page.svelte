@@ -1,17 +1,15 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { user, authLoading } from '$lib/stores/auth';
 	import { getRepository } from '$lib/data';
+	import { useAuthRequired } from '$lib/components/composables';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card';
 	import { toastSuccess, toastError } from '$lib/stores/toast';
 	import AlertBox from '$lib/components/AlertBox.svelte';
+	import { PageContainer } from '$lib/components/molecules';
 	import type { Group } from '$lib/data/types';
-
-	let currentUser: any = $state(null);
 
 	let name = $state('');
 	let type = $state<'stake' | 'ward' | 'custom'>('ward');
@@ -30,22 +28,15 @@
 	let stakeGroups = $derived(userGroups.filter(g => g.type === 'stake' && g.member_role === 'admin'));
 
 	const repo = getRepository();
-
-	onMount(() => {
-		const unsubUser = user.subscribe(u => { currentUser = u; });
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-			if (!currentUser || currentUser.role !== 'super') {
-				goto('/groups');
-				return;
-			}
+	const auth = useAuthRequired({
+		allowedRoles: ['super'],
+		onReady: async () => {
 			try {
 				userGroups = await repo.groups.list();
 			} catch {
 				// Non-critical
 			}
-		});
-		return () => { unsubUser(); unsubLoading(); };
+		},
 	});
 
 	function validate(): boolean {
@@ -83,7 +74,7 @@
 
 <svelte:head><title>Create Group</title></svelte:head>
 
-<div class="container mx-auto max-w-2xl px-4 py-8">
+<PageContainer size="md">
 	<h1 class="mb-6 text-3xl font-bold">Create Group</h1>
 
 	{#if errors.form}
@@ -170,4 +161,4 @@
 			</Button>
 		</div>
 	</form>
-</div>
+</PageContainer>

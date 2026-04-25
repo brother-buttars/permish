@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { user, authLoading } from "$lib/stores/auth";
 	import { getRepository } from '$lib/data';
+	import { useAuthRequired } from "$lib/components/composables";
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
@@ -16,11 +15,9 @@
 	import { formatFileSize } from "$lib/utils/format";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import LoadingState from "$lib/components/LoadingState.svelte";
+	import { PageContainer } from "$lib/components/molecules";
 
 	let { data } = $props();
-
-	let currentUser: any = $state(null);
-	let loading = $state(true);
 
 	let selectedOrgs: string[] = $state([]);
 
@@ -54,15 +51,9 @@
 	let errors: Record<string, string> = $state({});
 
 	const repo = getRepository();
-	const unsubAuth = user.subscribe((u) => { currentUser = u; });
-
-	onMount(() => {
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-			if (!currentUser || (currentUser.role !== "planner" && currentUser.role !== "super")) {
-				goto("/login");
-				return;
-			}
+	const auth = useAuthRequired({
+		allowedRoles: ['planner', 'super'],
+		onReady: async () => {
 			try {
 				const event = await repo.events.getById(data.eventId);
 				eventName = event.event_name || "";
@@ -111,12 +102,8 @@
 			} catch (err: any) {
 				toastError("Failed to load activity.");
 				goto("/dashboard");
-			} finally {
-				loading = false;
 			}
-		});
-
-		return () => { unsubLoading(); unsubAuth(); };
+		},
 	});
 
 	function validateEmail(email: string): boolean {
@@ -204,6 +191,7 @@
 					await repo.attachments.upload(data.eventId, file);
 				} catch (err: any) {
 					console.error('Failed to upload attachment:', err.message);
+					toastError(`Failed to upload ${file.name}: ${err.message}`);
 				}
 			}
 
@@ -221,8 +209,8 @@
 	<title>Edit Activity</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
-	{#if loading}
+<PageContainer>
+	{#if !auth.ready}
 		<LoadingState />
 	{:else}
 		<div class="mb-6 flex items-center justify-between">
@@ -411,7 +399,7 @@
 			</div>
 		</form>
 	{/if}
-</div>
+</PageContainer>
 
 <ConfirmModal
 	bind:open={deleteAttachmentModalOpen}

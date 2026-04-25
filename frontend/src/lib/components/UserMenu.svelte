@@ -140,9 +140,13 @@
 </div>
 
 {#if open}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div use:portal>
-    <div class="fixed inset-0 z-40" onclick={() => (open = false)}></div>
+    <button
+      type="button"
+      class="fixed inset-0 z-40 cursor-default"
+      aria-label="Close user menu"
+      onclick={() => (open = false)}
+    ></button>
     <div
       class="fixed z-50 w-56 rounded-md border border-border bg-glass backdrop-blur-lg p-1 shadow-md flex flex-col gap-1"
       style="top: {popoverTop}px; right: {popoverRight}px;"

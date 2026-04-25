@@ -1,32 +1,26 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { user, authLoading } from '$lib/stores/auth';
 	import { getRepository } from '$lib/data';
+	import { useAuthRequired } from '$lib/components/composables';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { toastSuccess, toastError } from '$lib/stores/toast';
 	import LoadingState from '$lib/components/LoadingState.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
+	import { PageHeader, PageContainer, ListCard } from '$lib/components/molecules';
 
 	let groups: any[] = $state([]);
-	let loading = $state(true);
-	let currentUser: any = $state(null);
 	let showJoinForm = $state(false);
 	let inviteCode = $state('');
 	let joining = $state(false);
 
 	const repo = getRepository();
-
-	onMount(() => {
-		const unsubUser = user.subscribe(u => { currentUser = u; });
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-			if (!currentUser) { goto('/login'); return; }
+	const auth = useAuthRequired({
+		onReady: async () => {
 			await loadGroups();
-		});
-		return () => { unsubUser(); unsubLoading(); };
+		},
 	});
 
 	async function loadGroups() {
@@ -34,8 +28,6 @@
 			groups = await repo.groups.list();
 		} catch (err: any) {
 			toastError(err.message || 'Failed to load groups');
-		} finally {
-			loading = false;
 		}
 	}
 
@@ -58,18 +50,17 @@
 
 <svelte:head><title>My Groups</title></svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
-	<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<h1 class="text-3xl font-bold">My Groups</h1>
-		<div class="flex gap-2">
-			<Button variant="outline" onclick={() => showJoinForm = !showJoinForm}>
-				{showJoinForm ? 'Cancel' : 'Join a Group'}
-			</Button>
-			{#if currentUser?.role === 'super'}
-				<Button onclick={() => goto('/groups/create')}>Create Group</Button>
-			{/if}
-		</div>
-	</div>
+{#snippet groupsActions()}
+	<Button variant="outline" onclick={() => showJoinForm = !showJoinForm}>
+		{showJoinForm ? 'Cancel' : 'Join a Group'}
+	</Button>
+	{#if auth.user?.role === 'super'}
+		<Button onclick={() => goto('/groups/create')}>Create Group</Button>
+	{/if}
+{/snippet}
+
+<PageContainer>
+	<PageHeader title="My Groups" actions={groupsActions} />
 
 	{#if showJoinForm}
 		<Card class="mb-6">
@@ -82,15 +73,13 @@
 		</Card>
 	{/if}
 
-	{#if loading}
+	{#if !auth.ready}
 		<LoadingState />
 	{:else if groups.length === 0}
-		<Card>
-			<CardContent class="py-8 text-center">
-				<p class="text-muted-foreground">You're not a member of any groups yet.</p>
-				<p class="text-sm text-muted-foreground mt-2">Ask your ward or stake leader for an invite code.</p>
-			</CardContent>
-		</Card>
+		<EmptyState
+			message="You're not a member of any groups yet."
+			description="Ask your ward or stake leader for an invite code."
+		/>
 	{:else}
 		<div class="grid gap-4">
 			{#each groups as group}
@@ -123,4 +112,4 @@
 			{/each}
 		</div>
 	{/if}
-</div>
+</PageContainer>

@@ -19,22 +19,23 @@ export interface User {
 export interface Event {
   id: string;
   created_by: string;
-  group_id?: string;
+  group_id?: string | null;
   event_name: string;
   event_dates: string;
-  event_start?: string;
-  event_end?: string;
+  event_start?: string | null;
+  event_end?: string | null;
   event_description: string;
   ward: string;
   stake: string;
   leader_name: string;
   leader_phone: string;
   leader_email: string;
-  notify_email?: string;
-  notify_phone?: string;
-  notify_carrier?: string;
-  organizations: string;
-  additional_details?: string;
+  notify_email?: string | null;
+  notify_phone?: string | null;
+  notify_carrier?: string | null;
+  /** Stored as JSON string; create/update accepts string[] which the backend stringifies. */
+  organizations: string | string[];
+  additional_details?: string | null;
   is_active: boolean;
   created_at: string;
   /** Computed field, not stored in DB */
@@ -65,7 +66,7 @@ export interface ChildProfile {
   recent_surgery_details?: string;
   activity_limitations?: string;
   other_accommodations?: string;
-  youth_program?: string;
+  youth_program?: string | null;
 }
 
 export interface Submission {

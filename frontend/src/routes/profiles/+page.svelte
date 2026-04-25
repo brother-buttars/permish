@@ -1,9 +1,7 @@
 <script lang="ts">
-	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { page } from "$app/stores";
-	import { user, authLoading } from "$lib/stores/auth";
 	import { getRepository } from '$lib/data';
+	import { useAuthRequired } from "$lib/components/composables";
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
@@ -20,14 +18,14 @@
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { formatDate } from "$lib/utils/formatDate";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
-	import { getYouthClass, youthClassBadgeClass, type YouthProgram } from "$lib/utils/youthClass";
+	import { getYouthClass, type YouthProgram } from "$lib/utils/youthClass";
 	import YouthIcon from "$lib/components/YouthIcon.svelte";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
+	import { PageHeader, PageContainer } from "$lib/components/molecules";
+	import { YouthClassBadge } from "$lib/components/atoms";
 
 	let profiles: any[] = $state([]);
-	let loading = $state(true);
-	let currentUser: any = $state(null);
 	let editingId: string | null = $state(null);
 	let showNewForm = $state(false);
 	let saving = $state(false);
@@ -62,17 +60,8 @@
 	let otherAccommodations = $state("");
 	let youthProgram = $state("");
 	const repo = getRepository();
-	const unsub = user.subscribe((u) => {
-		currentUser = u;
-	});
-
-	onMount(() => {
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-			if (!currentUser) {
-				goto("/login");
-				return;
-			}
+	const auth = useAuthRequired({
+		onReady: async () => {
 			await loadProfiles();
 
 			// Auto-open edit if ?edit=<id> is in URL
@@ -81,12 +70,7 @@
 				const profile = profiles.find((p) => p.id === editId);
 				if (profile) startEdit(profile);
 			}
-		});
-
-		return () => {
-			unsubLoading();
-			unsub();
-		};
+		},
 	});
 
 	async function loadProfiles() {
@@ -94,8 +78,6 @@
 			profiles = await repo.profiles.list();
 		} catch {
 			profiles = [];
-		} finally {
-			loading = false;
 		}
 	}
 
@@ -235,15 +217,16 @@
 	<title>Youth Profiles</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
-	<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<h1 class="text-3xl font-bold">Youth Profiles</h1>
-		{#if !showNewForm && !editingId}
-			<Button onclick={startNew}>Add New Profile</Button>
-		{/if}
-	</div>
+{#snippet profilesActions()}
+	{#if !showNewForm && !editingId}
+		<Button onclick={startNew}>Add New Profile</Button>
+	{/if}
+{/snippet}
 
-	{#if loading}
+<PageContainer>
+	<PageHeader title="Youth Profiles" actions={profilesActions} />
+
+	{#if !auth.ready}
 		<LoadingState />
 	{:else}
 		<!-- New / Edit form -->
@@ -372,7 +355,7 @@
 											{#if profile.youth_program && profile.participant_dob}
 												{@const yc = getYouthClass(profile.participant_dob, profile.youth_program as YouthProgram)}
 												{#if yc}
-													<span class="rounded-full border px-2 py-0.5 text-xs font-medium {youthClassBadgeClass(yc.program)}">{yc.label}</span>
+													<YouthClassBadge label={yc.label} program={yc.program} />
 												{/if}
 											{/if}
 										</div>
@@ -404,7 +387,7 @@
 			</div>
 		{/if}
 	{/if}
-</div>
+</PageContainer>
 
 <ConfirmModal
 	bind:open={deleteModalOpen}

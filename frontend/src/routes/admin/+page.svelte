@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { user, authLoading } from "$lib/stores/auth";
 	import { getRepository } from '$lib/data';
+	import { useAuthRequired } from "$lib/components/composables";
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
@@ -14,9 +13,8 @@
 	import AlertBox from "$lib/components/AlertBox.svelte";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
+	import { PageContainer, Modal } from "$lib/components/molecules";
 
-	let currentUser: any = $state(null);
-	let loading = $state(true);
 	let users: any[] = $state([]);
 	let stats: any = $state(null);
 
@@ -44,19 +42,11 @@
 	let search = $state("");
 
 	const repo = getRepository();
-	const unsub = user.subscribe(u => { currentUser = u; });
-
-	onMount(() => {
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-			if (!currentUser || currentUser.role !== 'super') {
-				goto('/dashboard');
-				return;
-			}
+	const auth = useAuthRequired({
+		allowedRoles: ['super'],
+		onReady: async () => {
 			await loadData();
-			loading = false;
-		});
-		return () => { unsubLoading(); unsub(); };
+		},
 	});
 
 	async function loadData() {
@@ -155,8 +145,8 @@
 	<title>Admin — Permish</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
-	{#if loading}
+<PageContainer>
+	{#if !auth.ready}
 		<LoadingState />
 	{:else}
 		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -270,7 +260,7 @@
 							<Button variant="outline" size="sm" class="h-8 text-xs" onclick={() => { resetTarget = u; resetPassword = ""; resetModalOpen = true; }}>
 								Reset PW
 							</Button>
-							{#if u.id !== currentUser?.id}
+							{#if u.id !== auth.user?.id}
 								<Button variant="destructive" size="sm" class="h-8 text-xs" onclick={() => { deleteTarget = u; deleteModalOpen = true; }}>
 									Delete
 								</Button>
@@ -316,7 +306,7 @@
 												<Button variant="outline" size="sm" class="h-7 text-xs" onclick={() => { resetTarget = u; resetPassword = ""; resetModalOpen = true; }}>
 													Reset PW
 												</Button>
-												{#if u.id !== currentUser?.id}
+												{#if u.id !== auth.user?.id}
 													<Button variant="destructive" size="sm" class="h-7 text-xs" onclick={() => { deleteTarget = u; deleteModalOpen = true; }}>
 														Delete
 													</Button>
@@ -334,7 +324,7 @@
 
 		<p class="mt-2 text-xs text-muted-foreground">{filteredUsers.length} user{filteredUsers.length === 1 ? '' : 's'}</p>
 	{/if}
-</div>
+</PageContainer>
 
 <!-- Delete Confirmation -->
 <ConfirmModal
@@ -347,26 +337,19 @@
 />
 
 <!-- Reset Password Modal -->
-<svelte:window onkeydown={(e) => { if (resetModalOpen && e.key === 'Escape') { resetModalOpen = false; } }} />
-{#if resetModalOpen}
-<div class="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick={() => { resetModalOpen = false; }}></div>
-	<div class="relative z-10 mx-4 w-full max-w-md rounded-lg bg-popover p-6 shadow-xl">
-		<h3 class="text-lg font-semibold">Reset Password</h3>
-		<p class="mt-1 text-sm text-muted-foreground">Set a new password for {resetTarget?.name}</p>
-		<form onsubmit={(e) => { e.preventDefault(); confirmResetPassword(); }} class="mt-4 space-y-4">
-			<div class="space-y-2">
-				<Label for="resetPw">New Password</Label>
-				<Input id="resetPw" type="password" bind:value={resetPassword} placeholder="Min 8 characters" />
-			</div>
-			<div class="flex justify-end gap-3">
-				<Button variant="outline" onclick={() => { resetModalOpen = false; }}>Cancel</Button>
-				<Button type="submit" disabled={resetting || !resetPassword}>
-					{resetting ? "Resetting..." : "Reset Password"}
-				</Button>
-			</div>
-		</form>
-	</div>
-</div>
-{/if}
+<Modal bind:open={resetModalOpen} size="sm">
+	<h3 class="text-lg font-semibold">Reset Password</h3>
+	<p class="mt-1 text-sm text-muted-foreground">Set a new password for {resetTarget?.name}</p>
+	<form onsubmit={(e) => { e.preventDefault(); confirmResetPassword(); }} class="mt-4 space-y-4">
+		<div class="space-y-2">
+			<Label for="resetPw">New Password</Label>
+			<Input id="resetPw" type="password" bind:value={resetPassword} placeholder="Min 8 characters" />
+		</div>
+		<div class="flex justify-end gap-3">
+			<Button variant="outline" onclick={() => { resetModalOpen = false; }}>Cancel</Button>
+			<Button type="submit" disabled={resetting || !resetPassword}>
+				{resetting ? "Resetting..." : "Reset Password"}
+			</Button>
+		</div>
+	</form>
+</Modal>

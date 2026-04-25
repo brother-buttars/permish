@@ -14,7 +14,7 @@ export interface LocalDatabase {
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
   close(): void;
   /** Export the raw database bytes (sql.js specific). */
-  exportDatabase?(): Uint8Array;
+  exportDatabase?(): Uint8Array | Promise<Uint8Array>;
   /** Replace the live database with raw bytes and persist (sql.js specific). */
   importDatabase?(data: Uint8Array): Promise<void>;
 }

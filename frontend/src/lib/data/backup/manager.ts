@@ -59,7 +59,7 @@ export class BackupManager {
     const metadata = await this.getMetadata();
 
     // 2. Export raw database bytes via sql.js
-    const rawData = this.exportRawDatabase();
+    const rawData = await this.exportRawDatabase();
 
     // 3. Compute SHA-256 checksum of the unencrypted bytes
     const checksum = await this.sha256(rawData);
@@ -75,9 +75,9 @@ export class BackupManager {
       const ivBytes = crypto.getRandomValues(new Uint8Array(12));
       const key = await this.deriveKey(passphrase, saltBytes);
       const encryptedBytes = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: ivBytes },
+        { name: 'AES-GCM', iv: ivBytes as BufferSource },
         key,
-        rawData
+        rawData as BufferSource
       );
       data = this.toBase64(new Uint8Array(encryptedBytes));
       salt = this.toBase64(saltBytes);
@@ -137,9 +137,9 @@ export class BackupManager {
 
       try {
         const decrypted = await crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv },
+          { name: 'AES-GCM', iv: iv as BufferSource },
           key,
-          encryptedData
+          encryptedData as BufferSource
         );
         rawData = new Uint8Array(decrypted);
       } catch {
@@ -215,7 +215,7 @@ export class BackupManager {
       ['deriveKey']
     );
     return crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+      { name: 'PBKDF2', salt: salt as BufferSource, iterations: 100000, hash: 'SHA-256' },
       keyMaterial,
       { name: 'AES-GCM', length: 256 },
       false,
@@ -224,7 +224,7 @@ export class BackupManager {
   }
 
   private async sha256(data: Uint8Array): Promise<string> {
-    const hash = await crypto.subtle.digest('SHA-256', data);
+    const hash = await crypto.subtle.digest('SHA-256', data as BufferSource);
     return Array.from(new Uint8Array(hash))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
@@ -255,8 +255,8 @@ export class BackupManager {
   /**
    * Access the raw sql.js export via the SqlJsDatabase-specific method.
    */
-  private exportRawDatabase(): Uint8Array {
-    return (this.db as any).exportDatabase();
+  private async exportRawDatabase(): Promise<Uint8Array> {
+    return await (this.db as any).exportDatabase();
   }
 
   private async importRawDatabase(data: Uint8Array): Promise<void> {

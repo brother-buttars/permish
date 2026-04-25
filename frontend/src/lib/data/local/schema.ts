@@ -5,7 +5,7 @@
 
 import type { LocalDatabase } from './database';
 
-export const LOCAL_SCHEMA_VERSION = 2;
+export const LOCAL_SCHEMA_VERSION = 3;
 
 export const SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS local_meta (
@@ -253,6 +253,33 @@ export async function initializeLocalSchema(db: LocalDatabase): Promise<void> {
       await db.execute(
         'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
         ['schema_version', '2']
+      );
+    }
+
+    // Migration: v2 -> v3 — rename legacy YW class keys in events.organizations JSON
+    if (currentVersion < 3) {
+      const rows = await db.query<{ id: string; organizations: string }>(
+        "SELECT id, organizations FROM events WHERE organizations LIKE '%beehives%' OR organizations LIKE '%mia_maids%' OR organizations LIKE '%laurels%'"
+      );
+      for (const row of rows) {
+        let orgs: unknown;
+        try { orgs = JSON.parse(row.organizations || '[]'); } catch { continue; }
+        if (!Array.isArray(orgs)) continue;
+        const renamed = (orgs as string[]).map((k) => {
+          if (k === 'beehives') return 'builders_of_faith';
+          if (k === 'mia_maids') return 'messengers_of_hope';
+          if (k === 'laurels') return 'gatherers_of_light';
+          return k;
+        });
+        await db.execute('UPDATE events SET organizations = ? WHERE id = ?', [
+          JSON.stringify(renamed),
+          row.id,
+        ]);
+      }
+
+      await db.execute(
+        'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
+        ['schema_version', '3']
       );
     }
   }

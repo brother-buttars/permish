@@ -275,6 +275,31 @@ function migrate(db) {
     db.pragma('foreign_keys = ON');
   }
 
+  // Rename legacy Young Women class keys in events.organizations JSON.
+  // beehives -> builders_of_faith, mia_maids -> messengers_of_hope, laurels -> gatherers_of_light.
+  // Idempotent: only rewrites rows that still contain a legacy key.
+  const eventsWithLegacy = db.prepare(
+    "SELECT id, organizations FROM events WHERE organizations LIKE '%beehives%' OR organizations LIKE '%mia_maids%' OR organizations LIKE '%laurels%'"
+  ).all();
+  if (eventsWithLegacy.length > 0) {
+    const update = db.prepare('UPDATE events SET organizations = ? WHERE id = ?');
+    const renameTx = db.transaction((rows) => {
+      for (const row of rows) {
+        let orgs;
+        try { orgs = JSON.parse(row.organizations || '[]'); } catch { continue; }
+        if (!Array.isArray(orgs)) continue;
+        const renamed = orgs.map((k) => {
+          if (k === 'beehives') return 'builders_of_faith';
+          if (k === 'mia_maids') return 'messengers_of_hope';
+          if (k === 'laurels') return 'gatherers_of_light';
+          return k;
+        });
+        update.run(JSON.stringify(renamed), row.id);
+      }
+    });
+    renameTx(eventsWithLegacy);
+  }
+
   createIndexes(db);
 }
 

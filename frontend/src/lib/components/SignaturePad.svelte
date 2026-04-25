@@ -17,7 +17,7 @@
 		label: string;
 		value: string;
 		type: "drawn" | "typed" | "hand";
-		date: string;
+		date?: string;
 		initialValue?: string;
 		initialType?: "drawn" | "typed" | "hand";
 		showDate?: boolean;

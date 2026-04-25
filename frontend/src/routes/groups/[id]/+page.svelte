@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { user, authLoading } from '$lib/stores/auth';
 	import { getRepository } from '$lib/data';
+	import { useAuthRequired } from '$lib/components/composables';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -12,13 +11,12 @@
 	import { toastSuccess, toastError } from '$lib/stores/toast';
 	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
 	import LoadingState from '$lib/components/LoadingState.svelte';
+	import { PageContainer } from '$lib/components/molecules';
 	import type { GroupDetail, GroupMember } from '$lib/data/types';
 
 	let { data } = $props();
 
 	let group: GroupDetail | null = $state(null);
-	let loading = $state(true);
-	let currentUser: any = $state(null);
 
 	// Invite form
 	let inviteEmail = $state('');
@@ -39,22 +37,13 @@
 	let confirmLoading = $state(false);
 
 	const repo = getRepository();
-
-	$effect(() => {
-		// Keep isAdmin reactive
-	});
-
-	let isAdmin = $derived(group?.member_role === 'admin');
-
-	onMount(() => {
-		const unsubUser = user.subscribe(u => { currentUser = u; });
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-			if (!currentUser) { goto('/login'); return; }
+	const auth = useAuthRequired({
+		onReady: async () => {
 			await loadGroup();
-		});
-		return () => { unsubUser(); unsubLoading(); };
+		},
 	});
+
+	let isAdmin = $derived((group as GroupDetail | null)?.member_role === 'admin');
 
 	async function loadGroup() {
 		try {
@@ -62,8 +51,6 @@
 		} catch (err: any) {
 			toastError(err.message || 'Failed to load group');
 			goto('/groups');
-		} finally {
-			loading = false;
 		}
 	}
 
@@ -150,8 +137,8 @@
 
 <svelte:head><title>{group?.name || 'Group'}</title></svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
-	{#if loading}
+<PageContainer>
+	{#if !auth.ready}
 		<LoadingState />
 	{:else if group}
 		<!-- Header -->
@@ -278,7 +265,7 @@
 									</div>
 									<p class="text-sm text-muted-foreground">{member.email}</p>
 								</div>
-								{#if isAdmin && member.user_id !== currentUser?.id}
+								{#if isAdmin && member.user_id !== auth.user?.id}
 									<div class="flex gap-2">
 										{#if member.role === 'member'}
 											<Button variant="outline" size="sm" onclick={() => promptChangeMemberRole(member, 'admin')}>Make Admin</Button>
@@ -319,7 +306,7 @@
 			</Card>
 		{/if}
 	{/if}
-</div>
+</PageContainer>
 
 <ConfirmModal
 	bind:open={confirmOpen}

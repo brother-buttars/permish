@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { user, authLoading } from "$lib/stores/auth";
 	import { getRepository } from '$lib/data';
+	import { useAuthRequired } from "$lib/components/composables";
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
@@ -11,13 +10,12 @@
 	import { Separator } from "$lib/components/ui/separator";
 	import OrganizationPicker from "$lib/components/OrganizationPicker.svelte";
 	import NotificationSettings from "$lib/components/NotificationSettings.svelte";
-	import { toastSuccess } from "$lib/stores/toast";
+	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import { formatEventDates } from "$lib/utils/formatDate";
 	import AlertBox from "$lib/components/AlertBox.svelte";
+	import { PageContainer } from "$lib/components/molecules";
 
 	import type { Group } from '$lib/data/types';
-
-	let currentUser: any = $state(null);
 
 	// Groups
 	let adminGroups: Group[] = $state([]);
@@ -56,17 +54,9 @@
 	let createdEventId = $state("");
 	let copySuccess = $state(false);
 
-	const unsubAuth = user.subscribe((u) => {
-		currentUser = u;
-	});
-
-	onMount(() => {
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-			if (!currentUser || (currentUser.role !== "planner" && currentUser.role !== "super")) {
-				goto("/login");
-				return;
-			}
+	const auth = useAuthRequired({
+		allowedRoles: ['planner', 'super'],
+		onReady: async () => {
 			// Load groups where user is admin
 			try {
 				const repo = getRepository();
@@ -75,12 +65,7 @@
 			} catch {
 				// Non-critical — groups are optional
 			}
-		});
-
-		return () => {
-			unsubLoading();
-			unsubAuth();
-		};
+		},
 	});
 
 	function onGroupSelected() {
@@ -171,10 +156,11 @@
 					await repo.attachments.upload(newEventId, file);
 				} catch (err: any) {
 					console.error('Failed to upload attachment:', err.message);
+					toastError(`Failed to upload ${file.name}: ${err.message}`);
 				}
 			}
 
-			formUrl = result.formUrl || result.form_url || "";
+			formUrl = result.formUrl || "";
 			createdEventId = newEventId;
 			toastSuccess("Activity created successfully!");
 		} catch (err: any) {
@@ -199,7 +185,7 @@
 	<title>Create Activity</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
+<PageContainer>
 	{#if formUrl}
 		<!-- Success state -->
 		<Card>
@@ -422,4 +408,4 @@
 			</Button>
 		</form>
 	{/if}
-</div>
+</PageContainer>

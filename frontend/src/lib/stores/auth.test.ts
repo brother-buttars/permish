@@ -40,8 +40,13 @@ vi.mock('$lib/data', () => {
   };
 });
 
-// Import the mocked module so we can inject our repo
-import { _setTestRepo, _clearTestRepo } from '$lib/data';
+// Import the mocked module so we can inject our repo.
+// These exports only exist in the vi.mock factory above, hence the cast.
+import * as dataModule from '$lib/data';
+const { _setTestRepo, _clearTestRepo } = dataModule as unknown as {
+  _setTestRepo: (repo: DataRepository) => void;
+  _clearTestRepo: () => void;
+};
 
 // Import the auth store functions (they will use our mocked getRepository)
 import { user, authLoading, checkAuth, login, register, logout } from './auth';

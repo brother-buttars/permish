@@ -48,7 +48,7 @@ export async function generatePdfForSubmission(submissionId: string): Promise<st
 	const event = await repo.events.getById(submission.event_id);
 
 	const pdfBytes = await generatePdfBytes(event, submission as any);
-	const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+	const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' });
 	return URL.createObjectURL(blob);
 }
 

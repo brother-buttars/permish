@@ -1,143 +1,68 @@
 <script lang="ts">
-	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
-	import { user, authLoading } from "$lib/stores/auth";
 	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
-	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "$lib/components/ui/card";
-	import { Separator } from "$lib/components/ui/separator";
+	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
-	import { toastError } from "$lib/stores/toast";
-	import { getYouthClass, youthClassBadgeClass, type YouthProgram } from "$lib/utils/youthClass";
+	import { getYouthClass, type YouthProgram } from "$lib/utils/youthClass";
 	import YouthIcon from "$lib/components/YouthIcon.svelte";
 	import PdfModal from "$lib/components/PdfModal.svelte";
 	import { isPastEvent } from "$lib/utils/events";
 	import LoadingState from "$lib/components/LoadingState.svelte";
-	import { getSubmissionPdfUrl } from "$lib/services/pdfHelper";
-	import { Badge } from "$lib/components/ui/badge";
+	import EmptyState from "$lib/components/EmptyState.svelte";
+	import { PageHeader, PageContainer, SegmentedTabs, ListCard, EventStatusBadges } from "$lib/components/molecules";
+	import { YouthClassBadge } from "$lib/components/atoms";
+	import { usePdfPreview, useAuthRequired } from "$lib/components/composables";
 
 	let events: any[] = $state([]);
 	let profiles: any[] = $state([]);
 	let submissions: any[] = $state([]);
-	let loading = $state(true);
-	let currentUser: any = $state(null);
 	let view = $state<'planner' | 'parent'>('planner');
 
-	// PDF preview modal state
-	let pdfModalOpen = $state(false);
-	let pdfModalUrl = $state('');
-	let pdfModalName = $state('');
-	let pdfLoading = $state(false);
-
-	const unsubAuth = user.subscribe((u) => {
-		currentUser = u;
-	});
-
-	onMount(() => {
-		const unsubLoading = authLoading.subscribe(async (isLoading) => {
-			if (isLoading) return;
-
-			if (!currentUser) {
-				goto("/login");
-				return;
-			}
-
-			// Default view based on role
+	const pdf = usePdfPreview();
+	const auth = useAuthRequired({
+		onReady: async (currentUser) => {
 			const isPlanner = currentUser.role === 'planner' || currentUser.role === 'super';
 			view = isPlanner ? 'planner' : 'parent';
 
-			try {
-				const repo = getRepository();
-				const promises: Promise<any>[] = [
-					repo.profiles.list(),
-					repo.submissions.getMine(),
-				];
+			const repo = getRepository();
+			const promises: Promise<any>[] = [
+				repo.profiles.list(),
+				repo.submissions.getMine(),
+			];
+			if (isPlanner) promises.push(repo.events.list());
 
-				if (isPlanner) {
-					promises.push(repo.events.list());
-				}
-
-				const results = await Promise.all(promises);
-				profiles = results[0];
-				submissions = results[1];
-
-				if (isPlanner && results[2]) {
-					events = results[2];
-				}
-			} catch (err) {
-				console.error("Failed to load dashboard data:", err);
-			} finally {
-				loading = false;
-			}
-		});
-
-		return () => {
-			unsubLoading();
-			unsubAuth();
-		};
+			const results = await Promise.all(promises);
+			profiles = results[0];
+			submissions = results[1];
+			if (isPlanner && results[2]) events = results[2];
+		},
 	});
-
-	async function openPdfPreview(submissionId: string, participantName: string) {
-		pdfModalName = participantName;
-		pdfLoading = true;
-		pdfModalOpen = true;
-		try {
-			pdfModalUrl = await getSubmissionPdfUrl(submissionId);
-		} catch {
-			toastError('Failed to load PDF');
-			pdfModalOpen = false;
-		} finally {
-			pdfLoading = false;
-		}
-	}
-
-	function closePdfModal() {
-		pdfModalOpen = false;
-		if (pdfModalUrl) {
-			URL.revokeObjectURL(pdfModalUrl);
-			pdfModalUrl = '';
-		}
-	}
-
-
 </script>
 
 <svelte:head>
 	<title>Dashboard</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
-	{#if loading}
+<PageContainer>
+	{#if !auth.ready}
 		<LoadingState />
 	{:else}
-		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<h1 class="text-3xl font-bold">Dashboard</h1>
-
-			<!-- View toggle (only for planners who can see both) -->
-			{#if currentUser?.role === "planner" || currentUser?.role === "super"}
-				<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
-					<Button
-						variant={view === 'planner' ? 'default' : 'outline'}
-						size="sm"
-						class="flex-1 {view !== 'planner' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
-						onclick={() => view = 'planner'}
-					>
-						Activity Manager
-					</Button>
-					<Button
-						variant={view === 'parent' ? 'default' : 'outline'}
-						size="sm"
-						class="flex-1 {view !== 'parent' ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
-						onclick={() => view = 'parent'}
-					>
-						Parent
-					</Button>
-				</div>
+		{#snippet dashboardActions()}
+			{#if auth.user?.role === "planner" || auth.user?.role === "super"}
+				<SegmentedTabs
+					bind:value={view}
+					tabs={[
+						{ value: 'planner', label: 'Activity Manager' },
+						{ value: 'parent', label: 'Parent' },
+					]}
+				/>
 			{/if}
-		</div>
+		{/snippet}
+		<PageHeader title="Dashboard" actions={dashboardActions} />
 
 		<!-- ═══════ Activity Manager View ═══════ -->
-		{#if view === 'planner' && (currentUser?.role === 'planner' || currentUser?.role === 'super')}
+		{#if view === 'planner' && (auth.user?.role === 'planner' || auth.user?.role === 'super')}
 			<!-- Summary stats -->
 			<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
 				<Card>
@@ -176,38 +101,26 @@
 				</div>
 
 				{#if events.length === 0}
-					<Card>
-						<CardContent class="py-8 text-center">
-							<p class="text-muted-foreground">You haven't created any activities yet.</p>
-							<Button variant="link" onclick={() => goto("/create")}>Create your first activity</Button>
-						</CardContent>
-					</Card>
+					<EmptyState
+						message="You haven't created any activities yet."
+						actionLabel="Create your first activity"
+						onAction={() => goto('/create')}
+					/>
 				{:else}
 					<div class="grid gap-4">
 						{#each events.slice(0, 5) as event}
-							<Card class="cursor-pointer transition-shadow hover:shadow-md" onclick={() => goto(`/event/${event.id}`)}>
-								<CardContent class="flex items-center justify-between py-4">
-									<div class="min-w-0 flex-1">
-										<p class="font-medium">{event.event_name}</p>
-										<p class="text-sm text-muted-foreground">{event.event_dates}</p>
-									</div>
-									<div class="flex items-center gap-3">
-										<span class="text-sm text-muted-foreground">
-											{event.submission_count ?? 0} submission{(event.submission_count ?? 0) === 1 ? "" : "s"}
-										</span>
-										<span class="flex gap-1">
-											{#if event.is_active}
-												<Badge variant="active">Active</Badge>
-											{:else}
-												<Badge variant="inactive">Inactive</Badge>
-											{/if}
-											{#if isPastEvent(event)}
-												<Badge variant="past">Past</Badge>
-											{/if}
-										</span>
-									</div>
-								</CardContent>
-							</Card>
+							{#snippet eventTrailing()}
+								<span class="text-sm text-muted-foreground">
+									{event.submission_count ?? 0} submission{(event.submission_count ?? 0) === 1 ? "" : "s"}
+								</span>
+								<EventStatusBadges {event} />
+							{/snippet}
+							<ListCard
+								title={event.event_name}
+								description={event.event_dates}
+								onclick={() => goto(`/event/${event.id}`)}
+								trailing={eventTrailing}
+							/>
 						{/each}
 					</div>
 					{#if events.length > 5}
@@ -220,24 +133,21 @@
 
 		<!-- ═══════ Parent View ═══════ -->
 		{:else}
-			<section class="mb-10">
-				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<h2 class="text-xl font-semibold">Youth Profiles</h2>
+			<Card class="mb-6">
+				<CardHeader class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<CardTitle class="text-xl">Youth Profiles</CardTitle>
 					<Button variant="outline" onclick={() => goto("/profiles")}>Manage Profiles</Button>
-				</div>
-
-				{#if profiles.length === 0}
-					<Card>
-						<CardContent class="py-8 text-center">
+				</CardHeader>
+				<CardContent>
+					{#if profiles.length === 0}
+						<div class="py-4 text-center">
 							<p class="text-muted-foreground">No youth profiles yet.</p>
 							<Button variant="link" onclick={() => goto("/profiles")}>Add a youth profile</Button>
-						</CardContent>
-					</Card>
-				{:else}
-					<div class="grid gap-3">
-						{#each profiles as profile}
-							<Card>
-								<CardContent class="flex items-center justify-between py-4">
+						</div>
+					{:else}
+						<div class="grid gap-3">
+							{#each profiles as profile}
+								<div class="flex items-center justify-between rounded-lg border p-4">
 									<div class="flex items-center gap-3">
 										<YouthIcon program={profile.youth_program} />
 										<div>
@@ -246,7 +156,7 @@
 												{#if profile.youth_program && profile.participant_dob}
 													{@const yc = getYouthClass(profile.participant_dob, profile.youth_program as YouthProgram)}
 													{#if yc}
-														<span class="rounded-full border px-2 py-0.5 text-xs font-medium {youthClassBadgeClass(yc.program)}">{yc.label}</span>
+														<YouthClassBadge label={yc.label} program={yc.program} />
 													{/if}
 												{/if}
 											</div>
@@ -256,84 +166,80 @@
 										</div>
 									</div>
 									<Button variant="outline" size="sm" onclick={() => goto(`/profiles?edit=${profile.id}`)}>Edit</Button>
-								</CardContent>
-							</Card>
-						{/each}
-					</div>
-				{/if}
-			</section>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
 
-			<Separator class="my-8" />
-
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">My Submissions</h2>
-				{#if submissions.length === 0}
-					<Card>
-						<CardContent class="py-8 text-center">
+			<Card>
+				<CardHeader>
+					<CardTitle class="text-xl">My Submissions</CardTitle>
+				</CardHeader>
+				<CardContent>
+					{#if submissions.length === 0}
+						<div class="py-4 text-center">
 							<p class="text-muted-foreground">No form submissions yet.</p>
-						</CardContent>
-					</Card>
-				{:else}
-					<!-- Mobile card view -->
-					<div class="space-y-3 sm:hidden">
-						{#each submissions as sub}
-							<Card>
-								<CardContent class="py-3 px-4">
-									<div class="flex items-center justify-between">
-										<div class="min-w-0 flex-1">
-											<p class="font-medium">{sub.participant_name || "—"}</p>
-											<p class="text-sm text-muted-foreground">{sub.event_name || "—"}</p>
-											<p class="text-xs text-muted-foreground">{formatDate(sub.submitted_at)}</p>
-										</div>
-										<Button
-											variant="outline"
-											size="sm"
-											class="h-7 text-xs"
-											onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
-										>
-											PDF
-										</Button>
+						</div>
+					{:else}
+						<!-- Mobile card view -->
+						<div class="space-y-3 sm:hidden">
+							{#each submissions as sub}
+								<div class="flex items-center justify-between rounded-lg border p-4">
+									<div class="min-w-0 flex-1">
+										<p class="font-medium">{sub.participant_name || "—"}</p>
+										<p class="text-sm text-muted-foreground">{sub.event_name || "—"}</p>
+										<p class="text-xs text-muted-foreground">{formatDate(sub.submitted_at)}</p>
 									</div>
-								</CardContent>
-							</Card>
-						{/each}
-					</div>
-					<!-- Desktop table view -->
-					<div class="hidden sm:block overflow-x-auto">
-						<table class="w-full text-sm">
-							<thead>
-								<tr class="border-b">
-									<th class="px-4 py-3 text-left font-medium">Activity</th>
-									<th class="px-4 py-3 text-left font-medium">Participant</th>
-									<th class="px-4 py-3 text-left font-medium">Submitted</th>
-									<th class="px-4 py-3 text-left font-medium">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each submissions as sub}
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => pdf.open(sub.id, sub.participant_name || 'submission')}
+									>
+										PDF
+									</Button>
+								</div>
+							{/each}
+						</div>
+						<!-- Desktop table view -->
+						<div class="hidden sm:block overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
 									<tr class="border-b">
-										<td class="px-4 py-3">{sub.event_name || "—"}</td>
-										<td class="px-4 py-3">{sub.participant_name || "—"}</td>
-										<td class="px-4 py-3">{formatDate(sub.submitted_at)}</td>
-										<td class="px-4 py-3">
-											<Button
-												variant="outline"
-												size="sm"
-												class="h-7 text-xs"
-												onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
-											>
-												PDF
-											</Button>
-										</td>
+										<th class="px-4 py-3 text-left font-medium">Activity</th>
+										<th class="px-4 py-3 text-left font-medium">Participant</th>
+										<th class="px-4 py-3 text-left font-medium">Submitted</th>
+										<th class="px-4 py-3 text-left font-medium">Actions</th>
 									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-				{/if}
-			</section>
+								</thead>
+								<tbody>
+									{#each submissions as sub}
+										<tr class="border-b last:border-b-0">
+											<td class="px-4 py-3">{sub.event_name || "—"}</td>
+											<td class="px-4 py-3">{sub.participant_name || "—"}</td>
+											<td class="px-4 py-3">{formatDate(sub.submitted_at)}</td>
+											<td class="px-4 py-3">
+												<Button
+													variant="outline"
+													size="sm"
+													class="h-7 text-xs"
+													onclick={() => pdf.open(sub.id, sub.participant_name || 'submission')}
+												>
+													PDF
+												</Button>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
 		{/if}
 	{/if}
-</div>
+</PageContainer>
 
-<PdfModal bind:open={pdfModalOpen} url={pdfModalUrl} name={pdfModalName} loading={pdfLoading} onclose={closePdfModal} />
+<PdfModal bind:open={pdf.isOpen} url={pdf.url} name={pdf.name} loading={pdf.loading} onclose={pdf.close} />

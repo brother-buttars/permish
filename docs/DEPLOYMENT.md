@@ -174,11 +174,16 @@ docker compose cp backend:/app/data/permish.db ./backup-permish.db
 docker compose cp pocketbase:/pb/pb_data ./backup-pb-data
 ```
 
-**Automated daily backup (cron example):**
+**Automated daily backup:**
+
+The repo ships with `scripts/backup.sh` which handles both Express and PocketBase modes, timestamps each backup, and prunes old files based on a retention window.
 
 ```bash
-# Add to crontab: crontab -e
-0 3 * * * docker compose -f /path/to/docker-compose.yml cp backend:/app/data/permish.db /backups/permish-$(date +\%F).db
+# Manual run
+./scripts/backup.sh /var/backups/permish 30
+
+# crontab -e — daily at 3am, keep 30 days
+0 3 * * * /path/to/permish/scripts/backup.sh /var/backups/permish 30 >> /var/log/permish-backup.log 2>&1
 ```
 
 > **Tip:** SQLite supports hot backups since it uses WAL mode. You can safely copy the `.db` file while the application is running.

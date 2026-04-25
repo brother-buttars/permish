@@ -10,6 +10,7 @@
 	import { toastSuccess, toastError } from '$lib/stores/toast';
 	import { decodeShareData, type ShareableEvent } from '$lib/utils/eventShare';
 	import { getOrgDisplayLabels, orgBadgeClass } from '$lib/utils/organizations';
+	import { parseOrgs } from '$lib/utils/events';
 	import LoadingState from '$lib/components/LoadingState.svelte';
 	import AlertBox from '$lib/components/AlertBox.svelte';
 
@@ -51,10 +52,6 @@
 
 		return () => { unsubUser(); unsubLoading(); };
 	});
-
-	function parseOrgs(orgStr: string): string[] {
-		try { return JSON.parse(orgStr); } catch { return []; }
-	}
 
 	async function addToMyEvents() {
 		if (!eventData) return;
@@ -155,7 +152,7 @@
 					</div>
 
 					{#if eventData.organizations}
-						{@const orgs = parseOrgs(eventData.organizations)}
+						{@const orgs = parseOrgs(eventData)}
 						{#if orgs.length > 0}
 							<div class="flex flex-wrap gap-1.5">
 								{#each getOrgDisplayLabels(orgs) as label}

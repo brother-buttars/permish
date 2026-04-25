@@ -26,6 +26,7 @@ import type {
   GroupDetail,
   GroupMember
 } from '../types';
+import { computeAge } from '../../utils/age';
 
 // ---------------------------------------------------------------------------
 // Module-level auth state
@@ -66,15 +67,6 @@ function bool(v: unknown): boolean {
 /** Convert JS boolean / truthy to SQLite INTEGER. */
 function intBool(v: unknown): number {
   return v ? 1 : 0;
-}
-
-function computeAge(dob: string): number {
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
 }
 
 function now(): string {

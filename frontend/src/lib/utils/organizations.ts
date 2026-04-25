@@ -18,9 +18,9 @@ export const orgGroups: OrgGroup[] = [
     key: 'young_women',
     label: 'Young Women',
     children: [
-      { key: 'beehives', label: 'Beehives' },
-      { key: 'mia_maids', label: 'Mia Maids' },
-      { key: 'laurels', label: 'Laurels' },
+      { key: 'builders_of_faith', label: 'Builders of Faith' },
+      { key: 'messengers_of_hope', label: 'Messengers of Hope' },
+      { key: 'gatherers_of_light', label: 'Gatherers of Light' },
     ],
   },
 ];
@@ -28,18 +28,35 @@ export const orgGroups: OrgGroup[] = [
 // All possible org keys
 export const allOrgKeys = orgGroups.flatMap(g => g.children.map(c => c.key));
 
+// Legacy YW class keys (renamed 2026). Database migrations rewrite stored data,
+// but read paths normalize defensively in case a backup or sync delivers old keys.
+const LEGACY_YW_KEY_MAP: Record<string, string> = {
+  beehives: 'builders_of_faith',
+  mia_maids: 'messengers_of_hope',
+  laurels: 'gatherers_of_light',
+};
+
+export function normalizeOrgKey(key: string): string {
+  return LEGACY_YW_KEY_MAP[key] ?? key;
+}
+
+export function normalizeOrgKeys(keys: string[]): string[] {
+  return keys.map(normalizeOrgKey);
+}
+
 // Get display labels for a set of org keys
 // If all children of a group are selected, show only the parent label
 export function getOrgDisplayLabels(keys: string[]): string[] {
+  const normalized = normalizeOrgKeys(keys);
   const labels: string[] = [];
   for (const group of orgGroups) {
     const childKeys = group.children.map(c => c.key);
-    const allSelected = childKeys.every(k => keys.includes(k));
+    const allSelected = childKeys.every(k => normalized.includes(k));
     if (allSelected) {
       labels.push(group.label);
     } else {
       for (const child of group.children) {
-        if (keys.includes(child.key)) {
+        if (normalized.includes(child.key)) {
           labels.push(child.label);
         }
       }
@@ -54,7 +71,7 @@ export function isYMLabel(label: string): boolean {
 }
 
 export function isYWLabel(label: string): boolean {
-  return ['Young Women', 'Beehives', 'Mia Maids', 'Laurels'].includes(label);
+  return ['Young Women', 'Builders of Faith', 'Messengers of Hope', 'Gatherers of Light'].includes(label);
 }
 
 // Badge CSS classes matching YouthIcon colors (blue for YM, pink for YW)
@@ -69,10 +86,10 @@ export function orgBadgeClass(label: string): string {
 export function inferProgramFromOrgs(orgKeys: string[]): 'young_men' | 'young_women' | null {
   if (!orgKeys || orgKeys.length === 0) return null;
   const ymKeys = new Set(['deacons', 'teachers', 'priests']);
-  const ywKeys = new Set(['beehives', 'mia_maids', 'laurels']);
+  const ywKeys = new Set(['builders_of_faith', 'messengers_of_hope', 'gatherers_of_light']);
   let hasYM = false;
   let hasYW = false;
-  for (const k of orgKeys) {
+  for (const k of normalizeOrgKeys(orgKeys)) {
     if (k === 'young_men' || ymKeys.has(k)) hasYM = true;
     if (k === 'young_women' || ywKeys.has(k)) hasYW = true;
   }
@@ -86,7 +103,7 @@ export function matchesOrgFilter(eventOrgs: string[], filterOrgs: string[]): boo
   if (filterOrgs.length === 0) return true;
   // Expand parent group filters to include children
   const expanded = new Set<string>();
-  for (const f of filterOrgs) {
+  for (const f of normalizeOrgKeys(filterOrgs)) {
     const group = orgGroups.find(g => g.key === f);
     if (group) {
       group.children.forEach(c => expanded.add(c.key));
@@ -94,5 +111,5 @@ export function matchesOrgFilter(eventOrgs: string[], filterOrgs: string[]): boo
       expanded.add(f);
     }
   }
-  return eventOrgs.some(o => expanded.has(o));
+  return normalizeOrgKeys(eventOrgs).some(o => expanded.has(o));
 }

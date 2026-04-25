@@ -26,6 +26,7 @@
 	import AlertBox from "$lib/components/AlertBox.svelte";
 	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
 	import FormProgress from "$lib/components/FormProgress.svelte";
+	import { PageContainer, Modal } from "$lib/components/molecules";
 
 	const formSections = [
 		{ id: "section-contact", label: "Contact" },
@@ -95,7 +96,7 @@
 
 	// Saved guardian signature from user profile (used when switching away from "hand")
 	let savedGuardianSig = $state("");
-	let savedGuardianSigType = $state<"drawn" | "typed">("typed");
+	let savedGuardianSigType = $state<"drawn" | "typed" | "hand">("typed");
 
 	// Track whether an existing profile was used
 	let usedExistingProfile = $state(false);
@@ -166,31 +167,33 @@
 		}
 	}
 
-	onMount(async () => {
-		try {
-			const result = await repo.submissions.getFormEvent(data.eventId);
-			event = result.event;
-			attachments = result.attachments || [];
-		} catch (err: any) {
-			error = err.message || "Failed to load activity";
-		} finally {
-			loading = false;
-		}
-
-		// Auto-fill emergency contact and store saved signature from user profile
-		if (currentUser) {
+	onMount(() => {
+		(async () => {
 			try {
-				const p = await repo.auth.getProfile();
-				if (p.guardian_signature) {
-					savedGuardianSig = p.guardian_signature;
-					savedGuardianSigType = p.guardian_signature_type || "typed";
-				}
-				if (!emergencyContact && p.name) emergencyContact = p.name;
-				if (!primaryPhone && p.phone) primaryPhone = p.phone;
-			} catch {
-				// User profile fetch is optional
+				const result = await repo.submissions.getFormEvent(data.eventId);
+				event = result.event;
+				attachments = result.attachments || [];
+			} catch (err: any) {
+				error = err.message || "Failed to load activity";
+			} finally {
+				loading = false;
 			}
-		}
+
+			// Auto-fill emergency contact and store saved signature from user profile
+			if (currentUser) {
+				try {
+					const p = await repo.auth.getProfile();
+					if (p.guardian_signature) {
+						savedGuardianSig = p.guardian_signature;
+						savedGuardianSigType = p.guardian_signature_type || "typed";
+					}
+					if (!emergencyContact && p.name) emergencyContact = p.name;
+					if (!primaryPhone && p.phone) primaryPhone = p.phone;
+				} catch {
+					// User profile fetch is optional
+				}
+			}
+		})();
 
 		return () => unsub();
 	});
@@ -341,7 +344,7 @@
 	<title>{event?.event_name || "Permish"}</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
+<PageContainer>
 	{#if loading}
 		<LoadingState message="Loading activity..." />
 	{:else if error}
@@ -577,7 +580,7 @@
 			</CardContent>
 		</Card>
 	{/if}
-</div>
+</PageContainer>
 
 <ConfirmModal
 	bind:open={saveProfileModalOpen}
@@ -590,30 +593,26 @@
 	loading={saveProfileLoading}
 />
 
-{#if attachPreviewOpen}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" onclick={closeAttachmentPreview}>
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="mx-6 my-6 flex h-[calc(100vh-3rem)] w-full flex-col rounded-lg bg-card shadow-xl" role="document" onclick={(e) => e.stopPropagation()}>
+<Modal bind:open={attachPreviewOpen} size="fullscreen" onclose={closeAttachmentPreview}>
+	{#snippet header({ close })}
 		<div class="flex items-center justify-between border-b px-4 py-3">
 			<h3 class="font-semibold">{attachPreviewName}</h3>
 			<div class="flex gap-2">
-				<Button variant="ghost" size="sm" onclick={closeAttachmentPreview}>Close</Button>
+				<Button variant="ghost" size="sm" onclick={close}>Close</Button>
 			</div>
 		</div>
-		<div class="flex-1 overflow-hidden">
-			{#if attachPreviewLoading}
-				<div class="flex h-full items-center justify-center">
-					<p class="text-muted-foreground">Loading...</p>
-				</div>
-			{:else if attachPreviewType === 'application/pdf'}
-				<PdfViewer src={attachPreviewUrl} class="h-full" />
-			{:else if attachPreviewType?.startsWith('image/')}
-				<div class="flex h-full items-center justify-center overflow-auto p-4">
-					<img src={attachPreviewUrl} alt={attachPreviewName} class="max-h-full max-w-full object-contain" />
-				</div>
-			{/if}
-		</div>
+	{/snippet}
+	<div class="flex-1 overflow-hidden">
+		{#if attachPreviewLoading}
+			<div class="flex h-full items-center justify-center">
+				<p class="text-muted-foreground">Loading...</p>
+			</div>
+		{:else if attachPreviewType === 'application/pdf'}
+			<PdfViewer src={attachPreviewUrl} class="h-full" />
+		{:else if attachPreviewType?.startsWith('image/')}
+			<div class="flex h-full items-center justify-center overflow-auto p-4">
+				<img src={attachPreviewUrl} alt={attachPreviewName} class="max-h-full max-w-full object-contain" />
+			</div>
+		{/if}
 	</div>
-</div>
-{/if}
+</Modal>

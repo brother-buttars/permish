@@ -1,9 +1,9 @@
 ---
 id: TODO-004
 title: "Production deployment configuration"
-status: pending
+status: completed
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-04-24
 priority: medium
 tags:
   - infra
@@ -26,10 +26,17 @@ Docker Compose file exists but lacks production hardening. Need environment conf
 
 ## Acceptance criteria
 
-- [ ] Docker Compose works for production deployment
-- [ ] HTTPS configured via reverse proxy
-- [ ] Automated database backups
-- [ ] Deployment documentation
+- [x] Docker Compose works for production deployment
+- [x] HTTPS configured via reverse proxy
+- [x] Automated database backups
+- [x] Deployment documentation
+
+## Resolution (2026-04-24)
+
+- Health checks: complete — backend, pocketbase, sidecar, and frontend all have `healthcheck` blocks; backend now hits `/api/health` (TODO-011).
+- HTTPS: Caddy reverse proxy with automatic certs (`Caddyfile`, `--profile production`).
+- Backups: added `scripts/backup.sh` that handles Express + PocketBase modes with retention pruning. Documented in `docs/DEPLOYMENT.md`.
+- Documentation: `docs/DEPLOYMENT.md` (482 lines) covers VPS, Tauri desktop, mobile.
 
 ## Owner agent
 

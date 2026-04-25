@@ -66,6 +66,17 @@ function createMockRemote(): DataRepository {
       updateRole: vi.fn(),
       resetPassword: vi.fn(),
       deleteUser: vi.fn()
+    },
+    groups: {
+      list: vi.fn().mockResolvedValue([]),
+      getById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      join: vi.fn(),
+      invite: vi.fn(),
+      updateMemberRole: vi.fn(),
+      removeMember: vi.fn(),
+      regenerateInvite: vi.fn()
     }
   };
 }

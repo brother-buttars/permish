@@ -8,6 +8,7 @@
 	import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 	import PdfViewer from "$lib/components/PdfViewer.svelte";
 	import { getSubmissionPdfUrl } from "$lib/services/pdfHelper";
+	import { PageContainer } from "$lib/components/molecules";
 
 	let { data } = $props();
 
@@ -70,7 +71,7 @@
 	<title>Form Submitted</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-4xl px-4 py-8">
+<PageContainer>
 	<!-- Success Message -->
 	<div class="mb-6 text-center">
 		<div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
@@ -129,4 +130,4 @@
 			</CardContent>
 		</Card>
 	{/if}
-</div>
+</PageContainer>

@@ -2,16 +2,18 @@
  * Determines the youth class (quorum/class) based on date of birth and program.
  *
  * LDS youth classes are based on what age a youth turns during the current calendar year:
- * - Turns 12 or 13 → Deacons / Beehives
- * - Turns 14 or 15 → Teachers / Mia Maids
- * - Turns 16, 17, or 18 → Priests / Laurels
+ * - Turns 12 or 13 → Deacons / Builders of Faith
+ * - Turns 14 or 15 → Teachers / Messengers of Hope
+ * - Turns 16, 17, or 18 → Priests / Gatherers of Light
  */
+
+import { normalizeOrgKeys } from './organizations';
 
 export type YouthProgram = 'young_men' | 'young_women';
 
 export interface YouthClassInfo {
-	key: string;      // e.g. 'deacons', 'beehives'
-	label: string;    // e.g. 'Deacons', 'Beehives'
+	key: string;      // e.g. 'deacons', 'builders_of_faith'
+	label: string;    // e.g. 'Deacons', 'Builders of Faith'
 	program: YouthProgram;
 	programLabel: string; // 'Young Men' or 'Young Women'
 }
@@ -32,19 +34,19 @@ export function getYouthClass(dob: string, program: YouthProgram): YouthClassInf
 	if (ageTurningThisYear <= 13) {
 		return program === 'young_men'
 			? { key: 'deacons', label: 'Deacons', program, programLabel }
-			: { key: 'beehives', label: 'Beehives', program, programLabel };
+			: { key: 'builders_of_faith', label: 'Builders of Faith', program, programLabel };
 	}
 
 	if (ageTurningThisYear <= 15) {
 		return program === 'young_men'
 			? { key: 'teachers', label: 'Teachers', program, programLabel }
-			: { key: 'mia_maids', label: 'Mia Maids', program, programLabel };
+			: { key: 'messengers_of_hope', label: 'Messengers of Hope', program, programLabel };
 	}
 
 	// 16, 17, 18
 	return program === 'young_men'
 		? { key: 'priests', label: 'Priests', program, programLabel }
-		: { key: 'laurels', label: 'Laurels', program, programLabel };
+		: { key: 'gatherers_of_light', label: 'Gatherers of Light', program, programLabel };
 }
 
 /** Badge CSS classes matching YouthIcon colors */
@@ -64,7 +66,8 @@ export function profileMatchesEventOrgs(dob: string, program: YouthProgram | nul
 	const youthClass = getYouthClass(dob, program);
 	if (!youthClass) return true; // age out of range = show for all
 
-	// Match if event includes the specific class OR the parent program
-	return eventOrgs.includes(youthClass.key) ||
-		eventOrgs.includes(youthClass.program);
+	// Match if event includes the specific class OR the parent program (normalize legacy keys)
+	const normalized = normalizeOrgKeys(eventOrgs);
+	return normalized.includes(youthClass.key) ||
+		normalized.includes(youthClass.program);
 }
