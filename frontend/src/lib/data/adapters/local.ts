@@ -73,6 +73,135 @@ function now(): string {
   return new Date().toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
 }
 
+async function ensureParentMembership(db: LocalDatabase, parentId: string, userId: string): Promise<void> {
+  const existing = await db.query(
+    'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
+    [parentId, userId]
+  );
+  if (existing.length === 0) {
+    await db.execute(
+      'INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)',
+      [crypto.randomUUID(), parentId, userId, 'member', now()]
+    );
+  }
+}
+
+async function isLocalEffectiveAdmin(db: LocalDatabase, groupId: string, user: { id: string; role: string }): Promise<boolean> {
+  if (user.role === 'super') return true;
+  const visited = new Set<string>();
+  let cursor: string | undefined = groupId;
+  while (cursor && !visited.has(cursor)) {
+    visited.add(cursor);
+    const m: any[] = await db.query(
+      'SELECT role FROM group_members WHERE group_id = ? AND user_id = ?',
+      [cursor, user.id]
+    );
+    if (m.length > 0 && m[0].role === 'admin') return true;
+    const g: any[] = await db.query('SELECT parent_id FROM groups WHERE id = ?', [cursor]);
+    cursor = g.length > 0 && g[0].parent_id ? String(g[0].parent_id) : undefined;
+  }
+  return false;
+}
+
+async function countLocalAdmins(db: LocalDatabase, groupId: string): Promise<number> {
+  const rows: any[] = await db.query(
+    "SELECT COUNT(*) as n FROM group_members WHERE group_id = ? AND role = 'admin'",
+    [groupId]
+  );
+  return rows.length > 0 ? Number(rows[0].n) : 0;
+}
+
+async function addLocalMembershipWithPropagation(
+  db: LocalDatabase,
+  groupId: string,
+  userId: string,
+  role: 'admin' | 'member'
+): Promise<void> {
+  const existing: any[] = await db.query(
+    'SELECT id, role FROM group_members WHERE group_id = ? AND user_id = ?',
+    [groupId, userId]
+  );
+  if (existing.length === 0) {
+    await db.execute(
+      'INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)',
+      [crypto.randomUUID(), groupId, userId, role, now()]
+    );
+  } else if (role === 'admin') {
+    await db.execute('UPDATE group_members SET role = ? WHERE id = ?', [role, existing[0].id]);
+  }
+  // Walk parent chain
+  const visited = new Set<string>();
+  let cursor: string | undefined = groupId;
+  while (cursor && !visited.has(cursor)) {
+    visited.add(cursor);
+    const g: any[] = await db.query('SELECT parent_id FROM groups WHERE id = ?', [cursor]);
+    const next = g.length > 0 && g[0].parent_id ? String(g[0].parent_id) : undefined;
+    if (next) {
+      await ensureParentMembership(db, next, userId);
+    }
+    cursor = next;
+  }
+}
+
+function generateInviteCode(): string {
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+function generateInviteToken(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  // base64url
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+interface LocalInviteRow {
+  id: string;
+  group_id: string;
+  code: string | null;
+  token: string;
+  role: 'admin' | 'member';
+  email: string | null;
+  max_uses: number | null;
+  used_count: number;
+  expires_at: string | null;
+  revoked_at: string | null;
+  accepted_at: string | null;
+  created_at: string;
+}
+
+async function collectGroupAndDescendantIds(db: LocalDatabase, rootId: string): Promise<string[]> {
+  const out = [rootId];
+  const queue = [rootId];
+  const visited = new Set<string>([rootId]);
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    const children: any[] = await db.query('SELECT id FROM groups WHERE parent_id = ?', [id]);
+    for (const c of children) {
+      if (!visited.has(c.id)) {
+        visited.add(c.id);
+        out.push(c.id);
+        queue.push(c.id);
+      }
+    }
+  }
+  return out;
+}
+
+function safeJsonParse(s: string): unknown {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+function inviteUsable(invite: LocalInviteRow | undefined): { ok: boolean; reason?: string } {
+  if (!invite) return { ok: false, reason: 'not_found' };
+  if (invite.revoked_at) return { ok: false, reason: 'revoked' };
+  if (invite.accepted_at) return { ok: false, reason: 'accepted' };
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return { ok: false, reason: 'expired' };
+  if (invite.max_uses != null && invite.used_count >= invite.max_uses) return { ok: false, reason: 'exhausted' };
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Row mappers
 // ---------------------------------------------------------------------------
@@ -1077,6 +1206,28 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
         }
       }
 
+      // Effective admin: walk parent chain looking for admin membership (or super)
+      const currentUser = requireUser();
+      let effectiveAdmin: boolean = currentUser.role === 'super';
+      if (!effectiveAdmin) {
+        const visited = new Set<string>();
+        let cursorId: string | undefined = id;
+        while (cursorId && !visited.has(cursorId)) {
+          visited.add(cursorId);
+          const memberRows: any[] = await db.query(
+            'SELECT role FROM group_members WHERE group_id = ? AND user_id = ?',
+            [cursorId, currentUser.id]
+          );
+          if (memberRows.length > 0 && memberRows[0].role === 'admin') {
+            effectiveAdmin = true;
+            break;
+          }
+          const groupRows: any[] = await db.query('SELECT parent_id FROM groups WHERE id = ?', [cursorId]);
+          const nextParentId: string | undefined = groupRows.length > 0 && groupRows[0].parent_id ? String(groupRows[0].parent_id) : undefined;
+          cursorId = nextParentId;
+        }
+      }
+
       return {
         id: row.id,
         name: row.name,
@@ -1092,14 +1243,15 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
         created_at: row.created,
         members,
         subgroups,
-        parent
+        parent,
+        effective_admin: effectiveAdmin
       };
     },
 
-    async create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string }): Promise<Group> {
+    async create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string; send_leader_invite?: boolean }): Promise<Group> {
       const user = requireUser();
       const id = crypto.randomUUID();
-      const inviteCode = crypto.randomUUID().slice(0, 8);
+      const inviteCode = generateInviteCode();
       const ts = now();
 
       await db.execute(
@@ -1113,6 +1265,22 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
         `INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)`,
         [crypto.randomUUID(), id, user.id, 'admin', ts]
       );
+
+      // Seed default member-role shareable invite
+      await db.execute(
+        `INSERT INTO group_invites (id, group_id, code, token, role, used_count, created_by, created_at)
+         VALUES (?, ?, ?, ?, 'member', 0, ?, ?)`,
+        [crypto.randomUUID(), id, inviteCode, generateInviteToken(), user.id, ts]
+      );
+
+      // Optional admin-role invite for the leader
+      if (data.send_leader_invite && data.leader_email) {
+        await db.execute(
+          `INSERT INTO group_invites (id, group_id, code, token, role, email, max_uses, used_count, created_by, created_at)
+           VALUES (?, ?, NULL, ?, 'admin', ?, 1, 0, ?, ?)`,
+          [crypto.randomUUID(), id, generateInviteToken(), data.leader_email, user.id, ts]
+        );
+      }
 
       return {
         id,
@@ -1132,7 +1300,8 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
     },
 
     async update(id: string, data: Partial<Group>): Promise<Group> {
-      requireUser();
+      const user = requireUser();
+      if (!(await isLocalEffectiveAdmin(db, id, user))) throw new Error('Must be a group admin');
       const fields: string[] = [];
       const values: unknown[] = [];
 
@@ -1173,23 +1342,24 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
 
     async join(inviteCode: string): Promise<{ group: Group; message: string }> {
       const user = requireUser();
-      const rows = await db.query<any>('SELECT * FROM groups WHERE invite_code = ?', [inviteCode]);
-      if (rows.length === 0) throw new Error('Invalid invite code');
+      const code = String(inviteCode).toUpperCase();
+      const inviteRows: any[] = await db.query('SELECT * FROM group_invites WHERE code = ?', [code]);
+      const invite = inviteRows[0] as LocalInviteRow | undefined;
+      const usable = inviteUsable(invite);
+      if (!usable.ok) throw new Error(`Invite ${usable.reason}`);
 
-      const row = rows[0];
+      const groupRows = await db.query<any>('SELECT * FROM groups WHERE id = ?', [invite!.group_id]);
+      if (groupRows.length === 0) throw new Error('Group not found');
+      const row = groupRows[0];
 
-      // Check if already a member
       const existing = await db.query(
         'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
         [row.id, user.id]
       );
       if (existing.length > 0) throw new Error('Already a member of this group');
 
-      const ts = now();
-      await db.execute(
-        'INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)',
-        [crypto.randomUUID(), row.id, user.id, 'member', ts]
-      );
+      await addLocalMembershipWithPropagation(db, row.id, user.id, invite!.role);
+      await db.execute('UPDATE group_invites SET used_count = used_count + 1 WHERE id = ?', [invite!.id]);
 
       const group: Group = {
         id: row.id,
@@ -1198,53 +1368,54 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
         parent_id: row.parent_id || undefined,
         ward: row.ward || undefined,
         stake: row.stake || undefined,
-        member_role: 'member',
+        member_role: invite!.role,
         created_at: row.created
       };
 
       return { group, message: `Joined ${group.name}` };
     },
 
-    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; member: GroupMember }> {
-      requireUser();
-      const userRows = await db.query<any>('SELECT * FROM users WHERE email = ?', [email]);
-      if (userRows.length === 0) throw new Error('User not found');
+    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; invite: import('../types').GroupInvite }> {
+      const user = requireUser();
+      if (!(await isLocalEffectiveAdmin(db, groupId, user))) throw new Error('Must be a group admin to invite');
+      const inviteRole = role === 'admin' ? 'admin' : 'member';
 
-      const targetUser = userRows[0];
-      const existing = await db.query(
-        'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
-        [groupId, targetUser.id]
-      );
-      if (existing.length > 0) throw new Error('User is already a member');
+      // Reject if a registered user is already a member
+      const userRows = await db.query<any>('SELECT id FROM users WHERE email = ?', [email]);
+      if (userRows.length > 0) {
+        const member = await db.query(
+          'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
+          [groupId, userRows[0].id]
+        );
+        if (member.length > 0) throw new Error('User is already a member');
+      }
 
-      const membershipId = crypto.randomUUID();
+      const id = crypto.randomUUID();
+      const token = generateInviteToken();
       const ts = now();
-      const memberRole = role || 'member';
-
       await db.execute(
-        'INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)',
-        [membershipId, groupId, targetUser.id, memberRole, ts]
+        `INSERT INTO group_invites (id, group_id, code, token, role, email, max_uses, used_count, created_by, created_at)
+         VALUES (?, ?, NULL, ?, ?, ?, 1, 0, ?, ?)`,
+        [id, groupId, token, inviteRole, email, user.id, ts]
       );
-
-      const member: GroupMember = {
-        membership_id: membershipId,
-        user_id: targetUser.id,
-        name: targetUser.name,
-        email: targetUser.email,
-        role: memberRole as 'admin' | 'member',
-        joined_at: ts
-      };
-
-      return { message: `Invited ${email}`, member };
+      const rows: any[] = await db.query('SELECT * FROM group_invites WHERE id = ?', [id]);
+      return { message: `Invite created for ${email}`, invite: rows[0] };
     },
 
     async updateMemberRole(groupId: string, userId: string, role: string): Promise<void> {
-      requireUser();
-      const result = await db.query(
-        'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
+      const user = requireUser();
+      if (!(await isLocalEffectiveAdmin(db, groupId, user))) throw new Error('Must be a group admin');
+      if (!['admin', 'member'].includes(role)) throw new Error('Invalid role');
+
+      const target: any[] = await db.query(
+        'SELECT id, role FROM group_members WHERE group_id = ? AND user_id = ?',
         [groupId, userId]
       );
-      if (result.length === 0) throw new Error('Member not found');
+      if (target.length === 0) throw new Error('Member not found');
+
+      if (target[0].role === 'admin' && role === 'member' && (await countLocalAdmins(db, groupId)) <= 1) {
+        throw new Error('Cannot demote the last admin of this group');
+      }
 
       await db.execute(
         'UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?',
@@ -1253,7 +1424,19 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
     },
 
     async removeMember(groupId: string, userId: string): Promise<void> {
-      requireUser();
+      const user = requireUser();
+      const isSelf = user.id === userId;
+      if (!isSelf && !(await isLocalEffectiveAdmin(db, groupId, user))) {
+        throw new Error('Must be a group admin to remove members');
+      }
+      const target: any[] = await db.query(
+        'SELECT role FROM group_members WHERE group_id = ? AND user_id = ?',
+        [groupId, userId]
+      );
+      if (target.length === 0) throw new Error('Member not found');
+      if (target[0].role === 'admin' && (await countLocalAdmins(db, groupId)) <= 1) {
+        throw new Error('Cannot remove the last admin of this group');
+      }
       await db.execute(
         'DELETE FROM group_members WHERE group_id = ? AND user_id = ?',
         [groupId, userId]
@@ -1261,15 +1444,147 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
     },
 
     async regenerateInvite(groupId: string): Promise<{ invite_code: string }> {
-      requireUser();
-      const newCode = crypto.randomUUID().slice(0, 8);
-      await db.execute('UPDATE groups SET invite_code = ?, updated = ? WHERE id = ?', [
-        newCode,
-        now(),
-        groupId
-      ]);
+      const user = requireUser();
+      if (!(await isLocalEffectiveAdmin(db, groupId, user))) throw new Error('Must be a group admin');
+      const newCode = generateInviteCode();
+      const ts = now();
+      // Revoke existing default codes
+      await db.execute(
+        `UPDATE group_invites SET revoked_at = ? WHERE group_id = ? AND code IS NOT NULL AND revoked_at IS NULL`,
+        [ts, groupId]
+      );
+      await db.execute(
+        `INSERT INTO group_invites (id, group_id, code, token, role, used_count, created_by, created_at)
+         VALUES (?, ?, ?, ?, 'member', 0, ?, ?)`,
+        [crypto.randomUUID(), groupId, newCode, generateInviteToken(), user.id, ts]
+      );
+      await db.execute('UPDATE groups SET invite_code = ?, updated = ? WHERE id = ?', [newCode, ts, groupId]);
       return { invite_code: newCode };
-    }
+    },
+
+    async listInvites(groupId: string): Promise<import('../types').GroupInvite[]> {
+      const user = requireUser();
+      if (!(await isLocalEffectiveAdmin(db, groupId, user))) throw new Error('Must be a group admin');
+      const rows: any[] = await db.query(
+        `SELECT id, group_id, code, token, role, email, max_uses, used_count, expires_at, revoked_at, accepted_at, created_at
+         FROM group_invites WHERE group_id = ? ORDER BY created_at DESC`,
+        [groupId]
+      );
+      return rows;
+    },
+
+    async createInvite(groupId: string, body: { role?: 'admin' | 'member'; email?: string; max_uses?: number; expires_at?: string }): Promise<import('../types').GroupInvite> {
+      const user = requireUser();
+      if (!(await isLocalEffectiveAdmin(db, groupId, user))) throw new Error('Must be a group admin');
+      const inviteRole: 'admin' | 'member' = body?.role === 'admin' ? 'admin' : 'member';
+      const isEmail = !!body?.email;
+      const id = crypto.randomUUID();
+      const code = isEmail ? null : generateInviteCode();
+      const token = generateInviteToken();
+      const maxUses = isEmail ? 1 : (Number.isInteger(body?.max_uses) && body!.max_uses! > 0 ? body!.max_uses! : null);
+      const expires = body?.expires_at ? new Date(body.expires_at).toISOString() : null;
+      const ts = now();
+      await db.execute(
+        `INSERT INTO group_invites (id, group_id, code, token, role, email, max_uses, used_count, expires_at, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+        [id, groupId, code, token, inviteRole, body?.email ?? null, maxUses, expires, user.id, ts]
+      );
+      const rows: any[] = await db.query('SELECT * FROM group_invites WHERE id = ?', [id]);
+      return rows[0];
+    },
+
+    async revokeInvite(groupId: string, inviteId: string): Promise<void> {
+      const user = requireUser();
+      if (!(await isLocalEffectiveAdmin(db, groupId, user))) throw new Error('Must be a group admin');
+      await db.execute(
+        `UPDATE group_invites SET revoked_at = ? WHERE id = ? AND group_id = ? AND revoked_at IS NULL`,
+        [now(), inviteId, groupId]
+      );
+    },
+
+    async previewInvite(token: string): Promise<import('../types').InvitePreview> {
+      const rows: any[] = await db.query('SELECT * FROM group_invites WHERE token = ?', [token]);
+      const invite = rows[0] as LocalInviteRow | undefined;
+      const usable = inviteUsable(invite);
+      if (!usable.ok) throw new Error(`Invite ${usable.reason}`);
+      const groupRows: any[] = await db.query(
+        'SELECT id, name, type, ward, stake FROM groups WHERE id = ?',
+        [invite!.group_id]
+      );
+      if (groupRows.length === 0) throw new Error('Group not found');
+      return {
+        invite: { role: invite!.role, email: invite!.email, expires_at: invite!.expires_at },
+        group: groupRows[0],
+      };
+    },
+
+    async getAuditLog(groupId: string, opts?: { limit?: number; before?: string }): Promise<import('../types').AuditEntry[]> {
+      const user = requireUser();
+      if (!(await isLocalEffectiveAdmin(db, groupId, user))) throw new Error('Must be a group admin');
+      const ids = await collectGroupAndDescendantIds(db, groupId);
+      if (ids.length === 0) return [];
+      const placeholders = ids.map(() => '?').join(',');
+      const params: any[] = [...ids];
+      let cursor = '';
+      if (opts?.before) { cursor = ' AND a.created_at < ?'; params.push(opts.before); }
+      params.push(Math.min(opts?.limit ?? 100, 500));
+      const rows: any[] = await db.query(
+        `SELECT a.id, a.actor_id, a.action, a.target_type, a.target_id, a.group_id, a.meta, a.created_at,
+                u.name AS actor_name, u.email AS actor_email
+         FROM audit_log a
+         LEFT JOIN users u ON u.id = a.actor_id
+         WHERE a.group_id IN (${placeholders})${cursor}
+         ORDER BY a.created_at DESC, a.id DESC
+         LIMIT ?`,
+        params
+      );
+      return rows.map((r) => ({
+        ...r,
+        meta: r.meta ? safeJsonParse(r.meta) : null,
+      }));
+    },
+
+    async acceptInvite(token: string): Promise<{ group: Group; message: string }> {
+      const user = requireUser();
+      const rows: any[] = await db.query('SELECT * FROM group_invites WHERE token = ?', [token]);
+      const invite = rows[0] as LocalInviteRow | undefined;
+      const usable = inviteUsable(invite);
+      if (!usable.ok) throw new Error(`Invite ${usable.reason}`);
+      if (invite!.email && user.email && invite!.email.toLowerCase() !== user.email.toLowerCase()) {
+        throw new Error('This invite was sent to a different email address');
+      }
+      const groupRows: any[] = await db.query('SELECT * FROM groups WHERE id = ?', [invite!.group_id]);
+      if (groupRows.length === 0) throw new Error('Group not found');
+      const row = groupRows[0];
+
+      const existing = await db.query(
+        'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?',
+        [row.id, user.id]
+      );
+      const ts = now();
+      if (existing.length === 0) {
+        await addLocalMembershipWithPropagation(db, row.id, user.id, invite!.role);
+        await db.execute('UPDATE group_invites SET used_count = used_count + 1 WHERE id = ?', [invite!.id]);
+      }
+      if (invite!.max_uses === 1) {
+        await db.execute(
+          `UPDATE group_invites SET accepted_at = ?, accepted_by = ? WHERE id = ?`,
+          [ts, user.id, invite!.id]
+        );
+      }
+
+      const group: Group = {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        parent_id: row.parent_id || undefined,
+        ward: row.ward || undefined,
+        stake: row.stake || undefined,
+        member_role: invite!.role,
+        created_at: row.created,
+      };
+      return { group, message: existing.length > 0 ? `Already a member of ${group.name}` : `Joined ${group.name}` };
+    },
   };
 
   // -----------------------------------------------------------------------

@@ -159,6 +159,41 @@ export interface GroupMember {
 
 export interface GroupDetail extends Group {
   members: GroupMember[];
+  /** True when current user has admin authority over this group, either directly or via an ancestor (e.g., stake admin viewing a child ward). */
+  effective_admin?: boolean;
+}
+
+export interface GroupInvite {
+  id: string;
+  group_id: string;
+  code?: string | null;
+  token: string;
+  role: 'admin' | 'member';
+  email?: string | null;
+  max_uses?: number | null;
+  used_count: number;
+  expires_at?: string | null;
+  revoked_at?: string | null;
+  accepted_at?: string | null;
+  created_at?: string;
+}
+
+export interface InvitePreview {
+  invite: { role: 'admin' | 'member'; email?: string | null; expires_at?: string | null };
+  group: { id: string; name: string; type: string; ward?: string; stake?: string };
+}
+
+export interface AuditEntry {
+  id: string;
+  actor_id: string | null;
+  actor_name?: string | null;
+  actor_email?: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  group_id: string | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface RealtimeEvent {

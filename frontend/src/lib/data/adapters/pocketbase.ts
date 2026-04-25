@@ -29,6 +29,19 @@ const SIDECAR_URL = import.meta.env.PUBLIC_SIDECAR_URL || 'http://localhost:3002
 
 const pb = new PocketBase(PB_URL);
 
+async function ensureParentMembership(pb: PocketBase, parentId: string, userId: string): Promise<void> {
+  const existing = await pb.collection('group_members').getFullList({
+    filter: `group_id = "${parentId}" && user_id = "${userId}"`
+  });
+  if (existing.length === 0) {
+    await pb.collection('group_members').create({
+      group_id: parentId,
+      user_id: userId,
+      role: 'member'
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Mapper functions — PocketBase records → domain types
 // ---------------------------------------------------------------------------
@@ -630,7 +643,28 @@ function createGroupRepository(): GroupRepository {
         };
       }
 
-      return { ...group, members, subgroups, parent };
+      // Effective admin: admin of this group or any ancestor (or super)
+      const userId = pb.authStore.record?.id;
+      const userRole = (pb.authStore.record as RecordModel | null)?.role;
+      let effectiveAdmin = userRole === 'super';
+      if (!effectiveAdmin && userId) {
+        const visited = new Set<string>();
+        let currentId: string | null = id;
+        let currentParentId: string | null = record.parent_id || null;
+        while (currentId && !visited.has(currentId)) {
+          visited.add(currentId);
+          const ms = await pb.collection('group_members').getFullList({
+            filter: `group_id = "${currentId}" && user_id = "${userId}"`
+          });
+          if (ms.length > 0 && ms[0].role === 'admin') { effectiveAdmin = true; break; }
+          if (!currentParentId) break;
+          const p = await pb.collection('groups').getOne(currentParentId);
+          currentId = p.id;
+          currentParentId = p.parent_id || null;
+        }
+      }
+
+      return { ...group, members, subgroups, parent, effective_admin: effectiveAdmin };
     },
 
     async create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string }): Promise<Group> {
@@ -660,39 +694,44 @@ function createGroupRepository(): GroupRepository {
       if (records.length === 0) throw new Error('Invalid invite code');
 
       const group = mapGroup(records[0]);
+      const userId = pb.authStore.record!.id;
       // Add user as member
       await pb.collection('group_members').create({
         group_id: group.id,
-        user_id: pb.authStore.record!.id,
+        user_id: userId,
         role: 'member'
       });
+
+      // Propagate to parent group (e.g., ward → stake)
+      if (group.parent_id) {
+        await ensureParentMembership(pb, group.parent_id, userId);
+      }
 
       return { group, message: `Joined ${group.name}` };
     },
 
-    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; member: GroupMember }> {
-      // Find user by email
-      const users = await pb.collection('users').getFullList({
-        filter: `email = "${email}"`
-      });
-      if (users.length === 0) throw new Error('User not found');
-
-      const record = await pb.collection('group_members').create({
+    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; invite: import('../types').GroupInvite }> {
+      const inviteRole = role === 'admin' ? 'admin' : 'member';
+      // Reject if already a registered member of the group
+      const users = await pb.collection('users').getFullList({ filter: `email = "${email}"` });
+      if (users.length > 0) {
+        const existing = await pb.collection('group_members').getFullList({
+          filter: `group_id = "${groupId}" && user_id = "${users[0].id}"`
+        });
+        if (existing.length > 0) throw new Error('User is already a member');
+      }
+      const token = pbInviteToken();
+      const record = await pb.collection('group_invites').create({
         group_id: groupId,
-        user_id: users[0].id,
-        role: role || 'member'
+        code: null,
+        token,
+        role: inviteRole,
+        email,
+        max_uses: 1,
+        used_count: 0,
+        created_by: pb.authStore.record?.id,
       });
-
-      const member: GroupMember = {
-        membership_id: record.id,
-        user_id: users[0].id,
-        name: users[0].name,
-        email: users[0].email,
-        role: record.role,
-        joined_at: record.created
-      };
-
-      return { message: `Invited ${email}`, member };
+      return { message: `Invite created for ${email}`, invite: mapInvite(record) };
     },
 
     async updateMemberRole(groupId: string, userId: string, role: string): Promise<void> {
@@ -712,10 +751,173 @@ function createGroupRepository(): GroupRepository {
     },
 
     async regenerateInvite(groupId: string): Promise<{ invite_code: string }> {
-      const newCode = crypto.randomUUID().slice(0, 8);
+      const newCode = pbInviteCode();
+      // Revoke existing default code-bearing invites
+      const active = await pb.collection('group_invites').getFullList({
+        filter: `group_id = "${groupId}" && code != null && revoked_at = null`
+      });
+      const nowStr = new Date().toISOString();
+      for (const r of active) {
+        await pb.collection('group_invites').update(r.id, { revoked_at: nowStr });
+      }
+      await pb.collection('group_invites').create({
+        group_id: groupId,
+        code: newCode,
+        token: pbInviteToken(),
+        role: 'member',
+        used_count: 0,
+        created_by: pb.authStore.record?.id,
+      });
       await pb.collection('groups').update(groupId, { invite_code: newCode });
       return { invite_code: newCode };
+    },
+
+    async listInvites(groupId: string): Promise<import('../types').GroupInvite[]> {
+      const recs = await pb.collection('group_invites').getFullList({
+        filter: `group_id = "${groupId}"`,
+        sort: '-created'
+      });
+      return recs.map(mapInvite);
+    },
+
+    async createInvite(groupId: string, body: { role?: 'admin' | 'member'; email?: string; max_uses?: number; expires_at?: string }): Promise<import('../types').GroupInvite> {
+      const inviteRole: 'admin' | 'member' = body?.role === 'admin' ? 'admin' : 'member';
+      const isEmail = !!body?.email;
+      const maxUses = isEmail ? 1 : (Number.isInteger(body?.max_uses) && body!.max_uses! > 0 ? body!.max_uses! : null);
+      const rec = await pb.collection('group_invites').create({
+        group_id: groupId,
+        code: isEmail ? null : pbInviteCode(),
+        token: pbInviteToken(),
+        role: inviteRole,
+        email: body?.email ?? null,
+        max_uses: maxUses,
+        used_count: 0,
+        expires_at: body?.expires_at ?? null,
+        created_by: pb.authStore.record?.id,
+      });
+      return mapInvite(rec);
+    },
+
+    async revokeInvite(groupId: string, inviteId: string): Promise<void> {
+      await pb.collection('group_invites').update(inviteId, { revoked_at: new Date().toISOString() });
+    },
+
+    async previewInvite(token: string): Promise<import('../types').InvitePreview> {
+      const recs = await pb.collection('group_invites').getFullList({ filter: `token = "${token}"` });
+      if (recs.length === 0) throw new Error('Invite not_found');
+      const r = recs[0];
+      if (r.revoked_at) throw new Error('Invite revoked');
+      if (r.accepted_at) throw new Error('Invite accepted');
+      if (r.expires_at && new Date(r.expires_at) < new Date()) throw new Error('Invite expired');
+      if (r.max_uses != null && r.used_count >= r.max_uses) throw new Error('Invite exhausted');
+      const g = await pb.collection('groups').getOne(r.group_id);
+      return {
+        invite: { role: r.role, email: r.email ?? null, expires_at: r.expires_at ?? null },
+        group: { id: g.id, name: g.name, type: g.type, ward: g.ward, stake: g.stake },
+      };
+    },
+
+    async getAuditLog(groupId: string, opts?: { limit?: number; before?: string }): Promise<import('../types').AuditEntry[]> {
+      const ids = await collectPbGroupAndDescendantIds(pb, groupId);
+      if (ids.length === 0) return [];
+      const groupFilter = ids.map((id) => `group_id = "${id}"`).join(' || ');
+      const beforeFilter = opts?.before ? ` && created < "${opts.before}"` : '';
+      const recs = await pb.collection('audit_log').getList(1, Math.min(opts?.limit ?? 100, 500), {
+        filter: `(${groupFilter})${beforeFilter}`,
+        sort: '-created',
+        expand: 'actor_id',
+      });
+      return recs.items.map((r) => ({
+        id: r.id,
+        actor_id: r.actor_id ?? null,
+        actor_name: (r.expand as any)?.actor_id?.name ?? null,
+        actor_email: (r.expand as any)?.actor_id?.email ?? null,
+        action: r.action,
+        target_type: r.target_type ?? null,
+        target_id: r.target_id ?? null,
+        group_id: r.group_id ?? null,
+        meta: r.meta ?? null,
+        created_at: r.created,
+      }));
+    },
+
+    async acceptInvite(token: string): Promise<{ group: Group; message: string }> {
+      const recs = await pb.collection('group_invites').getFullList({ filter: `token = "${token}"` });
+      if (recs.length === 0) throw new Error('Invite not_found');
+      const r = recs[0];
+      if (r.revoked_at) throw new Error('Invite revoked');
+      if (r.accepted_at) throw new Error('Invite accepted');
+      if (r.expires_at && new Date(r.expires_at) < new Date()) throw new Error('Invite expired');
+      if (r.max_uses != null && r.used_count >= r.max_uses) throw new Error('Invite exhausted');
+
+      const userId = pb.authStore.record!.id;
+      const userEmail = (pb.authStore.record as RecordModel | null)?.email as string | undefined;
+      if (r.email && userEmail && r.email.toLowerCase() !== userEmail.toLowerCase()) {
+        throw new Error('This invite was sent to a different email address');
+      }
+      const g = await pb.collection('groups').getOne(r.group_id);
+      const existing = await pb.collection('group_members').getFullList({
+        filter: `group_id = "${g.id}" && user_id = "${userId}"`
+      });
+      if (existing.length === 0) {
+        await pb.collection('group_members').create({ group_id: g.id, user_id: userId, role: r.role });
+        if (g.parent_id) await ensureParentMembership(pb, g.parent_id, userId);
+        await pb.collection('group_invites').update(r.id, { used_count: (r.used_count || 0) + 1 });
+      }
+      if (r.max_uses === 1) {
+        await pb.collection('group_invites').update(r.id, { accepted_at: new Date().toISOString(), accepted_by: userId });
+      }
+      const group = mapGroup(g);
+      group.member_role = r.role;
+      return { group, message: existing.length > 0 ? `Already a member of ${group.name}` : `Joined ${group.name}` };
+    },
+  };
+}
+
+function pbInviteCode(): string {
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+function pbInviteToken(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function collectPbGroupAndDescendantIds(pb: PocketBase, rootId: string): Promise<string[]> {
+  const out = [rootId];
+  const queue = [rootId];
+  const visited = new Set<string>([rootId]);
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    const children = await pb.collection('groups').getFullList({ filter: `parent_id = "${id}"`, fields: 'id' });
+    for (const c of children) {
+      if (!visited.has(c.id)) {
+        visited.add(c.id);
+        out.push(c.id);
+        queue.push(c.id);
+      }
     }
+  }
+  return out;
+}
+
+function mapInvite(r: RecordModel): import('../types').GroupInvite {
+  return {
+    id: r.id,
+    group_id: r.group_id,
+    code: r.code ?? null,
+    token: r.token,
+    role: r.role,
+    email: r.email ?? null,
+    max_uses: r.max_uses ?? null,
+    used_count: r.used_count ?? 0,
+    expires_at: r.expires_at ?? null,
+    revoked_at: r.revoked_at ?? null,
+    accepted_at: r.accepted_at ?? null,
+    created_at: r.created,
   };
 }
 

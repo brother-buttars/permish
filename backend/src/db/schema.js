@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 function migrate(db) {
   // Add user profile fields if they don't exist
   const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
@@ -226,7 +228,54 @@ function migrate(db) {
       joined_at DATETIME DEFAULT (datetime('now')),
       UNIQUE(group_id, user_id)
     );
+
+    CREATE TABLE IF NOT EXISTS group_invites (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      code TEXT UNIQUE,
+      token TEXT UNIQUE,
+      role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
+      email TEXT,
+      max_uses INTEGER,
+      used_count INTEGER NOT NULL DEFAULT 0,
+      expires_at DATETIME,
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME DEFAULT (datetime('now')),
+      revoked_at DATETIME,
+      accepted_at DATETIME,
+      accepted_by TEXT REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      group_id TEXT REFERENCES groups(id) ON DELETE CASCADE,
+      meta TEXT,
+      created_at DATETIME DEFAULT (datetime('now'))
+    );
   `);
+
+  // Backfill: each existing group with an invite_code gets a default member-role
+  // shareable code in group_invites. Idempotent.
+  const legacyGroups = db.prepare(
+    `SELECT g.id, g.invite_code FROM groups g
+     WHERE g.invite_code IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM group_invites gi WHERE gi.code = g.invite_code)`
+  ).all();
+  if (legacyGroups.length > 0) {
+    const ins = db.prepare(
+      `INSERT INTO group_invites (id, group_id, code, role, used_count) VALUES (?, ?, ?, 'member', 0)`
+    );
+    const tx = db.transaction((rows) => {
+      for (const r of rows) {
+        ins.run(crypto.randomUUID(), r.id, r.invite_code);
+      }
+    });
+    tx(legacyGroups);
+  }
 
   // Add group_id to events table
   const eventCols2 = db.prepare("PRAGMA table_info(events)").all().map(c => c.name);
@@ -314,6 +363,12 @@ function createIndexes(db) {
     CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
     CREATE INDEX IF NOT EXISTS idx_groups_parent ON groups(parent_id);
     CREATE INDEX IF NOT EXISTS idx_groups_invite_code ON groups(invite_code);
+    CREATE INDEX IF NOT EXISTS idx_group_invites_group ON group_invites(group_id);
+    CREATE INDEX IF NOT EXISTS idx_group_invites_code ON group_invites(code);
+    CREATE INDEX IF NOT EXISTS idx_group_invites_token ON group_invites(token);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_group ON audit_log(group_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_target ON audit_log(target_type, target_id);
   `);
 }
 
@@ -469,6 +524,34 @@ function createTables(db) {
       role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
       joined_at DATETIME DEFAULT (datetime('now')),
       UNIQUE(group_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS group_invites (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      code TEXT UNIQUE,
+      token TEXT UNIQUE,
+      role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
+      email TEXT,
+      max_uses INTEGER,
+      used_count INTEGER NOT NULL DEFAULT 0,
+      expires_at DATETIME,
+      created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+      created_at DATETIME DEFAULT (datetime('now')),
+      revoked_at DATETIME,
+      accepted_at DATETIME,
+      accepted_by TEXT REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      group_id TEXT REFERENCES groups(id) ON DELETE CASCADE,
+      meta TEXT,
+      created_at DATETIME DEFAULT (datetime('now'))
     );
   `);
 

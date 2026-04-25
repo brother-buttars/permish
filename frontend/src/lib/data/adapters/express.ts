@@ -18,7 +18,9 @@ import type {
   SystemStats,
   Group,
   GroupDetail,
-  GroupMember
+  GroupMember,
+  GroupInvite,
+  InvitePreview
 } from '../types';
 
 /**
@@ -380,7 +382,7 @@ function createGroupRepository(): GroupRepository {
       });
     },
 
-    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; member: GroupMember }> {
+    async invite(groupId: string, email: string, role?: string): Promise<{ message: string; invite: GroupInvite }> {
       return await apiFetch(`/api/groups/${groupId}/invite`, {
         method: 'POST',
         body: JSON.stringify({ email, role })
@@ -404,6 +406,40 @@ function createGroupRepository(): GroupRepository {
       return await apiFetch(`/api/groups/${groupId}/regenerate-invite`, {
         method: 'POST'
       });
+    },
+
+    async listInvites(groupId: string): Promise<GroupInvite[]> {
+      const data = await apiFetch(`/api/groups/${groupId}/invites`);
+      return data.invites;
+    },
+
+    async createInvite(groupId: string, body: { role?: 'admin' | 'member'; email?: string; max_uses?: number; expires_at?: string }): Promise<GroupInvite> {
+      const data = await apiFetch(`/api/groups/${groupId}/invites`, {
+        method: 'POST',
+        body: JSON.stringify(body || {})
+      });
+      return data.invite;
+    },
+
+    async revokeInvite(groupId: string, inviteId: string): Promise<void> {
+      await apiFetch(`/api/groups/${groupId}/invites/${inviteId}`, { method: 'DELETE' });
+    },
+
+    async previewInvite(token: string): Promise<InvitePreview> {
+      return await apiFetch(`/api/invites/${token}`);
+    },
+
+    async acceptInvite(token: string): Promise<{ group: Group; message: string }> {
+      return await apiFetch(`/api/invites/${token}/accept`, { method: 'POST' });
+    },
+
+    async getAuditLog(groupId: string, opts?: { limit?: number; before?: string }) {
+      const params = new URLSearchParams();
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      if (opts?.before) params.set('before', opts.before);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const data = await apiFetch(`/api/groups/${groupId}/audit${qs}`);
+      return data.entries;
     }
   };
 }

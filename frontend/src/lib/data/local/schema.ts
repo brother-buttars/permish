@@ -5,7 +5,7 @@
 
 import type { LocalDatabase } from './database';
 
-export const LOCAL_SCHEMA_VERSION = 3;
+export const LOCAL_SCHEMA_VERSION = 5;
 
 export const SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS local_meta (
@@ -168,6 +168,34 @@ export const SCHEMA_DDL = `
     UNIQUE(group_id, user_id)
   );
 
+  CREATE TABLE IF NOT EXISTS group_invites (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL REFERENCES groups(id),
+    code TEXT UNIQUE,
+    token TEXT UNIQUE,
+    role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
+    email TEXT,
+    max_uses INTEGER,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT,
+    created_by TEXT REFERENCES users(id),
+    created_at TEXT DEFAULT (datetime('now')),
+    revoked_at TEXT,
+    accepted_at TEXT,
+    accepted_by TEXT REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    actor_id TEXT REFERENCES users(id),
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    group_id TEXT REFERENCES groups(id),
+    meta TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_events_created_by ON events(created_by);
   CREATE INDEX IF NOT EXISTS idx_submissions_event_id ON submissions(event_id);
   CREATE INDEX IF NOT EXISTS idx_submissions_submitted_by ON submissions(submitted_by);
@@ -177,6 +205,10 @@ export const SCHEMA_DDL = `
   CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
   CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
   CREATE INDEX IF NOT EXISTS idx_groups_parent ON groups(parent_id);
+  CREATE INDEX IF NOT EXISTS idx_group_invites_group ON group_invites(group_id);
+  CREATE INDEX IF NOT EXISTS idx_group_invites_code ON group_invites(code);
+  CREATE INDEX IF NOT EXISTS idx_group_invites_token ON group_invites(token);
+  CREATE INDEX IF NOT EXISTS idx_audit_log_group ON audit_log(group_id, created_at);
 `;
 
 /**
@@ -280,6 +312,73 @@ export async function initializeLocalSchema(db: LocalDatabase): Promise<void> {
       await db.execute(
         'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
         ['schema_version', '3']
+      );
+    }
+
+    // Migration: v3 -> v4 — group_invites table for per-role / tokenized invites
+    if (currentVersion < 4) {
+      const v4Statements = [
+        `CREATE TABLE IF NOT EXISTS group_invites (
+          id TEXT PRIMARY KEY,
+          group_id TEXT NOT NULL REFERENCES groups(id),
+          code TEXT UNIQUE,
+          token TEXT UNIQUE,
+          role TEXT NOT NULL CHECK(role IN ('admin', 'member')) DEFAULT 'member',
+          email TEXT,
+          max_uses INTEGER,
+          used_count INTEGER NOT NULL DEFAULT 0,
+          expires_at TEXT,
+          created_by TEXT REFERENCES users(id),
+          created_at TEXT DEFAULT (datetime('now')),
+          revoked_at TEXT,
+          accepted_at TEXT,
+          accepted_by TEXT REFERENCES users(id)
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_group_invites_group ON group_invites(group_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_group_invites_code ON group_invites(code)`,
+        `CREATE INDEX IF NOT EXISTS idx_group_invites_token ON group_invites(token)`
+      ];
+      for (const stmt of v4Statements) {
+        await db.execute(stmt);
+      }
+      const legacyGroups = await db.query<{ id: string; invite_code: string }>(
+        `SELECT id, invite_code FROM groups WHERE invite_code IS NOT NULL`
+      );
+      for (const g of legacyGroups) {
+        const exists = await db.query(
+          'SELECT id FROM group_invites WHERE code = ?',
+          [g.invite_code]
+        );
+        if (exists.length > 0) continue;
+        await db.execute(
+          `INSERT INTO group_invites (id, group_id, code, role, used_count) VALUES (?, ?, ?, 'member', 0)`,
+          [crypto.randomUUID(), g.id, g.invite_code]
+        );
+      }
+      await db.execute(
+        'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
+        ['schema_version', '4']
+      );
+    }
+
+    // Migration: v4 -> v5 — audit_log table
+    if (currentVersion < 5) {
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS audit_log (
+          id TEXT PRIMARY KEY,
+          actor_id TEXT REFERENCES users(id),
+          action TEXT NOT NULL,
+          target_type TEXT,
+          target_id TEXT,
+          group_id TEXT REFERENCES groups(id),
+          meta TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_audit_log_group ON audit_log(group_id, created_at)`);
+      await db.execute(
+        'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
+        ['schema_version', '5']
       );
     }
   }

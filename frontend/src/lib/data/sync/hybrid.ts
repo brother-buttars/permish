@@ -176,10 +176,10 @@ export function createHybridRepository(
 
     async invite(groupId, email, role) {
       const result = await local.groups.invite(groupId, email, role);
-      await queueChange(db, syncManager, 'group_members', result.member.membership_id, 'create', {
+      await queueChange(db, syncManager, 'group_invites', result.invite.id, 'create', {
         group_id: groupId,
         email,
-        role
+        role: result.invite.role,
       });
       return result;
     },
@@ -204,7 +204,35 @@ export function createHybridRepository(
         invite_code: result.invite_code
       });
       return result;
-    }
+    },
+
+    listInvites: local.groups.listInvites.bind(local.groups),
+
+    async createInvite(groupId, body) {
+      const invite = await local.groups.createInvite(groupId, body);
+      await queueChange(db, syncManager, 'group_invites', invite.id, 'create', {
+        group_id: groupId,
+        ...body,
+      });
+      return invite;
+    },
+
+    async revokeInvite(groupId, inviteId) {
+      await local.groups.revokeInvite(groupId, inviteId);
+      await queueChange(db, syncManager, 'group_invites', inviteId, 'update', {
+        revoked_at: new Date().toISOString(),
+      });
+    },
+
+    previewInvite: local.groups.previewInvite.bind(local.groups),
+
+    async acceptInvite(token) {
+      const result = await local.groups.acceptInvite(token);
+      await queueChange(db, syncManager, 'group_members', `accept:${token}`, 'create', { token });
+      return result;
+    },
+
+    getAuditLog: local.groups.getAuditLog.bind(local.groups),
   };
 
   // -------------------------------------------------------------------------

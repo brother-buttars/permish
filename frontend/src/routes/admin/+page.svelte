@@ -23,7 +23,7 @@
 	let newEmail = $state("");
 	let newPassword = $state("");
 	let newName = $state("");
-	let newRole = $state("parent");
+	let newRole = $state("user");
 	let createError = $state("");
 	let creating = $state(false);
 
@@ -82,7 +82,7 @@
 		try {
 			await repo.admin.createUser({ email: newEmail, password: newPassword, name: newName, role: newRole });
 			toastSuccess("User created successfully.");
-			newEmail = ""; newPassword = ""; newName = ""; newRole = "parent";
+			newEmail = ""; newPassword = ""; newName = ""; newRole = "user";
 			showCreateForm = false;
 			await loadData();
 		} catch (err: any) {
@@ -213,8 +213,7 @@
 							<div class="space-y-2">
 								<Label for="newRole">Role</Label>
 								<Select id="newRole" bind:value={newRole}>
-									<option value="parent">Parent</option>
-									<option value="planner">Activity Planner</option>
+									<option value="user">User</option>
 									<option value="super">Super Admin</option>
 								</Select>
 							</div>
@@ -253,8 +252,7 @@
 								onchange={(e) => handleRoleChange(u.id, e.currentTarget.value)}
 								class="h-8 text-xs flex-1"
 							>
-								<option value="parent">Parent</option>
-								<option value="planner">Planner</option>
+								<option value="user">User</option>
 								<option value="super">Super</option>
 							</Select>
 							<Button variant="outline" size="sm" class="h-8 text-xs" onclick={() => { resetTarget = u; resetPassword = ""; resetModalOpen = true; }}>
@@ -296,8 +294,7 @@
 												onchange={(e) => handleRoleChange(u.id, e.currentTarget.value)}
 												class="h-8 w-28 text-xs"
 											>
-												<option value="parent">Parent</option>
-												<option value="planner">Planner</option>
+												<option value="user">User</option>
 												<option value="super">Super</option>
 											</Select>
 										</td>

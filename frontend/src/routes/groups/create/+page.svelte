@@ -8,6 +8,7 @@
 	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card';
 	import { toastSuccess, toastError } from '$lib/stores/toast';
 	import AlertBox from '$lib/components/AlertBox.svelte';
+	import LoadingState from '$lib/components/LoadingState.svelte';
 	import { PageContainer } from '$lib/components/molecules';
 	import type { Group } from '$lib/data/types';
 
@@ -25,7 +26,10 @@
 
 	// User's groups that could be parents (stakes)
 	let userGroups: Group[] = $state([]);
+	let userGroupsLoaded = $state(false);
 	let stakeGroups = $derived(userGroups.filter(g => g.type === 'stake' && g.member_role === 'admin'));
+	let firstRun = $derived(userGroupsLoaded && userGroups.length === 0);
+	let needsStakeFirst = $derived(userGroupsLoaded && type === 'ward' && stakeGroups.length === 0 && !firstRun);
 
 	const repo = getRepository();
 	const auth = useAuthRequired({
@@ -35,13 +39,34 @@
 				userGroups = await repo.groups.list();
 			} catch {
 				// Non-critical
+			} finally {
+				userGroupsLoaded = true;
 			}
 		},
 	});
 
+	// First-run: lock the user into creating a stake first.
+	$effect(() => {
+		if (firstRun && type !== 'stake') {
+			type = 'stake';
+		}
+	});
+
+	function switchToStake() {
+		type = 'stake';
+		ward = '';
+		parentId = '';
+	}
+
+	function deriveName(): string {
+		if (type === 'ward') return ward.trim();
+		if (type === 'stake') return stake.trim();
+		return name.trim();
+	}
+
 	function validate(): boolean {
 		const newErrors: Record<string, string> = {};
-		if (!name.trim()) newErrors.name = 'Group name is required';
+		if (type === 'custom' && !name.trim()) newErrors.name = 'Group name is required';
 		if (type === 'ward' && !ward.trim()) newErrors.ward = 'Ward name is required';
 		if (!stake.trim() && type !== 'custom') newErrors.stake = 'Stake name is required';
 		errors = newErrors;
@@ -53,7 +78,7 @@
 		submitting = true;
 		try {
 			const group = await repo.groups.create({
-				name: name.trim(),
+				name: deriveName(),
 				type,
 				parent_id: parentId || undefined,
 				ward: ward.trim() || undefined,
@@ -77,88 +102,122 @@
 <PageContainer size="md">
 	<h1 class="mb-6 text-3xl font-bold">Create Group</h1>
 
-	{#if errors.form}
-		<AlertBox message={errors.form} class="mb-4" />
-	{/if}
+	{#if !auth.ready || !userGroupsLoaded}
+		<LoadingState />
+	{:else}
+		{#if errors.form}
+			<AlertBox message={errors.form} class="mb-4" />
+		{/if}
 
-	<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6">
-		<Card>
-			<CardHeader>
-				<CardTitle>Group Information</CardTitle>
-			</CardHeader>
-			<CardContent class="space-y-4">
-				<div class="space-y-2">
-					<Label for="name">Group Name *</Label>
-					<Input id="name" bind:value={name} placeholder="e.g., Mapleton 4th Ward YM/YW" />
-					{#if errors.name}<p class="text-sm text-destructive">{errors.name}</p>{/if}
-				</div>
+		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6">
+			<Card>
+				<CardHeader>
+					<CardTitle>Group Information</CardTitle>
+				</CardHeader>
+				<CardContent class="space-y-4">
+					{#if firstRun}
+						<div class="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+							<p class="font-medium">Start with your stake.</p>
+							<p class="text-muted-foreground">You'll add wards under it next. The Group Type is locked to "Stake" for your first group.</p>
+						</div>
+					{/if}
 
-				<div class="space-y-2">
-					<Label for="type">Group Type *</Label>
-					<select id="type" bind:value={type} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-						<option value="ward">Ward</option>
-						<option value="stake">Stake</option>
-						<option value="custom">Custom</option>
-					</select>
-				</div>
-
-				{#if type === 'ward' && stakeGroups.length > 0}
 					<div class="space-y-2">
-						<Label for="parentId">Parent Stake (optional)</Label>
-						<select id="parentId" bind:value={parentId} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-							<option value="">None</option>
-							{#each stakeGroups as sg}
-								<option value={sg.id}>{sg.name}</option>
-							{/each}
+						<Label for="type">Group Type *</Label>
+						<select
+							id="type"
+							bind:value={type}
+							disabled={firstRun}
+							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+						>
+							<option value="ward">Ward</option>
+							<option value="stake">Stake</option>
+							<option value="custom">Custom</option>
 						</select>
 					</div>
-				{/if}
 
-				{#if type === 'ward' || type === 'custom'}
-					<div class="space-y-2">
-						<Label for="ward">Ward {type === 'ward' ? '*' : ''}</Label>
-						<Input id="ward" bind:value={ward} placeholder="Ward name" />
-						{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
-					</div>
-				{/if}
+					{#if needsStakeFirst}
+						<div class="rounded-md border border-input bg-muted/40 p-4 text-sm">
+							<p class="font-medium">Wards belong to a stake.</p>
+							<p class="text-muted-foreground mt-1">
+								You don't have any stakes yet. Create your stake first, then come back to add wards under it.
+							</p>
+							<Button type="button" class="mt-3" onclick={switchToStake}>Create Stake</Button>
+						</div>
+					{:else}
+						{#if type === 'ward' && stakeGroups.length > 0}
+							<div class="space-y-2">
+								<Label for="parentId">Parent Stake (optional)</Label>
+								<select id="parentId" bind:value={parentId} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+									<option value="">None</option>
+									{#each stakeGroups as sg}
+										<option value={sg.id}>{sg.name}</option>
+									{/each}
+								</select>
+							</div>
+						{/if}
 
-				{#if type !== 'custom'}
-					<div class="space-y-2">
-						<Label for="stake">Stake *</Label>
-						<Input id="stake" bind:value={stake} placeholder="Stake name" />
-						{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
-					</div>
-				{/if}
-			</CardContent>
-		</Card>
+						{#if type === 'ward'}
+							<div class="space-y-2">
+								<Label for="ward">Ward Name *</Label>
+								<Input id="ward" bind:value={ward} placeholder="e.g., Saratoga Hills 7th Ward" />
+								{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
+							</div>
+						{/if}
 
-		<Card>
-			<CardHeader>
-				<CardTitle>Leader Information</CardTitle>
-			</CardHeader>
-			<CardContent class="space-y-4">
-				<div class="space-y-2">
-					<Label for="leaderName">Leader Name</Label>
-					<Input id="leaderName" bind:value={leaderName} placeholder="Full name" />
-				</div>
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div class="space-y-2">
-						<Label for="leaderPhone">Phone</Label>
-						<Input id="leaderPhone" type="tel" bind:value={leaderPhone} placeholder="(555) 123-4567" />
-					</div>
-					<div class="space-y-2">
-						<Label for="leaderEmail">Email</Label>
-						<Input id="leaderEmail" type="email" bind:value={leaderEmail} placeholder="leader@example.com" />
-					</div>
-				</div>
-			</CardContent>
-		</Card>
+						{#if type !== 'custom'}
+							<div class="space-y-2">
+								<Label for="stake">Stake Name *</Label>
+								<Input id="stake" bind:value={stake} placeholder="e.g., Saratoga Springs Utah Stake" />
+								{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
+							</div>
+						{/if}
 
-		<div class="flex gap-3">
-			<Button variant="outline" type="button" onclick={() => goto('/groups')}>Cancel</Button>
-			<Button type="submit" class="flex-1" disabled={submitting}>
-				{submitting ? 'Creating...' : 'Create Group'}
-			</Button>
-		</div>
-	</form>
+						{#if type === 'custom'}
+							<div class="space-y-2">
+								<Label for="name">Group Name *</Label>
+								<Input id="name" bind:value={name} placeholder="e.g., Stake YM Activity Committee" />
+								{#if errors.name}<p class="text-sm text-destructive">{errors.name}</p>{/if}
+							</div>
+							<div class="space-y-2">
+								<Label for="ward">Ward (optional)</Label>
+								<Input id="ward" bind:value={ward} placeholder="Ward name" />
+							</div>
+						{/if}
+					{/if}
+				</CardContent>
+			</Card>
+
+			{#if !needsStakeFirst}
+				<Card>
+					<CardHeader>
+						<CardTitle>Leader Information</CardTitle>
+					</CardHeader>
+					<CardContent class="space-y-4">
+						<div class="space-y-2">
+							<Label for="leaderName">Leader Name</Label>
+							<Input id="leaderName" bind:value={leaderName} placeholder="Full name" />
+						</div>
+						<div class="grid gap-4 sm:grid-cols-2">
+							<div class="space-y-2">
+								<Label for="leaderPhone">Phone</Label>
+								<Input id="leaderPhone" type="tel" bind:value={leaderPhone} placeholder="(555) 123-4567" />
+							</div>
+							<div class="space-y-2">
+								<Label for="leaderEmail">Email</Label>
+								<Input id="leaderEmail" type="email" bind:value={leaderEmail} placeholder="leader@example.com" />
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+			{/if}
+
+			<div class="flex gap-3">
+				<Button variant="outline" type="button" onclick={() => goto('/groups')}>Cancel</Button>
+				<Button type="submit" class="flex-1" disabled={submitting || needsStakeFirst}>
+					{submitting ? 'Creating...' : 'Create Group'}
+				</Button>
+			</div>
+		</form>
+	{/if}
 </PageContainer>

@@ -76,13 +76,24 @@ export interface AdminRepository {
 export interface GroupRepository {
   list(): Promise<Group[]>;
   getById(id: string): Promise<GroupDetail>;
-  create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string }): Promise<Group>;
+  create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string; send_leader_invite?: boolean }): Promise<Group>;
   update(id: string, data: Partial<Group>): Promise<Group>;
   join(inviteCode: string): Promise<{ group: Group; message: string }>;
-  invite(groupId: string, email: string, role?: string): Promise<{ message: string; member: GroupMember }>;
+  /** Legacy email-add: now creates a tokenized invite usable by registered or unregistered recipients. */
+  invite(groupId: string, email: string, role?: string): Promise<{ message: string; invite: import('./types').GroupInvite }>;
   updateMemberRole(groupId: string, userId: string, role: string): Promise<void>;
   removeMember(groupId: string, userId: string): Promise<void>;
   regenerateInvite(groupId: string): Promise<{ invite_code: string }>;
+
+  // Invite management
+  listInvites(groupId: string): Promise<import('./types').GroupInvite[]>;
+  createInvite(groupId: string, data: { role?: 'admin' | 'member'; email?: string; max_uses?: number; expires_at?: string }): Promise<import('./types').GroupInvite>;
+  revokeInvite(groupId: string, inviteId: string): Promise<void>;
+  previewInvite(token: string): Promise<import('./types').InvitePreview>;
+  acceptInvite(token: string): Promise<{ group: Group; message: string }>;
+
+  // Audit log
+  getAuditLog(groupId: string, opts?: { limit?: number; before?: string }): Promise<import('./types').AuditEntry[]>;
 }
 
 export interface SubscriptionManager {

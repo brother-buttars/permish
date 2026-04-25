@@ -10,6 +10,7 @@ const eventsRoutes = require('./routes/events');
 const profilesRoutes = require('./routes/profiles');
 const submissionsRoutes = require('./routes/submissions');
 const groupsRoutes = require('./routes/groups');
+const invitesRoutes = require('./routes/invites');
 const adminRoutes = require('./routes/admin');
 const { registerLimiter, loginLimiter, submitLimiter, formLoadLimiter } = require('./middleware/rateLimiter');
 
@@ -63,6 +64,9 @@ app.use('/api/submissions', submissionsRoutes);
 
 // Groups routes
 app.use('/api/groups', groupsRoutes);
+
+// Invites by token (preview/accept) — separate from group-scoped invite CRUD
+app.use('/api/invites', invitesRoutes);
 
 // Admin routes (super admin only)
 app.use('/api/admin', adminRoutes);

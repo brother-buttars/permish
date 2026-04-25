@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { randomUUID } = require('crypto');
 const { requireAuth, requireSuper } = require('../middleware/auth');
 const { sanitizeString, validateEmail } = require('../middleware/validate');
+const audit = require('../services/audit');
 
 const router = Router();
 router.use(requireAuth, requireSuper);
@@ -26,7 +27,7 @@ router.get('/users/:id', (req, res) => {
 router.put('/users/:id/role', (req, res) => {
   const db = req.app.locals.db;
   const { role } = req.body;
-  if (!['super', 'planner', 'parent'].includes(role)) {
+  if (!['super', 'user'].includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
 
@@ -43,6 +44,10 @@ router.put('/users/:id/role', (req, res) => {
 
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, req.params.id);
   const updated = db.prepare('SELECT id, email, name, role, created_at FROM users WHERE id = ?').get(req.params.id);
+  audit.record(db, {
+    actorId: req.user.id, action: 'user.role_changed', targetType: 'user', targetId: req.params.id,
+    meta: { from: user.role, to: role },
+  });
   res.json({ user: updated });
 });
 
@@ -60,7 +65,7 @@ router.post('/users', async (req, res) => {
   if (password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
-  if (!['super', 'planner', 'parent'].includes(role)) {
+  if (!['super', 'user'].includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
 
@@ -73,6 +78,10 @@ router.post('/users', async (req, res) => {
     .run(id, email, password_hash, sanitizeString(name), role);
 
   const user = db.prepare('SELECT id, email, name, role, created_at FROM users WHERE id = ?').get(id);
+  audit.record(db, {
+    actorId: req.user.id, action: 'user.created', targetType: 'user', targetId: id,
+    meta: { email, role },
+  });
   res.status(201).json({ user });
 });
 
@@ -96,6 +105,10 @@ router.delete('/users/:id', (req, res) => {
   }
 
   db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  audit.record(db, {
+    actorId: req.user.id, action: 'user.deleted', targetType: 'user', targetId: req.params.id,
+    meta: { role: user.role },
+  });
   res.json({ message: 'User deleted' });
 });
 

@@ -76,10 +76,19 @@
 	{#if !auth.ready}
 		<LoadingState />
 	{:else if groups.length === 0}
-		<EmptyState
-			message="You're not a member of any groups yet."
-			description="Ask your ward or stake leader for an invite code."
-		/>
+		{#if auth.user?.role === 'super'}
+			<EmptyState
+				message="No groups yet — start by creating your stake."
+				description="You'll be able to add wards under it once it exists."
+				actionLabel="Create Stake"
+				onAction={() => goto('/groups/create')}
+			/>
+		{:else}
+			<EmptyState
+				message="You're not a member of any groups yet."
+				description="Ask your ward or stake leader for an invite code."
+			/>
+		{/if}
 	{:else}
 		<div class="grid gap-4">
 			{#each groups as group}

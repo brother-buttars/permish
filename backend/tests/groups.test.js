@@ -231,7 +231,7 @@ describe('POST /api/groups/:id/invite', () => {
     groupId = groupRes.body.group.id;
   });
 
-  test('admin invites user by email', async () => {
+  test('admin invites user by email — creates pending tokenized invite', async () => {
     db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
     const loginRes = await request(app).post('/api/auth/login')
       .send({ email: 'user1@test.com', password: 'Password123!' });
@@ -240,11 +240,13 @@ describe('POST /api/groups/:id/invite', () => {
     const res = await request(app).post(`/api/groups/${groupId}/invite`).set('Cookie', superCookie)
       .send({ email: 'user2@test.com' });
     expect(res.status).toBe(200);
-    expect(res.body.member.email).toBe('user2@test.com');
-    expect(res.body.member.role).toBe('member');
+    expect(res.body.invite).toBeDefined();
+    expect(res.body.invite.email).toBe('user2@test.com');
+    expect(res.body.invite.role).toBe('member');
+    expect(res.body.invite.token).toBeDefined();
   });
 
-  test('rejects invite of non-existent user', async () => {
+  test('email invite works for unregistered users (creates pending invite)', async () => {
     db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
     const loginRes = await request(app).post('/api/auth/login')
       .send({ email: 'user1@test.com', password: 'Password123!' });
@@ -252,7 +254,109 @@ describe('POST /api/groups/:id/invite', () => {
 
     const res = await request(app).post(`/api/groups/${groupId}/invite`).set('Cookie', superCookie)
       .send({ email: 'nobody@test.com' });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    expect(res.body.invite.email).toBe('nobody@test.com');
+  });
+});
+
+describe('POST /api/groups/:id/invites + /api/invites/:token', () => {
+  let superCookie, groupId;
+
+  beforeEach(async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const loginRes = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    superCookie = loginRes.headers['set-cookie'];
+    const groupRes = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Cedar Stake', type: 'stake' });
+    groupId = groupRes.body.group.id;
+  });
+
+  test('admin mints an admin-role shareable invite', async () => {
+    const res = await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'admin', max_uses: 3 });
+    expect(res.status).toBe(201);
+    expect(res.body.invite.role).toBe('admin');
+    expect(res.body.invite.code).toBeDefined();
+    expect(res.body.invite.token).toBeDefined();
+    expect(res.body.invite.max_uses).toBe(3);
+  });
+
+  test('joining via admin invite code grants admin role', async () => {
+    const mintRes = await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'admin' });
+    const code = mintRes.body.invite.code;
+
+    const joinRes = await request(app).post('/api/groups/join').set('Cookie', user2Cookie)
+      .send({ invite_code: code });
+    expect(joinRes.status).toBe(200);
+
+    const user2 = db.prepare("SELECT id FROM users WHERE email = 'user2@test.com'").get();
+    const member = db.prepare('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?').get(groupId, user2.id);
+    expect(member.role).toBe('admin');
+  });
+
+  test('preview by token returns group info; accept joins user', async () => {
+    const mintRes = await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'member' });
+    const token = mintRes.body.invite.token;
+
+    const preview = await request(app).get(`/api/invites/${token}`);
+    expect(preview.status).toBe(200);
+    expect(preview.body.group.name).toBe('Cedar Stake');
+
+    const accept = await request(app).post(`/api/invites/${token}/accept`).set('Cookie', user2Cookie);
+    expect(accept.status).toBe(200);
+    expect(accept.body.group.id).toBe(groupId);
+  });
+
+  test('revoked invite cannot be used', async () => {
+    const mintRes = await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'member' });
+    const inviteId = mintRes.body.invite.id;
+    const code = mintRes.body.invite.code;
+
+    const revoke = await request(app).delete(`/api/groups/${groupId}/invites/${inviteId}`)
+      .set('Cookie', superCookie);
+    expect(revoke.status).toBe(200);
+
+    const join = await request(app).post('/api/groups/join').set('Cookie', user2Cookie)
+      .send({ invite_code: code });
+    expect(join.status).toBe(410);
+  });
+
+  test('exhausted single-use invite is rejected', async () => {
+    const mintRes = await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'member', max_uses: 1 });
+    const code = mintRes.body.invite.code;
+
+    const a = await request(app).post('/api/groups/join').set('Cookie', user2Cookie)
+      .send({ invite_code: code });
+    expect(a.status).toBe(200);
+
+    // user2 already joined; mint a fresh single-use invite for someone else
+    const mint2 = await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'member', max_uses: 1 });
+    const code2 = mint2.body.invite.code;
+
+    // Register a third user
+    const reg3 = await request(app).post('/api/auth/register')
+      .send({ email: 'user3@test.com', password: 'Password123!', name: 'User Three', role: 'user' });
+    const user3Cookie = reg3.headers['set-cookie'];
+    await request(app).post('/api/auth/register')
+      .send({ email: 'user4@test.com', password: 'Password123!', name: 'User Four', role: 'user' });
+
+    const r1 = await request(app).post('/api/groups/join').set('Cookie', user3Cookie)
+      .send({ invite_code: code2 });
+    expect(r1.status).toBe(200);
+
+    // user3 already used it; user4 trying same code should fail (exhausted)
+    const loginUser4 = await request(app).post('/api/auth/login')
+      .send({ email: 'user4@test.com', password: 'Password123!' });
+    const user4Cookie = loginUser4.headers['set-cookie'];
+    const r2 = await request(app).post('/api/groups/join').set('Cookie', user4Cookie)
+      .send({ invite_code: code2 });
+    expect(r2.status).toBe(410);
   });
 });
 
@@ -376,5 +480,331 @@ describe('Events with group_id', () => {
     const res = await request(app).post('/api/events').set('Cookie', superCookie)
       .send({ ...eventData, group_id: 'nonexistent-id' });
     expect(res.status).toBe(400);
+  });
+});
+
+// =============================================================================
+// Coverage sweep — hierarchical admin, guards, propagation, leader invites,
+// accept-invite edge cases, regenerate-invite revokes prior, effective_admin.
+// =============================================================================
+
+describe('Hierarchical admin authority', () => {
+  // We use a dedicated stake admin who is NOT a direct ward admin to isolate
+  // the claim that stake-level admin grants authority over child wards.
+  let stakeAdminCookie, otherCookie, stakeId, wardId, stakeAdminUserId, wardMemberUserId;
+
+  beforeEach(async () => {
+    // user1 is super, builds the hierarchy
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const superLogin = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const superCookie = superLogin.headers['set-cookie'];
+
+    const stakeRes = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Saratoga Stake', type: 'stake' });
+    stakeId = stakeRes.body.group.id;
+    const wardRes = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Saratoga 1st Ward', type: 'ward', parent_id: stakeId });
+    wardId = wardRes.body.group.id;
+
+    // Register a stake-admin-only user (not a ward member)
+    const stakeAdminReg = await request(app).post('/api/auth/register')
+      .send({ email: 'stakeadmin@test.com', password: 'Password123!', name: 'Stake Admin', role: 'user' });
+    stakeAdminCookie = stakeAdminReg.headers['set-cookie'];
+    stakeAdminUserId = db.prepare("SELECT id FROM users WHERE email = 'stakeadmin@test.com'").get().id;
+    // Add them as admin of the stake only
+    db.prepare(`INSERT INTO group_members (id, group_id, user_id, role) VALUES (?, ?, ?, 'admin')`)
+      .run(require('crypto').randomUUID(), stakeId, stakeAdminUserId);
+
+    // user2 joins the ward as a member via the ward code
+    const wardCode = db.prepare('SELECT invite_code FROM groups WHERE id = ?').get(wardId).invite_code;
+    await request(app).post('/api/groups/join').set('Cookie', user2Cookie)
+      .send({ invite_code: wardCode });
+    wardMemberUserId = db.prepare("SELECT id FROM users WHERE email = 'user2@test.com'").get().id;
+
+    // Outsider — not in either group
+    const reg3 = await request(app).post('/api/auth/register')
+      .send({ email: 'outsider@test.com', password: 'Password123!', name: 'Outsider', role: 'user' });
+    otherCookie = reg3.headers['set-cookie'];
+  });
+
+  test('stake admin can promote a ward member without explicit ward admin', async () => {
+    // Confirm stakeadmin has no direct ward membership
+    const wardMembership = db.prepare('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?').get(wardId, stakeAdminUserId);
+    expect(wardMembership).toBeUndefined();
+
+    const res = await request(app).put(`/api/groups/${wardId}/members/${wardMemberUserId}/role`)
+      .set('Cookie', stakeAdminCookie).send({ role: 'admin' });
+    expect(res.status).toBe(200);
+    const updated = db.prepare('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?').get(wardId, wardMemberUserId);
+    expect(updated.role).toBe('admin');
+  });
+
+  test('non-admin outsider cannot manage child ward members', async () => {
+    const res = await request(app).put(`/api/groups/${wardId}/members/${wardMemberUserId}/role`)
+      .set('Cookie', otherCookie).send({ role: 'admin' });
+    expect(res.status).toBe(403);
+  });
+
+  test('GET /:id returns effective_admin true for stake admin viewing child ward', async () => {
+    const res = await request(app).get(`/api/groups/${wardId}`).set('Cookie', stakeAdminCookie);
+    expect(res.status).toBe(200);
+    expect(res.body.group.effective_admin).toBe(true);
+  });
+});
+
+describe('Last-admin guards', () => {
+  let superCookie, groupId;
+
+  beforeEach(async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    superCookie = login.headers['set-cookie'];
+    const groupRes = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Solo Stake', type: 'stake' });
+    groupId = groupRes.body.group.id;
+    db.prepare("UPDATE users SET role = 'user' WHERE email = 'user1@test.com'").run();
+  });
+
+  test('cannot demote the last admin', async () => {
+    const u1 = db.prepare("SELECT id FROM users WHERE email = 'user1@test.com'").get();
+    // Re-login since role changed
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const cookie = login.headers['set-cookie'];
+
+    const res = await request(app).put(`/api/groups/${groupId}/members/${u1.id}/role`)
+      .set('Cookie', cookie).send({ role: 'member' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/last admin/i);
+  });
+
+  test('cannot remove the last admin', async () => {
+    const u1 = db.prepare("SELECT id FROM users WHERE email = 'user1@test.com'").get();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const cookie = login.headers['set-cookie'];
+
+    const res = await request(app).delete(`/api/groups/${groupId}/members/${u1.id}`)
+      .set('Cookie', cookie);
+    expect(res.status).toBe(409);
+  });
+});
+
+describe('Parent-stake propagation', () => {
+  let stakeId, wardId;
+
+  beforeEach(async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const superCookie = login.headers['set-cookie'];
+    const stakeRes = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Cedar Stake', type: 'stake' });
+    stakeId = stakeRes.body.group.id;
+    const wardRes = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Cedar 5th Ward', type: 'ward', parent_id: stakeId });
+    wardId = wardRes.body.group.id;
+  });
+
+  test('joining a ward via code auto-adds user to parent stake', async () => {
+    const wardCode = db.prepare('SELECT invite_code FROM groups WHERE id = ?').get(wardId).invite_code;
+    await request(app).post('/api/groups/join').set('Cookie', user2Cookie)
+      .send({ invite_code: wardCode });
+
+    const u2 = db.prepare("SELECT id FROM users WHERE email = 'user2@test.com'").get();
+    const wardMember = db.prepare('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?').get(wardId, u2.id);
+    const stakeMember = db.prepare('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?').get(stakeId, u2.id);
+    expect(wardMember).toBeDefined();
+    expect(stakeMember).toBeDefined();
+    expect(stakeMember.role).toBe('member');
+  });
+
+  test('accepting a tokenized ward invite propagates to parent stake', async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const superCookie = login.headers['set-cookie'];
+
+    const mint = await request(app).post(`/api/groups/${wardId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'member' });
+    const token = mint.body.invite.token;
+
+    const accept = await request(app).post(`/api/invites/${token}/accept`).set('Cookie', user2Cookie);
+    expect(accept.status).toBe(200);
+
+    const u2 = db.prepare("SELECT id FROM users WHERE email = 'user2@test.com'").get();
+    const stakeMember = db.prepare('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?').get(stakeId, u2.id);
+    expect(stakeMember).toBeDefined();
+  });
+});
+
+describe('leader_email auto-invite on group create', () => {
+  test('with send_leader_invite, mints an admin-role tokenized invite for the leader', async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const superCookie = login.headers['set-cookie'];
+
+    const res = await request(app).post('/api/groups').set('Cookie', superCookie).send({
+      name: 'Pine Stake', type: 'stake',
+      leader_email: 'newleader@test.com',
+      send_leader_invite: true,
+    });
+    expect(res.status).toBe(201);
+
+    const invites = db.prepare(
+      `SELECT role, email, max_uses FROM group_invites WHERE group_id = ? AND email = ?`
+    ).all(res.body.group.id, 'newleader@test.com');
+    expect(invites).toHaveLength(1);
+    expect(invites[0].role).toBe('admin');
+    expect(invites[0].max_uses).toBe(1);
+  });
+
+  test('without send_leader_invite, no leader invite is created', async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const superCookie = login.headers['set-cookie'];
+
+    const res = await request(app).post('/api/groups').set('Cookie', superCookie).send({
+      name: 'Maple Stake', type: 'stake',
+      leader_email: 'leader@test.com',
+    });
+    const invites = db.prepare('SELECT role FROM group_invites WHERE group_id = ? AND email IS NOT NULL').all(res.body.group.id);
+    expect(invites).toHaveLength(0);
+  });
+});
+
+describe('Regenerate invite — revokes prior default codes', () => {
+  test('previously valid code becomes unusable after regenerate', async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const superCookie = login.headers['set-cookie'];
+
+    const create = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Birch Stake', type: 'stake' });
+    const groupId = create.body.group.id;
+    const oldCode = create.body.group.invite_code;
+
+    const regen = await request(app).post(`/api/groups/${groupId}/regenerate-invite`).set('Cookie', superCookie);
+    expect(regen.status).toBe(200);
+    expect(regen.body.invite_code).not.toBe(oldCode);
+
+    // Old code should now be revoked → 410
+    const join = await request(app).post('/api/groups/join').set('Cookie', user2Cookie)
+      .send({ invite_code: oldCode });
+    expect(join.status).toBe(410);
+
+    // New code should work
+    const join2 = await request(app).post('/api/groups/join').set('Cookie', user2Cookie)
+      .send({ invite_code: regen.body.invite_code });
+    expect(join2.status).toBe(200);
+  });
+});
+
+describe('Accept invite — wrong email', () => {
+  test('email-targeted invite rejects accept by a different email', async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    const superCookie = login.headers['set-cookie'];
+
+    const create = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Walnut Stake', type: 'stake' });
+    const groupId = create.body.group.id;
+
+    const mint = await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'member', email: 'someone-else@test.com' });
+    const token = mint.body.invite.token;
+
+    const accept = await request(app).post(`/api/invites/${token}/accept`).set('Cookie', user2Cookie);
+    expect(accept.status).toBe(403);
+    expect(accept.body.error).toMatch(/different email/i);
+  });
+});
+
+describe('Audit log', () => {
+  let superCookie, groupId;
+
+  beforeEach(async () => {
+    db.prepare("UPDATE users SET role = 'super' WHERE email = 'user1@test.com'").run();
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'user1@test.com', password: 'Password123!' });
+    superCookie = login.headers['set-cookie'];
+    const groupRes = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Oak Stake', type: 'stake' });
+    groupId = groupRes.body.group.id;
+  });
+
+  test('records group.create and member.added on creation', async () => {
+    const res = await request(app).get(`/api/groups/${groupId}/audit`).set('Cookie', superCookie);
+    expect(res.status).toBe(200);
+    const actions = res.body.entries.map((e) => e.action);
+    expect(actions).toContain('group.create');
+    expect(actions).toContain('member.added');
+  });
+
+  test('records invite.created with role/email metadata', async () => {
+    await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'admin', email: 'newadmin@test.com' });
+
+    const res = await request(app).get(`/api/groups/${groupId}/audit`).set('Cookie', superCookie);
+    const inviteEntries = res.body.entries.filter((e) => e.action === 'invite.created');
+    expect(inviteEntries.length).toBeGreaterThan(0);
+    const matching = inviteEntries.find((e) => e.meta && e.meta.email === 'newadmin@test.com');
+    expect(matching).toBeDefined();
+    expect(matching.meta.role).toBe('admin');
+  });
+
+  test('records member.role_changed and member.removed', async () => {
+    const wardCode = db.prepare('SELECT invite_code FROM groups WHERE id = ?').get(groupId).invite_code;
+    await request(app).post('/api/groups/join').set('Cookie', user2Cookie)
+      .send({ invite_code: wardCode });
+    const u2 = db.prepare("SELECT id FROM users WHERE email = 'user2@test.com'").get();
+
+    await request(app).put(`/api/groups/${groupId}/members/${u2.id}/role`).set('Cookie', superCookie)
+      .send({ role: 'admin' });
+    await request(app).delete(`/api/groups/${groupId}/members/${u2.id}`).set('Cookie', superCookie);
+
+    const res = await request(app).get(`/api/groups/${groupId}/audit`).set('Cookie', superCookie);
+    const actions = res.body.entries.map((e) => e.action);
+    expect(actions).toContain('member.role_changed');
+    expect(actions).toContain('member.removed');
+  });
+
+  test('non-admin cannot read audit log', async () => {
+    const res = await request(app).get(`/api/groups/${groupId}/audit`).set('Cookie', user2Cookie);
+    expect(res.status).toBe(403);
+  });
+
+  test('stake admin sees descendant-ward activity', async () => {
+    const wardRes = await request(app).post('/api/groups').set('Cookie', superCookie)
+      .send({ name: 'Oak 1st Ward', type: 'ward', parent_id: groupId });
+    const wardId = wardRes.body.group.id;
+
+    const res = await request(app).get(`/api/groups/${groupId}/audit`).set('Cookie', superCookie);
+    const groupCreateEntries = res.body.entries.filter((e) => e.action === 'group.create');
+    const wardCreate = groupCreateEntries.find((e) => e.target_id === wardId);
+    expect(wardCreate).toBeDefined();
+  });
+
+  test('audit entries are returned newest-first with actor name joined', async () => {
+    await request(app).post(`/api/groups/${groupId}/invites`).set('Cookie', superCookie)
+      .send({ role: 'member' });
+
+    const res = await request(app).get(`/api/groups/${groupId}/audit`).set('Cookie', superCookie);
+    const entries = res.body.entries;
+    expect(entries.length).toBeGreaterThan(1);
+    // Each entry should have actor_name joined
+    for (const e of entries) {
+      if (e.actor_id) expect(e.actor_name).toBeDefined();
+    }
+    // Newest first: descending created_at
+    for (let i = 1; i < entries.length; i++) {
+      expect(entries[i - 1].created_at >= entries[i].created_at).toBe(true);
+    }
   });
 });

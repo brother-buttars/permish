@@ -76,7 +76,13 @@ function createMockRemote(): DataRepository {
       invite: vi.fn(),
       updateMemberRole: vi.fn(),
       removeMember: vi.fn(),
-      regenerateInvite: vi.fn()
+      regenerateInvite: vi.fn(),
+      listInvites: vi.fn(),
+      createInvite: vi.fn(),
+      revokeInvite: vi.fn(),
+      previewInvite: vi.fn(),
+      acceptInvite: vi.fn(),
+      getAuditLog: vi.fn()
     }
   };
 }
