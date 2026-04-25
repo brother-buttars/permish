@@ -213,7 +213,7 @@
 				type="button"
 				variant={type === 'hand' && !usingSaved ? "default" : "outline"}
 				size="sm"
-				class="flex-1 {type !== 'hand' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+				class="flex-1 {type !== 'hand' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
 				onclick={() => switchMode("hand")}
 			>
 				By Hand
@@ -223,7 +223,7 @@
 			type="button"
 			variant={type === 'drawn' && !usingSaved ? "default" : "outline"}
 			size="sm"
-			class="flex-1 {type !== 'drawn' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+			class="flex-1 {type !== 'drawn' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
 			onclick={() => switchMode("drawn")}
 		>
 			Draw
@@ -232,7 +232,7 @@
 			type="button"
 			variant={type === 'typed' && !usingSaved ? "default" : "outline"}
 			size="sm"
-			class="flex-1 {type !== 'typed' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+			class="flex-1 {type !== 'typed' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
 			onclick={() => switchMode("typed")}
 		>
 			Type
@@ -242,7 +242,7 @@
 				type="button"
 				variant={usingSaved ? "default" : "outline"}
 				size="sm"
-				class="flex-1 {!usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm' : ''}"
+				class="flex-1 {!usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
 				onclick={applySaved}
 			>
 				Saved

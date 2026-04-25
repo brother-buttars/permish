@@ -158,7 +158,7 @@
 		<!-- Stats -->
 		{#if stats}
 			<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-				<a href="#users-list" class="block transition-shadow hover:shadow-md">
+				<a href="#users-list" class="block rounded-xl transition hover:drop-shadow-md">
 					<Card>
 						<CardContent class="py-4 text-center">
 							<p class="text-2xl font-bold">{stats.userCount}</p>
@@ -166,7 +166,7 @@
 						</CardContent>
 					</Card>
 				</a>
-				<a href="/events" class="block transition-shadow hover:shadow-md">
+				<a href="/events" class="block rounded-xl transition hover:drop-shadow-md">
 					<Card>
 						<CardContent class="py-4 text-center">
 							<p class="text-2xl font-bold">{stats.activeEventCount}</p>
@@ -174,7 +174,7 @@
 						</CardContent>
 					</Card>
 				</a>
-				<a href="/submissions" class="block transition-shadow hover:shadow-md">
+				<a href="/submissions" class="block rounded-xl transition hover:drop-shadow-md">
 					<Card>
 						<CardContent class="py-4 text-center">
 							<p class="text-2xl font-bold">{stats.submissionCount}</p>
@@ -182,7 +182,7 @@
 						</CardContent>
 					</Card>
 				</a>
-				<a href="/profiles" class="block transition-shadow hover:shadow-md">
+				<a href="/profiles" class="block rounded-xl transition hover:drop-shadow-md">
 					<Card>
 						<CardContent class="py-4 text-center">
 							<p class="text-2xl font-bold">{stats.profileCount}</p>

@@ -92,7 +92,7 @@
 	{:else}
 		<div class="grid gap-4">
 			{#each groups as group}
-				<Card class="cursor-pointer transition-shadow hover:shadow-md" onclick={() => goto(`/groups/${group.id}`)}>
+				<Card class="cursor-pointer transition hover:drop-shadow-md" onclick={() => goto(`/groups/${group.id}`)}>
 					<CardContent class="flex items-center justify-between py-4">
 						<div>
 							<div class="flex items-center gap-2">

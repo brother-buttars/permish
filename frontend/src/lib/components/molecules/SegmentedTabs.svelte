@@ -13,7 +13,7 @@
 	} = $props();
 
 	const inactiveClass =
-		"bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:shadow-sm";
+		"bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm";
 </script>
 
 <div

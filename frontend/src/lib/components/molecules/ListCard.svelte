@@ -24,7 +24,7 @@
 
 <Card
 	class={cn(
-		interactive && "cursor-pointer transition-shadow hover:shadow-md",
+		interactive && "cursor-pointer transition hover:drop-shadow-md",
 		className,
 	)}
 	{onclick}
