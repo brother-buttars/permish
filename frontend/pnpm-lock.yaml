@@ -8,10 +8,10 @@ importers:
 
   .:
     dependencies:
+      '@fontsource-variable/ibm-plex-sans':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@fontsource/fuzzy-bubbles':
-        specifier: ^5.2.7
-        version: 5.2.7
-      '@fontsource/poppins':
         specifier: ^5.2.7
         version: 5.2.7
       '@tailwindcss/vite':
@@ -777,11 +777,11 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
+  '@fontsource-variable/ibm-plex-sans@5.2.8':
+    resolution: {integrity: sha512-n5PF2iFa0CZT0QYTPzxvZ39opC9LnU0zdoRccoADbs+Dtsd+lbXOZF7RNuIPHcQX1dKjF63sxnRImQIB5eD0Ag==}
+
   '@fontsource/fuzzy-bubbles@5.2.7':
     resolution: {integrity: sha512-mMOAcxXM3OmFmXVFuDgYdd4zAkvpew69Y6kTbDMKR528LXAyug0JeOrRjLV5DjqjzNoUzP3xHmApG+FMHQ4MYg==}
-
-  '@fontsource/poppins@5.2.7':
-    resolution: {integrity: sha512-6uQyPmseo4FgI97WIhA4yWRlNaoLk4vSDK/PyRwdqqZb5zAEuc+Kunt8JTMcsHYUEGYBtN15SNkMajMdqUSUmg==}
 
   '@internationalized/date@3.12.0':
     resolution: {integrity: sha512-/PyIMzK29jtXaGU23qTvNZxvBXRtKbNnGDFD+PY6CZw/Y8Ex8pFUzkuCJCG9aOqmShjqhS9mPqP6Dk5onQY8rQ==}
@@ -3611,9 +3611,9 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@fontsource/fuzzy-bubbles@5.2.7': {}
+  '@fontsource-variable/ibm-plex-sans@5.2.8': {}
 
-  '@fontsource/poppins@5.2.7': {}
+  '@fontsource/fuzzy-bubbles@5.2.7': {}
 
   '@internationalized/date@3.12.0':
     dependencies:

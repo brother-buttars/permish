@@ -1,9 +1,5 @@
 @import "tailwindcss";
-@import "@fontsource/poppins/300.css";
-@import "@fontsource/poppins/400.css";
-@import "@fontsource/poppins/500.css";
-@import "@fontsource/poppins/600.css";
-@import "@fontsource/poppins/700.css";
+@import "@fontsource-variable/ibm-plex-sans";
 @import "@fontsource/fuzzy-bubbles/400.css";
 @import "@fontsource/fuzzy-bubbles/700.css";
 
@@ -44,10 +40,10 @@
   --sidebar-accent-foreground: oklch(1.0000 0 0);
   --sidebar-border: oklch(0.9276 0.0058 264.5313);
   --sidebar-ring: oklch(0.5500 0.2000 293.0000);
-  --font-sans: "Poppins", "Inter", sans-serif;
+  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", "Inter", sans-serif;
   --font-serif: Source Serif 4, serif;
   --font-mono: JetBrains Mono, monospace;
-  --font-display: "Fuzzy Bubbles", "Poppins", sans-serif;
+  --font-display: "Fuzzy Bubbles", "IBM Plex Sans Variable", sans-serif;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
@@ -102,10 +98,10 @@
   --sidebar-accent-foreground: oklch(0.8823 0.0571 254.1284);
   --sidebar-border: oklch(0.3843 0.0301 269.7337);
   --sidebar-ring: oklch(0.5500 0.2000 293.0000);
-  --font-sans: "Poppins", "Inter", sans-serif;
+  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", "Inter", sans-serif;
   --font-serif: Source Serif 4, serif;
   --font-mono: JetBrains Mono, monospace;
-  --font-display: "Fuzzy Bubbles", "Poppins", sans-serif;
+  --font-display: "Fuzzy Bubbles", "IBM Plex Sans Variable", sans-serif;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
