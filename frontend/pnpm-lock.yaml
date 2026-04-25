@@ -8,7 +8,7 @@ importers:
 
   .:
     dependencies:
-      '@fontsource-variable/ibm-plex-sans':
+      '@fontsource-variable/manrope':
         specifier: ^5.2.8
         version: 5.2.8
       '@fontsource/fuzzy-bubbles':
@@ -777,8 +777,8 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@fontsource-variable/ibm-plex-sans@5.2.8':
-    resolution: {integrity: sha512-n5PF2iFa0CZT0QYTPzxvZ39opC9LnU0zdoRccoADbs+Dtsd+lbXOZF7RNuIPHcQX1dKjF63sxnRImQIB5eD0Ag==}
+  '@fontsource-variable/manrope@5.2.8':
+    resolution: {integrity: sha512-nc9lOuCRz73UHnovDE2bwXUdghE2SEOc7Aii0qGe3CLyE03W1a7VnY5Z6euRiapiKbCkGS+eXbY3s/kvWeGeSw==}
 
   '@fontsource/fuzzy-bubbles@5.2.7':
     resolution: {integrity: sha512-mMOAcxXM3OmFmXVFuDgYdd4zAkvpew69Y6kTbDMKR528LXAyug0JeOrRjLV5DjqjzNoUzP3xHmApG+FMHQ4MYg==}
@@ -3611,7 +3611,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@fontsource-variable/ibm-plex-sans@5.2.8': {}
+  '@fontsource-variable/manrope@5.2.8': {}
 
   '@fontsource/fuzzy-bubbles@5.2.7': {}
 

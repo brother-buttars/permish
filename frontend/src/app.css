@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource-variable/manrope";
 @import "@fontsource/fuzzy-bubbles/400.css";
 @import "@fontsource/fuzzy-bubbles/700.css";
 
@@ -40,10 +40,10 @@
   --sidebar-accent-foreground: oklch(1.0000 0 0);
   --sidebar-border: oklch(0.9276 0.0058 264.5313);
   --sidebar-ring: oklch(0.5500 0.2000 293.0000);
-  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", "Inter", sans-serif;
+  --font-sans: "Manrope Variable", "Manrope", "Inter", sans-serif;
   --font-serif: Source Serif 4, serif;
   --font-mono: JetBrains Mono, monospace;
-  --font-display: "Fuzzy Bubbles", "IBM Plex Sans Variable", sans-serif;
+  --font-display: "Fuzzy Bubbles", "Manrope Variable", sans-serif;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
@@ -98,10 +98,10 @@
   --sidebar-accent-foreground: oklch(0.8823 0.0571 254.1284);
   --sidebar-border: oklch(0.3843 0.0301 269.7337);
   --sidebar-ring: oklch(0.5500 0.2000 293.0000);
-  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", "Inter", sans-serif;
+  --font-sans: "Manrope Variable", "Manrope", "Inter", sans-serif;
   --font-serif: Source Serif 4, serif;
   --font-mono: JetBrains Mono, monospace;
-  --font-display: "Fuzzy Bubbles", "IBM Plex Sans Variable", sans-serif;
+  --font-display: "Fuzzy Bubbles", "Manrope Variable", sans-serif;
   --radius: 0.75rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
