@@ -136,7 +136,6 @@
 
 	function roleBadgeVariant(role: string): "active" | "past" | "inactive" {
 		if (role === 'super') return 'past';
-		if (role === 'planner') return 'active';
 		return 'inactive';
 	}
 </script>

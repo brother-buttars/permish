@@ -30,7 +30,7 @@
 	const repo = getRepository();
 	const auth = useAuthRequired({
 		onReady: async (currentUser) => {
-			isPlanner = currentUser.role === 'planner' || currentUser.role === 'super';
+			isPlanner = currentUser.role === 'super';
 			view = isPlanner ? 'planner' : 'parent';
 
 			const promises: Promise<any>[] = [];

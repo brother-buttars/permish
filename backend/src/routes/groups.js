@@ -14,14 +14,19 @@ function emailConfigured() {
 }
 
 function trySendInviteEmail(invite, group, inviter) {
-  if (!invite.email || !emailConfigured()) return;
+  if (!invite.email) return;
+  const url = inviteUrl(invite.token);
+  if (!emailConfigured()) {
+    console.log(`[invite] no email transport configured; would have sent to ${invite.email}: ${url}`);
+    return;
+  }
   try {
     const transport = createTransport(config.email);
     sendGroupInvite(transport, {
       to: invite.email,
       groupName: group.name,
       role: invite.role,
-      inviteUrl: inviteUrl(invite.token),
+      inviteUrl: url,
       inviterName: inviter && inviter.name,
       fromName: config.email.fromName,
       fromAddress: config.email.fromAddress,
@@ -32,7 +37,11 @@ function trySendInviteEmail(invite, group, inviter) {
 }
 
 function trySendRemovalEmail(toEmail, groupName) {
-  if (!toEmail || !emailConfigured()) return;
+  if (!toEmail) return;
+  if (!emailConfigured()) {
+    console.log(`[removal] no email transport configured; would have notified ${toEmail} of removal from "${groupName}"`);
+    return;
+  }
   try {
     const transport = createTransport(config.email);
     sendRemovalNotice(transport, {

@@ -52,7 +52,7 @@
 
 	const repo = getRepository();
 	const auth = useAuthRequired({
-		allowedRoles: ['planner', 'super'],
+		allowedRoles: ['super'],
 		onReady: async () => {
 			try {
 				const event = await repo.events.getById(data.eventId);

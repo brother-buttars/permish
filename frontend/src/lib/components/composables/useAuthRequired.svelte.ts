@@ -2,7 +2,7 @@ import { onMount } from "svelte";
 import { goto } from "$app/navigation";
 import { user as userStore, authLoading } from "$lib/stores/auth";
 
-type Role = "super" | "user" | "planner" | "parent";
+type Role = "super" | "user";
 
 interface AuthUser {
 	id: string;

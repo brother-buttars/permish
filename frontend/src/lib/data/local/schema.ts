@@ -5,7 +5,7 @@
 
 import type { LocalDatabase } from './database';
 
-export const LOCAL_SCHEMA_VERSION = 5;
+export const LOCAL_SCHEMA_VERSION = 6;
 
 export const SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS local_meta (
@@ -18,7 +18,7 @@ export const SCHEMA_DDL = `
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     name TEXT NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('super', 'planner', 'parent')),
+    role TEXT NOT NULL CHECK(role IN ('super', 'user')),
     phone TEXT,
     address TEXT,
     city TEXT,
@@ -379,6 +379,42 @@ export async function initializeLocalSchema(db: LocalDatabase): Promise<void> {
       await db.execute(
         'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
         ['schema_version', '5']
+      );
+    }
+
+    // Migration: v5 -> v6 — rebuild users.role CHECK to allow ('super', 'user')
+    // (the v1 schema used the old 'super' | 'planner' | 'parent' values, and any
+    // existing local database still has that constraint baked in)
+    if (currentVersion < 6) {
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS users_migrated (
+          id TEXT PRIMARY KEY,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          name TEXT NOT NULL,
+          role TEXT NOT NULL CHECK(role IN ('super', 'user')),
+          phone TEXT,
+          address TEXT,
+          city TEXT,
+          state_province TEXT,
+          guardian_signature TEXT,
+          guardian_signature_type TEXT CHECK(guardian_signature_type IN ('drawn', 'typed', 'hand', NULL)),
+          created TEXT DEFAULT (datetime('now')),
+          updated TEXT DEFAULT (datetime('now'))
+        )
+      `);
+      await db.execute(`
+        INSERT INTO users_migrated (id, email, password_hash, name, role, phone, address, city, state_province, guardian_signature, guardian_signature_type, created, updated)
+        SELECT id, email, password_hash, name,
+          CASE WHEN role = 'super' THEN 'super' ELSE 'user' END,
+          phone, address, city, state_province, guardian_signature, guardian_signature_type, created, updated
+        FROM users
+      `);
+      await db.execute('DROP TABLE users');
+      await db.execute('ALTER TABLE users_migrated RENAME TO users');
+      await db.execute(
+        'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
+        ['schema_version', '6']
       );
     }
   }

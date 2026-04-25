@@ -5,7 +5,7 @@ interface User {
 	id: string;
 	email: string;
 	name: string;
-	role: 'super' | 'user' | 'planner' | 'parent';
+	role: 'super' | 'user';
 	must_change_password?: boolean;
 }
 

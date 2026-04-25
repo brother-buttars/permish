@@ -10,7 +10,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
       password,
       passwordConfirm: password,
       name,
-      role: role || 'parent',
+      role: role || 'user',
     });
 
     // Auto-login after registration

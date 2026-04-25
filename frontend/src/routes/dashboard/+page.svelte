@@ -22,7 +22,7 @@
 	const pdf = usePdfPreview();
 	const auth = useAuthRequired({
 		onReady: async (currentUser) => {
-			const isPlanner = currentUser.role === 'planner' || currentUser.role === 'super';
+			const isPlanner = currentUser.role === 'super';
 			view = isPlanner ? 'planner' : 'parent';
 
 			const repo = getRepository();
@@ -49,7 +49,7 @@
 		<LoadingState />
 	{:else}
 		{#snippet dashboardActions()}
-			{#if auth.user?.role === "planner" || auth.user?.role === "super"}
+			{#if auth.user?.role === "super"}
 				<SegmentedTabs
 					bind:value={view}
 					tabs={[
@@ -62,7 +62,7 @@
 		<PageHeader title="Dashboard" actions={dashboardActions} />
 
 		<!-- ═══════ Activity Manager View ═══════ -->
-		{#if view === 'planner' && (auth.user?.role === 'planner' || auth.user?.role === 'super')}
+		{#if view === 'planner' && auth.user?.role === 'super'}
 			<!-- Summary stats -->
 			<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
 				<Card>

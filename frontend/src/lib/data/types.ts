@@ -5,7 +5,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'super' | 'user' | 'planner' | 'parent';
+  role: 'super' | 'user';
   phone?: string;
   must_change_password?: boolean;
   address?: string;
