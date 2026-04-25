@@ -158,14 +158,12 @@
 		<!-- Stats -->
 		{#if stats}
 			<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-				<a href="#users-list" class="block rounded-xl transition hover:drop-shadow-md">
-					<Card>
-						<CardContent class="py-4 text-center">
-							<p class="text-2xl font-bold">{stats.userCount}</p>
-							<p class="text-xs text-muted-foreground">Users</p>
-						</CardContent>
-					</Card>
-				</a>
+				<Card>
+					<CardContent class="py-4 text-center">
+						<p class="text-2xl font-bold">{stats.userCount}</p>
+						<p class="text-xs text-muted-foreground">Users</p>
+					</CardContent>
+				</Card>
 				<a href="/events" class="block rounded-xl transition hover:drop-shadow-md">
 					<Card>
 						<CardContent class="py-4 text-center">
@@ -234,7 +232,7 @@
 		{/if}
 
 		<!-- Search -->
-		<Card class="mb-6" id="users-list">
+		<Card class="mb-6">
 			<CardContent class="pt-6">
 				<Input bind:value={search} placeholder="Search users by name, email, or role..." />
 			</CardContent>
