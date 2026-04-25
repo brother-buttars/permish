@@ -158,30 +158,38 @@
 		<!-- Stats -->
 		{#if stats}
 			<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-				<Card>
-					<CardContent class="py-4 text-center">
-						<p class="text-2xl font-bold">{stats.userCount}</p>
-						<p class="text-xs text-muted-foreground">Users</p>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardContent class="py-4 text-center">
-						<p class="text-2xl font-bold">{stats.activeEventCount}</p>
-						<p class="text-xs text-muted-foreground">Active Activities</p>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardContent class="py-4 text-center">
-						<p class="text-2xl font-bold">{stats.submissionCount}</p>
-						<p class="text-xs text-muted-foreground">Submissions</p>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardContent class="py-4 text-center">
-						<p class="text-2xl font-bold">{stats.profileCount}</p>
-						<p class="text-xs text-muted-foreground">Profiles</p>
-					</CardContent>
-				</Card>
+				<a href="#users-list" class="block transition-shadow hover:shadow-md">
+					<Card>
+						<CardContent class="py-4 text-center">
+							<p class="text-2xl font-bold">{stats.userCount}</p>
+							<p class="text-xs text-muted-foreground">Users</p>
+						</CardContent>
+					</Card>
+				</a>
+				<a href="/events" class="block transition-shadow hover:shadow-md">
+					<Card>
+						<CardContent class="py-4 text-center">
+							<p class="text-2xl font-bold">{stats.activeEventCount}</p>
+							<p class="text-xs text-muted-foreground">Active Activities</p>
+						</CardContent>
+					</Card>
+				</a>
+				<a href="/submissions" class="block transition-shadow hover:shadow-md">
+					<Card>
+						<CardContent class="py-4 text-center">
+							<p class="text-2xl font-bold">{stats.submissionCount}</p>
+							<p class="text-xs text-muted-foreground">Submissions</p>
+						</CardContent>
+					</Card>
+				</a>
+				<a href="/profiles" class="block transition-shadow hover:shadow-md">
+					<Card>
+						<CardContent class="py-4 text-center">
+							<p class="text-2xl font-bold">{stats.profileCount}</p>
+							<p class="text-xs text-muted-foreground">Profiles</p>
+						</CardContent>
+					</Card>
+				</a>
 			</div>
 		{/if}
 
@@ -226,7 +234,7 @@
 		{/if}
 
 		<!-- Search -->
-		<Card class="mb-6">
+		<Card class="mb-6" id="users-list">
 			<CardContent class="pt-6">
 				<Input bind:value={search} placeholder="Search users by name, email, or role..." />
 			</CardContent>
