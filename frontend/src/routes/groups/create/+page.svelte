@@ -31,6 +31,35 @@
 	let firstRun = $derived(userGroupsLoaded && userGroups.length === 0);
 	let needsStakeFirst = $derived(userGroupsLoaded && type === 'ward' && stakeGroups.length === 0 && !firstRun);
 
+	// Stake combobox state (for ward type)
+	let stakeQuery = $state('');
+	let stakeOpen = $state(false);
+	let filteredStakes = $derived(
+		stakeQuery.trim() === ''
+			? stakeGroups
+			: stakeGroups.filter((g) => g.name.toLowerCase().includes(stakeQuery.trim().toLowerCase()))
+	);
+	let exactStakeMatch = $derived(
+		stakeGroups.find((g) => g.name.toLowerCase() === stakeQuery.trim().toLowerCase())
+	);
+	let canCreateNewStake = $derived(stakeQuery.trim().length > 0 && !exactStakeMatch);
+
+	function selectStake(group: Group) {
+		parentId = group.id;
+		stake = group.name;
+		stakeQuery = group.name;
+		stakeOpen = false;
+	}
+
+	function onStakeQueryInput() {
+		stake = stakeQuery.trim();
+		if (parentId) {
+			const picked = stakeGroups.find((g) => g.id === parentId);
+			if (!picked || picked.name !== stakeQuery) parentId = '';
+		}
+		stakeOpen = true;
+	}
+
 	const repo = getRepository();
 	const auth = useAuthRequired({
 		allowedRoles: ['super'],
@@ -56,6 +85,8 @@
 		type = 'stake';
 		ward = '';
 		parentId = '';
+		stakeQuery = '';
+		stake = '';
 	}
 
 	function deriveName(): string {
@@ -145,27 +176,62 @@
 							<Button type="button" class="mt-3" onclick={switchToStake}>Create Stake</Button>
 						</div>
 					{:else}
-						{#if type === 'ward' && stakeGroups.length > 0}
-							<div class="space-y-2">
-								<Label for="parentId">Parent Stake (optional)</Label>
-								<select id="parentId" bind:value={parentId} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-									<option value="">None</option>
-									{#each stakeGroups as sg}
-										<option value={sg.id}>{sg.name}</option>
-									{/each}
-								</select>
-							</div>
-						{/if}
-
 						{#if type === 'ward'}
 							<div class="space-y-2">
 								<Label for="ward">Ward Name *</Label>
 								<Input id="ward" bind:value={ward} placeholder="e.g., Saratoga Hills 7th Ward" />
 								{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
 							</div>
+
+							<div class="space-y-2">
+								<Label for="stake-combo">Stake *</Label>
+								<div class="relative">
+									<Input
+										id="stake-combo"
+										bind:value={stakeQuery}
+										oninput={onStakeQueryInput}
+										onfocus={() => (stakeOpen = true)}
+										onblur={() => setTimeout(() => (stakeOpen = false), 150)}
+										autocomplete="off"
+										placeholder="Pick an existing stake or type a new one"
+									/>
+									{#if stakeOpen && (filteredStakes.length > 0 || canCreateNewStake)}
+										<div class="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-input bg-popover shadow-md">
+											{#each filteredStakes as g (g.id)}
+												<button
+													type="button"
+													class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+													onmousedown={() => selectStake(g)}
+												>
+													<span>{g.name}</span>
+													{#if parentId === g.id}
+														<span class="text-xs text-muted-foreground">Selected</span>
+													{/if}
+												</button>
+											{/each}
+											{#if canCreateNewStake}
+												<button
+													type="button"
+													class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground border-t border-input"
+													onmousedown={() => (stakeOpen = false)}
+												>
+													<span class="text-muted-foreground">Create new:</span>
+													<span class="font-medium">"{stakeQuery.trim()}"</span>
+												</button>
+											{/if}
+										</div>
+									{/if}
+								</div>
+								{#if parentId}
+									<p class="text-xs text-muted-foreground">Linked to existing stake — ward will be created under it.</p>
+								{:else if stakeQuery.trim()}
+									<p class="text-xs text-muted-foreground">No matching stake — a new stake reference will be created.</p>
+								{/if}
+								{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
+							</div>
 						{/if}
 
-						{#if type !== 'custom'}
+						{#if type === 'stake'}
 							<div class="space-y-2">
 								<Label for="stake">Stake Name *</Label>
 								<Input id="stake" bind:value={stake} placeholder="e.g., Saratoga Springs Utah Stake" />
