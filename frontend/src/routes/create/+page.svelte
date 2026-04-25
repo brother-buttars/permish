@@ -55,7 +55,6 @@
 	let copySuccess = $state(false);
 
 	const auth = useAuthRequired({
-		allowedRoles: ['super'],
 		onReady: async () => {
 			// Load groups where user is admin
 			try {

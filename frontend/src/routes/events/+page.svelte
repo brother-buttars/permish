@@ -18,7 +18,6 @@
 	let orgFilter: string[] = $state([]);
 
 	const auth = useAuthRequired({
-		allowedRoles: ['super'],
 		onReady: async () => {
 			const repo = getRepository();
 			events = await repo.events.list({ all: true });

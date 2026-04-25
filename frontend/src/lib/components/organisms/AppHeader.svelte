@@ -109,9 +109,7 @@
 			{#if !loading}
 				{#if currentUser}
 					<a href="/dashboard" class={navClass("/dashboard")}>Dashboard</a>
-					{#if currentUser.role === "super"}
-						<a href="/events" class={navClass("/events")}>Activities</a>
-					{/if}
+					<a href="/events" class={navClass("/events")}>Activities</a>
 					<a href="/submissions" class={navClass("/submissions")}>Submissions</a>
 					<a href="/groups" class={navClass("/groups")}>Groups</a>
 					<a href="/profiles" class={navClass("/profiles")}>Profiles</a>
@@ -174,13 +172,11 @@
 					class={mobileNavClass("/dashboard")}
 					onclick={closeMobile}>Dashboard</a
 				>
-				{#if currentUser.role === "super"}
-					<a
-						href="/events"
-						class={mobileNavClass("/events")}
-						onclick={closeMobile}>Activities</a
-					>
-				{/if}
+				<a
+					href="/events"
+					class={mobileNavClass("/events")}
+					onclick={closeMobile}>Activities</a
+				>
 				<a
 					href="/submissions"
 					class={mobileNavClass("/submissions")}
