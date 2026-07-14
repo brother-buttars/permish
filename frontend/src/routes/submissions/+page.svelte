@@ -2,6 +2,7 @@
 	import { goto } from "$app/navigation";
 	import { getRepository } from '$lib/data';
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import PdfModal from "$lib/components/PdfModal.svelte";
 	import { inferProgramFromOrgs } from "$lib/utils/organizations";
@@ -118,32 +119,36 @@
 	<!-- Content -->
 	{#if !auth.ready}
 		<LoadingState />
-	{:else if view === 'planner'}
-		{#if filteredPlannerSubmissions.length > 0}
-			<p class="mb-3 text-sm text-muted-foreground">{filteredPlannerSubmissions.length} submission{filteredPlannerSubmissions.length === 1 ? '' : 's'}</p>
-		{/if}
-		<SubmissionListView
-			submissions={filteredPlannerSubmissions}
-			showActivity={true}
-			getProgram={(sub) => inferProgramFromOrgs(parseOrgs(sub))}
-			onPdfPreview={(sub) => pdf.open(sub.id, sub.participant_name || 'submission')}
-			onDeleteAsk={(sub) => del.ask(sub.id, sub.participant_name ?? '')}
-			{deleting}
-			emptyMessage="No submissions found."
-		/>
 	{:else}
-		{#if filteredParentSubmissions.length > 0}
-			<p class="mb-3 text-sm text-muted-foreground">{filteredParentSubmissions.length} submission{filteredParentSubmissions.length === 1 ? '' : 's'}</p>
-		{/if}
-		<SubmissionListView
-			submissions={filteredParentSubmissions}
-			showActivity={true}
-			showEmergencyContact={false}
-			showDelete={false}
-			getProgram={(sub) => inferProgramFromOrgs(parseOrgs(sub))}
-			onPdfPreview={(sub) => pdf.open(sub.id, sub.participant_name || 'submission')}
-			emptyMessage="No submissions found."
-		/>
+		{@const count = view === 'planner' ? filteredPlannerSubmissions.length : filteredParentSubmissions.length}
+		<Card>
+			<CardHeader>
+				<CardTitle>Submissions ({count})</CardTitle>
+			</CardHeader>
+			<CardContent>
+				{#if view === 'planner'}
+					<SubmissionListView
+						submissions={filteredPlannerSubmissions}
+						showActivity={true}
+						getProgram={(sub) => inferProgramFromOrgs(parseOrgs(sub))}
+						onPdfPreview={(sub) => pdf.open(sub.id, sub.participant_name || 'submission')}
+						onDeleteAsk={(sub) => del.ask(sub.id, sub.participant_name ?? '')}
+						{deleting}
+						emptyMessage="No submissions found."
+					/>
+				{:else}
+					<SubmissionListView
+						submissions={filteredParentSubmissions}
+						showActivity={true}
+						showEmergencyContact={false}
+						showDelete={false}
+						getProgram={(sub) => inferProgramFromOrgs(parseOrgs(sub))}
+						onPdfPreview={(sub) => pdf.open(sub.id, sub.participant_name || 'submission')}
+						emptyMessage="No submissions found."
+					/>
+				{/if}
+			</CardContent>
+		</Card>
 	{/if}
 </PageContainer>
 
