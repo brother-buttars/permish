@@ -1,13 +1,11 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { getRepository } from '$lib/data';
-	import { Input } from "$lib/components/ui/input";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import PdfModal from "$lib/components/PdfModal.svelte";
 	import { inferProgramFromOrgs } from "$lib/utils/organizations";
 	import { parseOrgs } from "$lib/utils/events";
-	import { Select } from "$lib/components/ui/select";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import { PageHeader, PageContainer, SegmentedTabs, FilterPanel, AdminFilterBar } from "$lib/components/molecules";
 	import { SubmissionListView } from "$lib/components/organisms";
@@ -18,11 +16,7 @@
 	let allSubmissions: any[] = $state([]);
 	let mySubmissions: any[] = $state([]);
 	let search = $state('');
-	let eventFilter = $state('');
 	let isPlanner = $state(false);
-
-	// Unique events for filter dropdown
-	let uniqueEvents: { id: string; name: string }[] = $state([]);
 
 	let deleting = $state<string | null>(null);
 	const del = useDeleteConfirm<string>();
@@ -46,11 +40,6 @@
 			groupId: $adminFilter.groupId,
 			activityId: $adminFilter.activityId,
 		});
-		const eventMap = new Map<string, string>();
-		allSubmissions.forEach(s => {
-			if (s.event_id && s.event_name) eventMap.set(s.event_id, s.event_name);
-		});
-		uniqueEvents = Array.from(eventMap, ([id, name]) => ({ id, name }));
 	}
 
 	$effect(() => {
@@ -61,7 +50,6 @@
 
 	let filteredPlannerSubmissions = $derived.by(() => {
 		return allSubmissions.filter(sub => {
-			if (eventFilter && sub.event_id !== eventFilter) return false;
 			if (search) {
 				const q = search.toLowerCase();
 				const nameMatch = sub.participant_name?.toLowerCase().includes(q);
@@ -125,21 +113,7 @@
 		<AdminFilterBar />
 	{/if}
 
-	<FilterPanel showSearch={false}>
-		<div class="flex flex-col gap-4 sm:flex-row">
-			<div class="flex-1">
-				<Input type="text" placeholder="Search by participant or contact..." bind:value={search} />
-			</div>
-			{#if view === 'planner' && uniqueEvents.length > 0}
-				<Select bind:value={eventFilter}>
-					<option value="">All Activities</option>
-					{#each uniqueEvents as ev}
-						<option value={ev.id}>{ev.name}</option>
-					{/each}
-				</Select>
-			{/if}
-		</div>
-	</FilterPanel>
+	<FilterPanel bind:search searchPlaceholder="Search by participant or contact..." />
 
 	<!-- Content -->
 	{#if !auth.ready}
