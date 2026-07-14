@@ -3,14 +3,14 @@
 	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
-	import { formatDate } from "$lib/utils/formatDate";
 	import { profileMatchesEventOrgs, type YouthProgram } from "$lib/utils/youthClass";
 	import PdfModal from "$lib/components/PdfModal.svelte";
 	import { isPastEvent, parseOrgs } from "$lib/utils/events";
-	import { getOrgDisplayLabels } from "$lib/utils/organizations";
+	import { getOrgDisplayLabels, inferProgramFromOrgs } from "$lib/utils/organizations";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import EmptyState from "$lib/components/EmptyState.svelte";
 	import { PageHeader, PageContainer, SegmentedTabs, ListCard, EventStatusBadges, AdminFilterBar } from "$lib/components/molecules";
+	import { SubmissionListView } from "$lib/components/organisms";
 	import { OrgBadge } from "$lib/components/atoms";
 	import { usePdfPreview, useAuthRequired } from "$lib/components/composables";
 	import { adminFilter } from "$lib/stores/adminFilter";
@@ -233,64 +233,15 @@
 					<CardTitle class="text-xl">My Submissions</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{#if submissions.length === 0}
-						<div class="py-4 text-center">
-							<p class="text-muted-foreground">No form submissions yet.</p>
-						</div>
-					{:else}
-						<!-- Mobile card view -->
-						<div class="space-y-3 sm:hidden">
-							{#each submissions as sub}
-								<div class="flex items-center justify-between rounded-lg border p-4">
-									<div class="min-w-0 flex-1">
-										<p class="font-medium">{sub.participant_name || "—"}</p>
-										<p class="text-sm text-muted-foreground">{sub.event_name || "—"}</p>
-										<p class="text-xs text-muted-foreground">{formatDate(sub.submitted_at)}</p>
-									</div>
-									<Button
-										variant="outline"
-										size="sm"
-										class="h-7 text-xs"
-										onclick={() => pdf.open(sub.id, sub.participant_name || 'submission')}
-									>
-										PDF
-									</Button>
-								</div>
-							{/each}
-						</div>
-						<!-- Desktop table view -->
-						<div class="hidden sm:block overflow-x-auto">
-							<table class="w-full text-sm">
-								<thead>
-									<tr class="border-b">
-										<th class="px-4 py-3 text-left font-medium">Activity</th>
-										<th class="px-4 py-3 text-left font-medium">Participant</th>
-										<th class="px-4 py-3 text-left font-medium">Submitted</th>
-										<th class="px-4 py-3 text-left font-medium">Actions</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each submissions as sub}
-										<tr class="border-b last:border-b-0">
-											<td class="px-4 py-3">{sub.event_name || "—"}</td>
-											<td class="px-4 py-3">{sub.participant_name || "—"}</td>
-											<td class="px-4 py-3">{formatDate(sub.submitted_at)}</td>
-											<td class="px-4 py-3">
-												<Button
-													variant="outline"
-													size="sm"
-													class="h-7 text-xs"
-													onclick={() => pdf.open(sub.id, sub.participant_name || 'submission')}
-												>
-													PDF
-												</Button>
-											</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-					{/if}
+					<SubmissionListView
+						{submissions}
+						showActivity={true}
+						showEmergencyContact={false}
+						showDelete={false}
+						getProgram={(sub) => inferProgramFromOrgs(parseOrgs(sub))}
+						onPdfPreview={(sub) => pdf.open(sub.id, sub.participant_name || 'submission')}
+						emptyMessage="No form submissions yet."
+					/>
 				</CardContent>
 			</Card>
 		{/if}

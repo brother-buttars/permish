@@ -3,6 +3,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
+	import SegmentedTabs from "$lib/components/molecules/SegmentedTabs.svelte";
 
 	let {
 		label,
@@ -30,9 +31,28 @@
 	let typedName = $state("");
 	let hasDrawn = $state(false);
 	let usingSaved = $state(false);
+	// Last exported drawing — survives the canvas unmounting on mode switch
+	// and is the source for re-blitting after a resize/rotation.
+	let lastDrawnDataUrl = $state("");
+	let resizeObserver: ResizeObserver | undefined;
 
 	// Whether a saved signature is available (not "hand" type)
 	let hasSavedSig = $derived(!!initialValue && initialType !== "hand");
+
+	type SigMode = "drawn" | "typed" | "hand" | "saved";
+	const mode = $derived<SigMode>(usingSaved ? "saved" : type);
+	const modeTabs = $derived.by(() => {
+		const t: { value: SigMode; label: string }[] = [];
+		if (allowHand) t.push({ value: "hand", label: "By Hand" });
+		t.push({ value: "drawn", label: "Draw" }, { value: "typed", label: "Type" });
+		if (hasSavedSig) t.push({ value: "saved", label: "Saved" });
+		return t;
+	});
+
+	function selectMode(m: SigMode) {
+		if (m === "saved") applySaved();
+		else switchMode(m);
+	}
 
 	// Stable id fragment for label/input association
 	const idBase = $derived(label.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
@@ -68,6 +88,7 @@
 		} else if ((initialType ?? type) === "drawn") {
 			value = initialValue;
 			hasDrawn = true;
+			lastDrawnDataUrl = initialValue;
 			if (canvas) loadImageToCanvas(initialValue);
 		}
 		lastInitialValue = initialValue;
@@ -78,6 +99,10 @@
 		if (canvas && initialized) {
 			initCanvas();
 		}
+		return () => {
+			resizeObserver?.disconnect();
+			resizeObserver = undefined;
+		};
 	});
 
 	// React to initialValue changes (e.g., profile selection after mount)
@@ -100,19 +125,40 @@
 		ctx = canvas.getContext("2d");
 		if (!ctx) return;
 
+		sizeCanvas();
+		redrawFromValue();
+
+		// Re-blit on container resize (e.g. device rotation) — resizing the
+		// backing store clears the canvas and resets stroke settings.
+		resizeObserver?.disconnect();
+		if (typeof ResizeObserver !== "undefined") {
+			resizeObserver = new ResizeObserver(() => {
+				if (!canvas) return;
+				const rect = canvas.getBoundingClientRect();
+				if (Math.round(rect.width) === canvas.width && Math.round(rect.height) === canvas.height) {
+					return;
+				}
+				sizeCanvas();
+				redrawFromValue();
+			});
+			resizeObserver.observe(canvas);
+		}
+	}
+
+	function sizeCanvas() {
+		if (!canvas || !ctx) return;
 		const rect = canvas.getBoundingClientRect();
 		canvas.width = rect.width;
 		canvas.height = rect.height;
-
 		ctx.strokeStyle = "#000";
 		ctx.lineWidth = 2;
 		ctx.lineCap = "round";
 		ctx.lineJoin = "round";
+	}
 
-		// Redraw if there was an initial drawn value and we're in drawn mode
-		if (initialValue && (initialType ?? "drawn") === "drawn" && type === "drawn") {
-			loadImageToCanvas(initialValue);
-		}
+	function redrawFromValue() {
+		if (type !== "drawn" || !hasDrawn || !lastDrawnDataUrl) return;
+		loadImageToCanvas(lastDrawnDataUrl);
 	}
 
 	function loadImageToCanvas(dataUrl: string) {
@@ -159,12 +205,14 @@
 	function exportCanvas() {
 		if (!canvas) return;
 		value = canvas.toDataURL("image/png");
+		lastDrawnDataUrl = value;
 	}
 
 	function clearCanvas() {
 		if (!ctx || !canvas) return;
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 		value = "";
+		lastDrawnDataUrl = "";
 		hasDrawn = false;
 	}
 
@@ -176,11 +224,9 @@
 		} else if (newMode === "typed") {
 			value = typedName;
 		} else {
-			if (hasDrawn && canvas) {
-				value = canvas.toDataURL("image/png");
-			} else {
-				value = "";
-			}
+			// The canvas remounts when returning to Draw; restore the last
+			// exported drawing rather than reading the (gone) canvas element.
+			value = hasDrawn && lastDrawnDataUrl ? lastDrawnDataUrl : "";
 		}
 	}
 
@@ -194,6 +240,7 @@
 		} else if (savedType === "drawn") {
 			value = initialValue;
 			hasDrawn = true;
+			lastDrawnDataUrl = initialValue;
 			if (canvas) loadImageToCanvas(initialValue);
 		}
 	}
@@ -210,52 +257,12 @@
 	<Label>{label}</Label>
 
 	<!-- Mode toggle -->
-	<div class="flex gap-1 rounded-lg border border-input bg-muted p-1" role="group" aria-label="{label} signing method">
-		{#if allowHand}
-			<Button
-				type="button"
-				variant={type === 'hand' && !usingSaved ? "default" : "outline"}
-				size="sm"
-				class="flex-1 {type !== 'hand' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
-				aria-pressed={type === 'hand' && !usingSaved}
-				onclick={() => switchMode("hand")}
-			>
-				By Hand
-			</Button>
-		{/if}
-		<Button
-			type="button"
-			variant={type === 'drawn' && !usingSaved ? "default" : "outline"}
-			size="sm"
-			class="flex-1 {type !== 'drawn' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
-			aria-pressed={type === 'drawn' && !usingSaved}
-			onclick={() => switchMode("drawn")}
-		>
-			Draw
-		</Button>
-		<Button
-			type="button"
-			variant={type === 'typed' && !usingSaved ? "default" : "outline"}
-			size="sm"
-			class="flex-1 {type !== 'typed' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
-			aria-pressed={type === 'typed' && !usingSaved}
-			onclick={() => switchMode("typed")}
-		>
-			Type
-		</Button>
-		{#if hasSavedSig}
-			<Button
-				type="button"
-				variant={usingSaved ? "default" : "outline"}
-				size="sm"
-				class="flex-1 {!usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
-				aria-pressed={usingSaved}
-				onclick={applySaved}
-			>
-				Saved
-			</Button>
-		{/if}
-	</div>
+	<SegmentedTabs
+		value={mode}
+		tabs={modeTabs}
+		label="{label} signing method"
+		onSelect={selectMode}
+	/>
 
 	<!-- Saved mode preview -->
 	{#if usingSaved}

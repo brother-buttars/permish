@@ -9,6 +9,7 @@
 	import LoadingState from '$lib/components/LoadingState.svelte';
 	import { PageContainer } from '$lib/components/molecules';
 	import { toastError, toastSuccess } from '$lib/stores/toast';
+	import { formatDate } from '$lib/utils/formatDate';
 	import type { InvitePreview } from '$lib/data/types';
 
 	let { data } = $props();
@@ -20,6 +21,18 @@
 	let preview: InvitePreview | null = $state(null);
 	let loadError = $state<string | null>(null);
 	let accepting = $state(false);
+
+	// Server reasons arrive as codes/short phrases; map them to sentences
+	// instead of splicing raw error text into the copy.
+	const inviteProblem = $derived.by(() => {
+		const e = (loadError || '').toLowerCase();
+		if (e.includes('revoked')) return 'This invite has been revoked.';
+		if (e.includes('expired')) return 'This invite has expired.';
+		if (e.includes('exhausted') || e.includes('used')) return 'This invite has already been used.';
+		if (e.includes('accepted')) return 'This invite has already been accepted.';
+		if (e.includes('not_found') || e.includes('invalid')) return 'This invite link is invalid.';
+		return 'This invite could not be loaded.';
+	});
 
 	$effect(() => {
 		void loadPreview();
@@ -61,7 +74,7 @@
 			<CardHeader><CardTitle>Invite unavailable</CardTitle></CardHeader>
 			<CardContent>
 				<p class="text-sm text-muted-foreground">
-					This invite is {loadError.toLowerCase().includes('not_found') ? 'invalid' : loadError.replace('Invite ', '')}.
+					{inviteProblem}
 					Ask the group admin for a new one.
 				</p>
 			</CardContent>
@@ -102,7 +115,7 @@
 				{#if preview.invite.expires_at}
 					<div class="grid gap-1 sm:grid-cols-3">
 						<span class="text-sm text-muted-foreground">Expires</span>
-						<span class="sm:col-span-2">{new Date(preview.invite.expires_at).toLocaleString()}</span>
+						<span class="sm:col-span-2">{formatDate(preview.invite.expires_at)}</span>
 					</div>
 				{/if}
 				{#if !currentUser}

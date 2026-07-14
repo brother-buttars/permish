@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cn } from "$lib/utils";
+	import type { Snippet } from "svelte";
 
 	type AlertVariant = "error" | "warning" | "info";
 
@@ -8,11 +9,13 @@
 		message,
 		errors,
 		class: className = "",
+		children,
 	}: {
 		variant?: AlertVariant;
 		message?: string;
 		errors?: string[];
 		class?: string;
+		children?: Snippet;
 	} = $props();
 
 	const variantClasses: Record<AlertVariant, string> = {
@@ -22,7 +25,7 @@
 	};
 </script>
 
-{#if message || (errors && errors.length > 0)}
+{#if message || (errors && errors.length > 0) || children}
 	<div class={cn("rounded-md border p-3 text-sm", variantClasses[variant], className)}>
 		{#if message}
 			<p>{message}</p>
@@ -33,6 +36,9 @@
 					<li>{error}</li>
 				{/each}
 			</ul>
+		{/if}
+		{#if children}
+			{@render children()}
 		{/if}
 	</div>
 {/if}

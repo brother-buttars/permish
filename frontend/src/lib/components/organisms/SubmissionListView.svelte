@@ -12,7 +12,9 @@
 		event_id?: string;
 		event_name?: string;
 		participant_name?: string;
+		participant_age?: number | string;
 		emergency_contact?: string;
+		emergency_phone_primary?: string;
 		submitted_at?: string;
 		[key: string]: unknown;
 	}
@@ -20,7 +22,9 @@
 	let {
 		submissions,
 		showActivity = false,
+		showAge = false,
 		showEmergencyContact = true,
+		showEmergencyPhone = false,
 		showDelete = true,
 		getProgram,
 		getEditUrl = (sub) => `/form/${sub.event_id}/edit/${sub.id}`,
@@ -32,7 +36,9 @@
 	}: {
 		submissions: Submission[];
 		showActivity?: boolean;
+		showAge?: boolean;
 		showEmergencyContact?: boolean;
+		showEmergencyPhone?: boolean;
 		showDelete?: boolean;
 		getProgram?: (sub: Submission) => YouthProgram | null;
 		getEditUrl?: (sub: Submission) => string;
@@ -64,15 +70,15 @@
 								<p class="text-sm text-muted-foreground">{sub.event_name || dash}</p>
 							{/if}
 							{#if showEmergencyContact}
-								<p class="text-sm text-muted-foreground">{sub.emergency_contact || dash}</p>
+								<p class="text-sm text-muted-foreground">{sub.emergency_contact || dash}{showEmergencyPhone && sub.emergency_phone_primary ? ` · ${sub.emergency_phone_primary}` : ""}</p>
 							{/if}
-							<p class="text-xs text-muted-foreground">{(sub.submitted_at && formatDate(sub.submitted_at)) || dash}</p>
+							<p class="text-xs text-muted-foreground">{showAge && sub.participant_age ? `Age ${sub.participant_age} · ` : ""}{(sub.submitted_at && formatDate(sub.submitted_at)) || dash}</p>
 						</div>
-						<div class="flex gap-1">
+						<div class="flex gap-2">
 							<Button
 								variant="outline"
 								size="sm"
-								class="h-7 text-xs"
+								class="text-xs"
 								onclick={() => onPdfPreview(sub)}
 							>
 								PDF
@@ -80,7 +86,7 @@
 							<Button
 								variant="outline"
 								size="sm"
-								class="h-7 text-xs"
+								class="text-xs"
 								onclick={() => goto(getEditUrl(sub))}
 							>
 								Edit
@@ -89,7 +95,7 @@
 								<Button
 									variant="destructive"
 									size="sm"
-									class="h-7 text-xs"
+									class="text-xs"
 									onclick={() => onDeleteAsk(sub)}
 									disabled={deleting === sub.id}
 								>
@@ -112,8 +118,14 @@
 					{#if showActivity}
 						<th class="px-4 py-3 text-left font-medium">Activity</th>
 					{/if}
+					{#if showAge}
+						<th class="px-4 py-3 text-left font-medium">Age</th>
+					{/if}
 					{#if showEmergencyContact}
 						<th class="px-4 py-3 text-left font-medium">Emergency Contact</th>
+					{/if}
+					{#if showEmergencyPhone}
+						<th class="px-4 py-3 text-left font-medium">Emergency Phone</th>
 					{/if}
 					<th class="px-4 py-3 text-left font-medium">Submitted</th>
 					<th class="px-4 py-3 text-left font-medium">Actions</th>
@@ -131,8 +143,14 @@
 						{#if showActivity}
 							<td class="px-4 py-3">{sub.event_name || dash}</td>
 						{/if}
+						{#if showAge}
+							<td class="px-4 py-3">{sub.participant_age || dash}</td>
+						{/if}
 						{#if showEmergencyContact}
 							<td class="px-4 py-3">{sub.emergency_contact || dash}</td>
+						{/if}
+						{#if showEmergencyPhone}
+							<td class="px-4 py-3">{sub.emergency_phone_primary || dash}</td>
 						{/if}
 						<td class="px-4 py-3">{(sub.submitted_at && formatDate(sub.submitted_at)) || dash}</td>
 						<td class="px-4 py-3">

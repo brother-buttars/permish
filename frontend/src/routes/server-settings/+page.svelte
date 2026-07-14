@@ -163,14 +163,14 @@
 			{/if}
 
 			{#if versionMismatch}
-				<div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-sm">
-					<div class="font-medium text-amber-800 dark:text-amber-200">Version mismatch</div>
-					<p class="text-amber-700 dark:text-amber-300 mt-1">
+				<AlertBox variant="warning">
+					<div class="font-medium">Version mismatch</div>
+					<p class="mt-1">
 						This app is <span class="font-mono">v{APP_VERSION}</span> but the server is
 						<span class="font-mono">v{serverVersion}</span>.
 						Switching will clear the cached app and reload from the server.
 					</p>
-				</div>
+				</AlertBox>
 			{/if}
 
 			{#if testResult === 'error'}

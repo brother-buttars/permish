@@ -6,9 +6,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import LoadingState from '$lib/components/LoadingState.svelte';
-	import { PageContainer } from '$lib/components/molecules';
+	import { PageContainer, SegmentedTabs } from '$lib/components/molecules';
 	import { toastError } from '$lib/stores/toast';
-	import { cn } from '$lib/utils';
 	import type { GroupDetail } from '$lib/data/types';
 	import { setGroupContext } from './_context.svelte';
 
@@ -51,7 +50,7 @@
 		];
 		if (isAdmin) {
 			base.push({ value: `/groups/${data.groupId}/invites`, label: 'Invites' });
-			base.push({ value: `/groups/${data.groupId}/activity`, label: 'Activity' });
+			base.push({ value: `/groups/${data.groupId}/activity`, label: 'History' });
 		}
 		return base;
 	});
@@ -86,23 +85,13 @@
 			</div>
 		</div>
 
-		<div class="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-input bg-muted p-1">
-			{#each tabs as tab (tab.value)}
-				{@const active = currentTab === tab.value}
-				<Button
-					variant={active ? 'default' : 'outline'}
-					size="sm"
-					class={cn(
-						'flex-1 whitespace-nowrap',
-						!active &&
-							'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm'
-					)}
-					onclick={() => goto(tab.value)}
-				>
-					{tab.label}
-				</Button>
-			{/each}
-		</div>
+		<SegmentedTabs
+			class="mb-6"
+			label="Group sections"
+			value={currentTab}
+			{tabs}
+			onSelect={(path) => goto(path)}
+		/>
 
 		{@render children()}
 	{/if}

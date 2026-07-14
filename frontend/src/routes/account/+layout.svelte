@@ -4,9 +4,7 @@
 	import { goto } from "$app/navigation";
 	import { user as userStore, authLoading } from "$lib/stores/auth";
 	import { getDataMode } from "$lib/data";
-	import { PageContainer } from "$lib/components/molecules";
-	import { Button } from "$lib/components/ui/button";
-	import { cn } from "$lib/utils";
+	import { PageContainer, SegmentedTabs } from "$lib/components/molecules";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 
 	let { children } = $props();
@@ -51,23 +49,13 @@
 	{:else}
 		<h1 class="mb-4 text-3xl font-bold">My Account</h1>
 
-		<div class="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-input bg-muted p-1">
-			{#each tabs as tab (tab.value)}
-				{@const active = currentTab === tab.value}
-				<Button
-					variant={active ? "default" : "outline"}
-					size="sm"
-					class={cn(
-						"flex-1 whitespace-nowrap",
-						!active &&
-							"bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm"
-					)}
-					onclick={() => goto(tab.value)}
-				>
-					{tab.label}
-				</Button>
-			{/each}
-		</div>
+		<SegmentedTabs
+			class="mb-6"
+			label="Account sections"
+			value={currentTab}
+			{tabs}
+			onSelect={(path) => goto(path)}
+		/>
 
 		{@render children()}
 	{/if}

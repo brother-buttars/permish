@@ -158,7 +158,7 @@
 </header>
 
 <!-- Mobile Sheet -->
-<SheetContent open={mobileMenuOpen} side="right" onclose={closeMobile}>
+<SheetContent open={mobileMenuOpen} side="right" label="Navigation menu" onclose={closeMobile}>
 	<SheetHeader>
 		<SheetTitle>Menu</SheetTitle>
 	</SheetHeader>

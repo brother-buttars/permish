@@ -47,15 +47,15 @@ Imports: `import { OrgBadge, YouthClassBadge } from "$lib/components/atoms";`
 |-----------|------|-------|
 | PageContainer | frontend/src/lib/components/molecules/PageContainer.svelte | Standard page wrapper (`container mx-auto px-4 py-8`) with `size: sm/md/default/lg/full` |
 | PageHeader | frontend/src/lib/components/molecules/PageHeader.svelte | Title + optional subtitle + `titleSuffix` snippet + `actions` snippet |
-| SegmentedTabs | frontend/src/lib/components/molecules/SegmentedTabs.svelte | Generic-typed tab strip; `bind:value`, `tabs: { value, label }[]` |
+| SegmentedTabs | frontend/src/lib/components/molecules/SegmentedTabs.svelte | Generic-typed tab strip; `bind:value`, `tabs: { value, label }[]`, `onSelect` for nav-style tabs (layouts), `label` for the group ARIA name |
 | FilterPanel | frontend/src/lib/components/molecules/FilterPanel.svelte | Card wrapper with optional bound search input + slot for filter UI |
 | ListCard | frontend/src/lib/components/molecules/ListCard.svelte | Clickable card row with title, description, `trailing`/`footer` snippets |
 | EventStatusBadges | frontend/src/lib/components/molecules/EventStatusBadges.svelte | Active / Inactive / Past badge cluster for an event |
 | Modal | frontend/src/lib/components/molecules/Modal.svelte | Generic backdrop + dialog with `size: sm/md/lg/fullscreen`, escape-to-close, `header` and `children` snippets each receive a `close` callback |
-| AlertBox | frontend/src/lib/components/AlertBox.svelte | Error / warning / info alert (legacy location) |
+| AlertBox | frontend/src/lib/components/AlertBox.svelte | Error / warning / info alert; `message`/`errors` or a children snippet for rich content (legacy location) |
 | ConfirmModal | frontend/src/lib/components/ConfirmModal.svelte | Confirmation dialog with focus trap (legacy location) |
 | EmptyState | frontend/src/lib/components/EmptyState.svelte | Empty list card with `message`, optional `description`, optional action (legacy location) |
-| FormField | frontend/src/lib/components/FormField.svelte | Snippet-based label + error wrapper (legacy location) |
+| FormField | frontend/src/lib/components/FormField.svelte | Snippet-based label + error wrapper; used by create, event edit, groups/create (legacy location) |
 | FormProgress | frontend/src/lib/components/FormProgress.svelte | Sticky progress + step indicators (legacy location) |
 | InstallPrompt | frontend/src/lib/components/InstallPrompt.svelte | PWA install prompt (legacy location) |
 | LoadingState | frontend/src/lib/components/LoadingState.svelte | Full-page loader + message (legacy location) |
@@ -72,7 +72,7 @@ Imports: `import { PageContainer, PageHeader, SegmentedTabs, FilterPanel, ListCa
 | Component | Path | Notes |
 |-----------|------|-------|
 | AppHeader | frontend/src/lib/components/organisms/AppHeader.svelte | Top nav + mobile sheet (consumed by `routes/+layout.svelte`) |
-| SubmissionListView | frontend/src/lib/components/organisms/SubmissionListView.svelte | Mobile cards + desktop table for submissions; configurable columns + actions (consumed by event/[id], submissions) |
+| SubmissionListView | frontend/src/lib/components/organisms/SubmissionListView.svelte | Mobile cards + desktop table for submissions; configurable columns (`showActivity`/`showAge`/`showEmergencyContact`/`showEmergencyPhone`) + actions (consumed by dashboard, submissions, event/[id]/submissions) |
 | MedicalInfoSection | frontend/src/lib/components/MedicalInfoSection.svelte | Multi-field medical questionnaire (legacy location) |
 | PdfModal | frontend/src/lib/components/PdfModal.svelte | PDF viewer modal (legacy location) |
 | PdfViewer | frontend/src/lib/components/PdfViewer.svelte | PDF.js renderer (legacy location) |

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { Button } from "$lib/components/ui/button";
+	import AlertBox from "$lib/components/AlertBox.svelte";
 
 	type DataMode = "online" | "hybrid" | "local";
 
@@ -71,9 +72,7 @@
 		</div>
 
 		{#if dataMode !== initialDataMode}
-			<div
-				class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-sm"
-			>
+			<AlertBox variant="warning">
 				{#if initialDataMode === "online" && dataMode === "hybrid"}
 					Switching to hybrid will download your data for offline use. This may take a moment.
 				{:else if initialDataMode === "local" && dataMode === "hybrid"}
@@ -83,7 +82,7 @@
 				{:else if initialDataMode === "hybrid" && dataMode === "online"}
 					Switching to online will push pending changes first, then remove local data.
 				{/if}
-			</div>
+			</AlertBox>
 			{#if migrationProgress}
 				<div class="flex items-center gap-2 text-sm text-muted-foreground">
 					<svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

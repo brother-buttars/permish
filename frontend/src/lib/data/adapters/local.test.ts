@@ -457,6 +457,17 @@ describe('Local SQLite Adapter', () => {
       expect(submission.guardian_signature).toBe('John Doe');
     });
 
+    it('rejects form load and submit for a deactivated activity (matches server 410)', async () => {
+      await repo.events.deactivate(eventId); // soft-delete: is_active = 0
+
+      await expect(repo.submissions.getFormEvent(eventId)).rejects.toThrow(
+        'no longer accepting submissions'
+      );
+      await expect(repo.submissions.submit(eventId, sampleSubmission)).rejects.toThrow(
+        'no longer accepting submissions'
+      );
+    });
+
     it('should get my submissions', async () => {
       await repo.submissions.submit(eventId, sampleSubmission);
 

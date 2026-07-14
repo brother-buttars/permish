@@ -4,9 +4,7 @@
 	import { goto } from "$app/navigation";
 	import { user as userStore, authLoading } from "$lib/stores/auth";
 	import { hydrateFromUrl, adminFilter } from "$lib/stores/adminFilter";
-	import { PageContainer, AdminFilterBar } from "$lib/components/molecules";
-	import { Button } from "$lib/components/ui/button";
-	import { cn } from "$lib/utils";
+	import { PageContainer, AdminFilterBar, SegmentedTabs } from "$lib/components/molecules";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 
 	let { children } = $props();
@@ -63,23 +61,13 @@
 
 		<AdminFilterBar />
 
-		<div class="mb-6 flex gap-1 overflow-x-auto rounded-lg border border-input bg-muted p-1">
-			{#each tabs as tab (tab.value)}
-				{@const active = currentTab === tab.value}
-				<Button
-					variant={active ? "default" : "outline"}
-					size="sm"
-					class={cn(
-						"flex-1 whitespace-nowrap",
-						!active &&
-							"bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm"
-					)}
-					onclick={() => navTo(tab.value)}
-				>
-					{tab.label}
-				</Button>
-			{/each}
-		</div>
+		<SegmentedTabs
+			class="mb-6"
+			label="Admin sections"
+			value={currentTab}
+			{tabs}
+			onSelect={navTo}
+		/>
 
 		{@render children()}
 	{/if}

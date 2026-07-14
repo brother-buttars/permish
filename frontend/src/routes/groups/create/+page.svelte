@@ -5,6 +5,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { Select } from '$lib/components/ui/select';
+	import FormField from '$lib/components/FormField.svelte';
 	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card';
 	import { toastSuccess, toastError } from '$lib/stores/toast';
 	import AlertBox from '$lib/components/AlertBox.svelte';
@@ -155,16 +157,11 @@
 
 					<div class="space-y-2">
 						<Label for="type">Group Type *</Label>
-						<select
-							id="type"
-							bind:value={type}
-							disabled={firstRun}
-							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-						>
+						<Select id="type" bind:value={type} disabled={firstRun}>
 							<option value="ward">Ward</option>
 							<option value="stake">Stake</option>
 							<option value="custom">Custom</option>
-						</select>
+						</Select>
 					</div>
 
 					{#if needsStakeFirst}
@@ -177,14 +174,11 @@
 						</div>
 					{:else}
 						{#if type === 'ward'}
-							<div class="space-y-2">
-								<Label for="ward">Ward Name *</Label>
+							<FormField label="Ward Name" id="ward" required error={errors.ward}>
 								<Input id="ward" bind:value={ward} placeholder="e.g., Saratoga Hills 7th Ward" />
-								{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
-							</div>
+							</FormField>
 
-							<div class="space-y-2">
-								<Label for="stake-combo">Stake *</Label>
+							<FormField label="Stake" id="stake-combo" required error={errors.stake}>
 								<div class="relative">
 									<Input
 										id="stake-combo"
@@ -229,24 +223,19 @@
 								{:else if stakeQuery.trim()}
 									<p class="text-xs text-muted-foreground">No matching stake — a new stake reference will be created.</p>
 								{/if}
-								{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
-							</div>
+							</FormField>
 						{/if}
 
 						{#if type === 'stake'}
-							<div class="space-y-2">
-								<Label for="stake">Stake Name *</Label>
+							<FormField label="Stake Name" id="stake" required error={errors.stake}>
 								<Input id="stake" bind:value={stake} placeholder="e.g., Saratoga Springs Utah Stake" />
-								{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
-							</div>
+							</FormField>
 						{/if}
 
 						{#if type === 'custom'}
-							<div class="space-y-2">
-								<Label for="name">Group Name *</Label>
+							<FormField label="Group Name" id="name" required error={errors.name}>
 								<Input id="name" bind:value={name} placeholder="e.g., Stake YM Activity Committee" />
-								{#if errors.name}<p class="text-sm text-destructive">{errors.name}</p>{/if}
-							</div>
+							</FormField>
 							<div class="space-y-2">
 								<Label for="ward">Ward (optional)</Label>
 								<Input id="ward" bind:value={ward} placeholder="Ward name" />
