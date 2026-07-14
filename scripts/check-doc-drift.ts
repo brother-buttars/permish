@@ -35,6 +35,7 @@ const INCLUDE = [
   'btrs/project-map.md',
   'btrs/knowledge/**/*.md',
   'CLAUDE.md',
+  'CONTRIBUTING.md',
   'README.md',
   'frontend/README.md',
   'scripts/README.md',
