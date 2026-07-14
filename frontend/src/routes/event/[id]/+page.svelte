@@ -13,6 +13,7 @@
 	import QRCode from "qrcode";
 	import PdfModal from "$lib/components/PdfModal.svelte";
 	import LoadingState from "$lib/components/LoadingState.svelte";
+	import EmptyState from "$lib/components/EmptyState.svelte";
 	import { Badge } from "$lib/components/ui/badge";
 	import { createShareLink } from "$lib/utils/eventShare";
 	import { generatePdfForSubmission } from "$lib/services/pdfHelper";
@@ -246,11 +247,17 @@
 	}
 
 
-	function downloadAttachment(att: any) {
-		const a = document.createElement('a');
-		a.href = repo.attachments.getUrl(data.eventId, att.id);
-		a.download = att.original_name;
-		a.click();
+	async function downloadAttachment(att: any) {
+		try {
+			const url = await repo.attachments.getUrl(data.eventId, att.id);
+			if (!url) throw new Error('Attachment unavailable');
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = att.original_name;
+			a.click();
+		} catch {
+			toastError('Failed to download attachment.');
+		}
 	}
 
 </script>
@@ -262,6 +269,8 @@
 <PageContainer>
 	{#if !auth.ready}
 		<LoadingState />
+	{:else if auth.error}
+		<EmptyState message="Something went wrong loading this activity." description={auth.error} actionLabel="Retry" onAction={auth.retry} />
 	{:else if !event}
 		<p class="text-center text-destructive">Activity not found.</p>
 	{:else}

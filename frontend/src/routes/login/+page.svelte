@@ -7,6 +7,7 @@
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
 	import AlertBox from "$lib/components/AlertBox.svelte";
 	import InstallPrompt from "$lib/components/InstallPrompt.svelte";
+	import { postAuthDestination, nextSuffix } from "$lib/utils/returnUrl";
 
 	let email = $state('');
 	let password = $state('');
@@ -24,14 +25,8 @@
 				goto('/setup-credentials');
 				return;
 			}
-			// Check for a return URL (e.g., from /import-event)
-			const returnUrl = typeof window !== 'undefined' && localStorage.getItem('permish_return_url');
-			if (returnUrl) {
-				localStorage.removeItem('permish_return_url');
-				goto(returnUrl);
-			} else {
-				goto('/dashboard');
-			}
+			// Honor ?next= (deep links, invites) or a stored return URL (import-event)
+			goto(postAuthDestination());
 		} catch (err: any) {
 			error = err.message || 'Login failed';
 		} finally {
@@ -83,7 +78,7 @@
 				</Button>
 				<p class="text-sm text-muted-foreground text-center">
 					Don't have an account?
-					<a href="/register" class="text-primary underline hover:no-underline">Register</a>
+					<a href="/register{nextSuffix()}" class="text-primary underline hover:no-underline">Register</a>
 				</p>
 				<InstallPrompt />
 			</CardFooter>

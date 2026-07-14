@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { getRepository } from '$lib/data';
-	import { useAuthRequired } from "$lib/components/composables";
+	import { useAuthRequired, useDeleteConfirm, usePdfPreview } from "$lib/components/composables";
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
@@ -14,7 +14,8 @@
 	import { inferProgramFromOrgs } from "$lib/utils/organizations";
 	import { Select } from "$lib/components/ui/select";
 	import LoadingState from "$lib/components/LoadingState.svelte";
-	import { getSubmissionPdfUrl, generatePdfForSubmission } from "$lib/services/pdfHelper";
+	import EmptyState from "$lib/components/EmptyState.svelte";
+	import { generatePdfForSubmission } from "$lib/services/pdfHelper";
 	import { PageContainer } from "$lib/components/molecules";
 
 	let { data } = $props();
@@ -28,17 +29,8 @@
 	let searchQuery = $state('');
 	let sortOption = $state('date-newest');
 
-	// Delete submission modal state
-	let deleteModalOpen = $state(false);
-	let deleteTargetId = $state('');
-	let deleteTargetName = $state('');
-	let deleteLoading = $state(false);
-
-	// PDF preview modal state
-	let pdfModalOpen = $state(false);
-	let pdfModalUrl = $state('');
-	let pdfModalName = $state('');
-	let pdfLoading = $state(false);
+	const del = useDeleteConfirm<string>();
+	const pdf = usePdfPreview();
 
 	const repo = getRepository();
 	const auth = useAuthRequired({
@@ -93,19 +85,18 @@
 	}
 
 	async function confirmDeleteSubmission() {
-		deleteLoading = true;
-		deleting = deleteTargetId;
-		try {
-			await repo.submissions.delete(deleteTargetId);
-			submissions = submissions.filter((s) => s.id !== deleteTargetId);
-			deleteModalOpen = false;
-			toastSuccess("Submission deleted.");
-		} catch (err: any) {
-			toastError(err.message || "Failed to delete submission");
-		} finally {
-			deleting = null;
-			deleteLoading = false;
-		}
+		await del.run(async (id) => {
+			deleting = id;
+			try {
+				await repo.submissions.delete(id);
+				submissions = submissions.filter((s) => s.id !== id);
+				toastSuccess("Submission deleted.");
+			} catch (err: any) {
+				toastError(err.message || "Failed to delete submission");
+			} finally {
+				deleting = null;
+			}
+		});
 	}
 
 	async function downloadAllZip() {
@@ -138,28 +129,6 @@
 		}
 	}
 
-	async function openPdfPreview(submissionId: string, participantName: string) {
-		pdfModalName = participantName;
-		pdfLoading = true;
-		pdfModalOpen = true;
-		try {
-			pdfModalUrl = await getSubmissionPdfUrl(submissionId);
-		} catch {
-			toastError('Failed to load PDF');
-			pdfModalOpen = false;
-		} finally {
-			pdfLoading = false;
-		}
-	}
-
-	function closePdfModal() {
-		pdfModalOpen = false;
-		if (pdfModalUrl) {
-			URL.revokeObjectURL(pdfModalUrl);
-			pdfModalUrl = '';
-		}
-	}
-
 </script>
 
 <svelte:head>
@@ -169,6 +138,8 @@
 <PageContainer>
 	{#if !auth.ready}
 		<LoadingState />
+	{:else if auth.error}
+		<EmptyState message="Something went wrong loading submissions." description={auth.error} actionLabel="Retry" onAction={auth.retry} />
 	{:else if !event}
 		<p class="text-center text-destructive">Activity not found.</p>
 	{:else}
@@ -250,7 +221,7 @@
 										variant="outline"
 										size="sm"
 										class="h-7 text-xs"
-										onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+										onclick={() => pdf.open(sub.id, sub.participant_name || 'submission')}
 									>
 										PDF
 									</Button>
@@ -266,7 +237,7 @@
 										variant="destructive"
 										size="sm"
 										class="h-7 text-xs"
-										onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
+										onclick={() => del.ask(sub.id, sub.participant_name)}
 										disabled={deleting === sub.id}
 									>
 										{deleting === sub.id ? "..." : "Delete"}
@@ -309,7 +280,7 @@
 											variant="outline"
 											size="sm"
 											class="h-7 text-xs"
-											onclick={() => openPdfPreview(sub.id, sub.participant_name || 'submission')}
+											onclick={() => pdf.open(sub.id, sub.participant_name || 'submission')}
 										>
 											PDF
 										</Button>
@@ -325,7 +296,7 @@
 											variant="destructive"
 											size="sm"
 											class="h-7 text-xs"
-											onclick={() => { deleteModalOpen = true; deleteTargetId = sub.id; deleteTargetName = sub.participant_name; }}
+											onclick={() => del.ask(sub.id, sub.participant_name)}
 											disabled={deleting === sub.id}
 										>
 											{deleting === sub.id ? "..." : "Delete"}
@@ -341,14 +312,14 @@
 	{/if}
 </PageContainer>
 
-<PdfModal bind:open={pdfModalOpen} url={pdfModalUrl} name={pdfModalName} loading={pdfLoading} onclose={closePdfModal} />
+<PdfModal bind:open={pdf.isOpen} url={pdf.url} name={pdf.name} loading={pdf.loading} onclose={pdf.close} />
 
 <ConfirmModal
-	bind:open={deleteModalOpen}
+	bind:open={del.open}
 	title="Delete Submission"
-	message="Delete the submission for &quot;{deleteTargetName}&quot;? This cannot be undone."
+	message="Delete the submission for &quot;{del.targetName}&quot;? This cannot be undone."
 	confirmLabel="Delete"
 	confirmVariant="destructive"
 	onConfirm={confirmDeleteSubmission}
-	loading={deleteLoading}
+	loading={del.loading}
 />

@@ -31,7 +31,11 @@
 			pdfLoading = false;
 		}
 
-		return () => unsub();
+		return () => {
+			unsub();
+			// The PDF blob URL otherwise outlives the page — one leaked PDF per submission
+			if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+		};
 	});
 
 	async function loadPdf() {

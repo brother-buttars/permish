@@ -75,6 +75,8 @@
 
 	{#if !auth.ready}
 		<LoadingState />
+	{:else if auth.error}
+		<EmptyState message="Something went wrong loading groups." description={auth.error} actionLabel="Retry" onAction={auth.retry} />
 	{:else if groups.length === 0}
 		{#if auth.user?.role === 'super'}
 			<EmptyState
@@ -92,32 +94,19 @@
 	{:else}
 		<div class="grid gap-4">
 			{#each groups as group}
-				<Card class="cursor-pointer transition hover:drop-shadow-md" onclick={() => goto(`/groups/${group.id}`)}>
-					<CardContent class="flex items-center justify-between py-4">
-						<div>
-							<div class="flex items-center gap-2">
-								<span class="font-semibold">{group.name}</span>
-								<Badge variant="secondary" class="text-xs capitalize">{group.type}</Badge>
-								{#if group.member_role === 'admin'}
-									<Badge class="text-xs">Admin</Badge>
-								{/if}
-							</div>
-							<p class="text-sm text-muted-foreground mt-0.5">
-								{#if group.ward && group.stake}
-									{group.ward} · {group.stake}
-								{:else if group.ward}
-									{group.ward}
-								{:else if group.stake}
-									{group.stake}
-								{/if}
-								{#if group.member_count}
-									· {group.member_count} member{group.member_count !== 1 ? 's' : ''}
-								{/if}
-							</p>
-						</div>
+				{@const meta = [
+					[group.ward, group.stake].filter(Boolean).join(' · '),
+					group.member_count ? `${group.member_count} member${group.member_count !== 1 ? 's' : ''}` : '',
+				].filter(Boolean).join(' · ')}
+				<ListCard title={group.name} description={meta} onclick={() => goto(`/groups/${group.id}`)}>
+					{#snippet trailing()}
+						<Badge variant="secondary" class="text-xs capitalize">{group.type}</Badge>
+						{#if group.member_role === 'admin'}
+							<Badge class="text-xs">Admin</Badge>
+						{/if}
 						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-					</CardContent>
-				</Card>
+					{/snippet}
+				</ListCard>
 			{/each}
 		</div>
 	{/if}

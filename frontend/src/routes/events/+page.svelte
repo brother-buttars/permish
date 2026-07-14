@@ -127,6 +127,8 @@
 	<!-- Results -->
 	{#if !auth.ready}
 		<LoadingState />
+	{:else if auth.error}
+		<EmptyState message="Something went wrong loading activities." description={auth.error} actionLabel="Retry" onAction={auth.retry} />
 	{:else if filteredEvents.length === 0}
 		<EmptyState message="No activities match your filters." />
 	{:else}
