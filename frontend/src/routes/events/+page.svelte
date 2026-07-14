@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { getRepository } from '$lib/data';
+	import { user } from "$lib/stores/auth";
+	import { adminFilter } from "$lib/stores/adminFilter";
 	import { Button } from "$lib/components/ui/button";
 	import { orgGroups, getOrgDisplayLabels, matchesOrgFilter, isYMLabel } from "$lib/utils/organizations";
 	import { parseOrgs, isPastEvent } from "$lib/utils/events";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import EmptyState from "$lib/components/EmptyState.svelte";
-	import { PageHeader, PageContainer, SegmentedTabs, FilterPanel, ListCard, EventStatusBadges } from "$lib/components/molecules";
+	import { PageHeader, PageContainer, SegmentedTabs, FilterPanel, ListCard, EventStatusBadges, AdminFilterBar } from "$lib/components/molecules";
 	import { OrgBadge } from "$lib/components/atoms";
 	import { useAuthRequired } from "$lib/components/composables";
 
@@ -17,11 +19,29 @@
 	let statusFilter = $state<"active" | "inactive" | "past" | "all">("active");
 	let orgFilter: string[] = $state([]);
 
-	const auth = useAuthRequired({
-		onReady: async () => {
-			const repo = getRepository();
+	// Super users get a group/activity scope filter here (the admin Activities tab
+	// folded into this single page). Everyone else sees the activities they own.
+	const isSuper = $derived($user?.role === "super");
+
+	const auth = useAuthRequired({ onReady: () => load() });
+
+	async function load() {
+		const repo = getRepository();
+		if ($user?.role === "super") {
+			events = await repo.admin.listActivities({
+				groupId: $adminFilter.groupId,
+				activityId: $adminFilter.activityId,
+			});
+		} else {
 			events = await repo.events.list({ all: true });
-		},
+		}
+	}
+
+	// Reload when a super user changes the group/activity scope.
+	$effect(() => {
+		void $adminFilter.groupId;
+		void $adminFilter.activityId;
+		if (auth.ready && isSuper) load();
 	});
 
 	let filteredEvents = $derived.by(() => {
@@ -61,6 +81,10 @@
 
 <PageContainer>
 	<PageHeader title="Activities" actions={headerActions} />
+
+	{#if isSuper}
+		<AdminFilterBar />
+	{/if}
 
 	<FilterPanel bind:search searchPlaceholder="Search activities...">
 		<SegmentedTabs

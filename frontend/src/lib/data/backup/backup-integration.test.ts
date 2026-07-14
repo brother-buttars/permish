@@ -63,7 +63,7 @@ describe('Backup Integration — full round-trip with realistic data', () => {
       'planner@ward.org',
       'plannerPass',
       'John Planner',
-      'planner'
+      'user'
     );
 
     // Create two events
@@ -176,7 +176,7 @@ describe('Backup Integration — full round-trip with realistic data', () => {
     await repo.auth.logout();
 
     // Register a second user (parent)
-    await repo.auth.register('parent@family.org', 'parentPass', 'Mary Parent', 'parent');
+    await repo.auth.register('parent@family.org', 'parentPass', 'Mary Parent', 'user');
 
     await repo.profiles.create({
       participant_name: 'Charlie Parent',
@@ -217,10 +217,10 @@ describe('Backup Integration — full round-trip with realistic data', () => {
     expect(users).toHaveLength(2);
     expect(users[0].email).toBe('parent@family.org');
     expect(users[0].name).toBe('Mary Parent');
-    expect(users[0].role).toBe('parent');
+    expect(users[0].role).toBe('user');
     expect(users[1].email).toBe('planner@ward.org');
     expect(users[1].name).toBe('John Planner');
-    expect(users[1].role).toBe('planner');
+    expect(users[1].role).toBe('user');
 
     db2.close();
   });

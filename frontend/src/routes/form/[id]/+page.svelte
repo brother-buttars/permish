@@ -22,6 +22,7 @@
 	import PdfViewer from "$lib/components/PdfViewer.svelte";
 	import { linkify } from "$lib/utils/linkify";
 	import { formatFileSize } from "$lib/utils/format";
+	import { validateSubmissionForm, buildSubmissionPayload, buildProfilePayload, computeAgeLabel, type SubmissionFormFields } from "$lib/utils/submissionForm";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import AlertBox from "$lib/components/AlertBox.svelte";
 	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
@@ -101,6 +102,12 @@
 	// Track whether an existing profile was used
 	let usedExistingProfile = $state(false);
 
+	// Progressive disclosure: the optional Emergency Contact and Medical sections
+	// start collapsed so the form reads as short (only name, DOB + signatures are
+	// required). They auto-expand when a saved profile pre-fills their data.
+	let showEmergency = $state(false);
+	let showMedical = $state(false);
+
 	// Save profile modal state
 	let saveProfileModalOpen = $state(false);
 	let saveProfileLoading = $state(false);
@@ -124,17 +131,19 @@
 		}
 	});
 
-	let computedAge = $derived.by(() => {
-		if (!dateOfBirth) return "";
-		const today = new Date();
-		const dob = new Date(dateOfBirth);
-		let age = today.getFullYear() - dob.getFullYear();
-		const monthDiff = today.getMonth() - dob.getMonth();
-		if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-			age--;
-		}
-		return age >= 0 ? `${age} years old` : "";
-	});
+	let computedAge = $derived(computeAgeLabel(dateOfBirth));
+
+	// Snapshot all form fields into the shared shape for validation/payload helpers.
+	function currentFields(): SubmissionFormFields {
+		return {
+			participantName, dateOfBirth, phone, address, city, stateProvince,
+			emergencyContact, primaryPhone, secondaryPhone,
+			hasSpecialDiet, specialDietDetails, hasAllergies, allergyDetails, medications, canSelfAdminister,
+			hasChronicIllness, chronicIllnessDetails, hadRecentSurgery, recentSurgeryDetails, activityLimitations, otherAccommodations,
+			participantSigValue, participantSigType, participantSigDate,
+			guardianSigValue, guardianSigType, guardianSigDate,
+		};
+	}
 
 	function isPreviewable(mimeType: string): boolean {
 		return mimeType === 'application/pdf' || mimeType?.startsWith('image/');
@@ -189,6 +198,7 @@
 					}
 					if (!emergencyContact && p.name) emergencyContact = p.name;
 					if (!primaryPhone && p.phone) primaryPhone = p.phone;
+					if (emergencyContact || primaryPhone) showEmergency = true;
 				} catch {
 					// User profile fetch is optional
 				}
@@ -228,19 +238,14 @@
 		activityLimitations = profile.activity_limitations || "";
 
 		otherAccommodations = profile.other_accommodations || "";
-	}
 
-	function validate(): string[] {
-		const errors: string[] = [];
-		if (!participantName.trim()) errors.push("Participant name is required.");
-		if (!dateOfBirth) errors.push("Date of birth is required.");
-		if (participantSigType !== "hand" && !participantSigValue) errors.push("Participant signature is required.");
-		if (guardianSigType !== "hand" && !guardianSigValue) errors.push("Parent/Guardian signature is required.");
-		return errors;
+		// Reveal optional sections that now carry pre-filled data.
+		if (emergencyContact || primaryPhone || secondaryPhone) showEmergency = true;
+		if (hasSpecialDiet || hasAllergies || medications || hasChronicIllness || hadRecentSurgery || activityLimitations || otherAccommodations) showMedical = true;
 	}
 
 	async function handleSubmit() {
-		validationErrors = validate();
+		validationErrors = validateSubmissionForm(currentFields());
 		if (validationErrors.length > 0) {
 			// Scroll to error summary so mobile users see the errors
 			setTimeout(() => {
@@ -251,37 +256,7 @@
 
 		submitting = true;
 		try {
-			const formData = {
-				participant_name: participantName,
-				participant_dob: dateOfBirth,
-				participant_phone: phone,
-				address,
-				city,
-				state_province: stateProvince,
-				emergency_contact: emergencyContact,
-				emergency_phone_primary: primaryPhone,
-				emergency_phone_secondary: secondaryPhone,
-				special_diet: hasSpecialDiet,
-				special_diet_details: hasSpecialDiet ? specialDietDetails : "",
-				allergies: hasAllergies,
-				allergies_details: hasAllergies ? allergyDetails : "",
-				medications,
-				can_self_administer_meds: canSelfAdminister,
-				chronic_illness: hasChronicIllness,
-				chronic_illness_details: hasChronicIllness ? chronicIllnessDetails : "",
-				recent_surgery: hadRecentSurgery,
-				recent_surgery_details: hadRecentSurgery ? recentSurgeryDetails : "",
-				activity_limitations: activityLimitations,
-				other_accommodations: otherAccommodations,
-				participant_signature: participantSigType === "hand" ? null : participantSigValue,
-				participant_signature_type: participantSigType,
-				participant_signature_date: participantSigDate,
-				guardian_signature: guardianSigType === "hand" ? null : guardianSigValue,
-				guardian_signature_type: guardianSigType,
-				guardian_signature_date: guardianSigDate,
-			};
-
-			const result = await repo.submissions.submit(data.eventId, formData);
+			const result = await repo.submissions.submit(data.eventId, buildSubmissionPayload(currentFields()));
 			const submissionId = result.submission?.id || '';
 			formSubmitted = true;
 
@@ -302,29 +277,7 @@
 	async function saveProfileAndRedirect() {
 		saveProfileLoading = true;
 		try {
-			await repo.profiles.create({
-				participant_name: participantName,
-				participant_dob: dateOfBirth,
-				participant_phone: phone,
-				address,
-				city,
-				state_province: stateProvince,
-				emergency_contact: emergencyContact,
-				emergency_phone_primary: primaryPhone,
-				emergency_phone_secondary: secondaryPhone,
-				special_diet: hasSpecialDiet,
-				special_diet_details: specialDietDetails,
-				allergies: hasAllergies,
-				allergies_details: allergyDetails,
-				medications,
-				can_self_administer_meds: canSelfAdminister,
-				chronic_illness: hasChronicIllness,
-				chronic_illness_details: chronicIllnessDetails,
-				recent_surgery: hadRecentSurgery,
-				recent_surgery_details: recentSurgeryDetails,
-				activity_limitations: activityLimitations,
-				other_accommodations: otherAccommodations,
-			});
+			await repo.profiles.create(buildProfilePayload(currentFields()));
 		} catch {
 			// Profile save is optional, don't block redirect
 		} finally {
@@ -485,6 +438,7 @@
 				<Separator class="my-6" />
 
 				<h3 id="section-emergency" class="mb-3 text-lg font-medium">Emergency Contact</h3>
+				{#if showEmergency}
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2 sm:col-span-2">
 						<Label for="emergencyContact">Emergency Contact Name</Label>
@@ -499,11 +453,17 @@
 						<Input id="secondaryPhone" type="tel" bind:value={secondaryPhone} placeholder="(555) 555-5555" />
 					</div>
 				</div>
+				{:else}
+				<button type="button" onclick={() => (showEmergency = true)} class="w-full rounded-md border border-dashed border-input py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:text-foreground">
+					+ Add an emergency contact <span class="text-xs">(optional)</span>
+				</button>
+				{/if}
 			</section>
 
 			<Separator />
 
 			<div id="section-medical">
+			{#if showMedical}
 			<MedicalInfoSection
 				bind:hasSpecialDiet
 				bind:specialDietDetails
@@ -518,6 +478,14 @@
 				bind:activityLimitations
 				bind:otherAccommodations
 			/>
+			{:else}
+			<div>
+				<h2 class="mb-3 text-xl font-semibold">Medical &amp; Dietary</h2>
+				<button type="button" onclick={() => (showMedical = true)} class="w-full rounded-md border border-dashed border-input py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:text-foreground">
+					+ Add allergies, medications, or dietary needs <span class="text-xs">(optional)</span>
+				</button>
+			</div>
+			{/if}
 			</div>
 
 			<Separator />

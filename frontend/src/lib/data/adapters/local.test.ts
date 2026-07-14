@@ -52,33 +52,33 @@ describe('Local SQLite Adapter', () => {
 
   describe('auth', () => {
     it('should register a new user', async () => {
-      const user = await repo.auth.register('test@test.com', 'password123', 'Test User', 'parent');
+      const user = await repo.auth.register('test@test.com', 'password123', 'Test User', 'user');
       expect(user.email).toBe('test@test.com');
       expect(user.name).toBe('Test User');
-      expect(user.role).toBe('parent');
+      expect(user.role).toBe('user');
       expect(user.id).toBeTruthy();
     });
 
     it('should reject duplicate email registration', async () => {
-      await repo.auth.register('dup@test.com', 'pass', 'User1', 'parent');
+      await repo.auth.register('dup@test.com', 'pass', 'User1', 'user');
       await expect(
-        repo.auth.register('dup@test.com', 'pass', 'User2', 'parent')
+        repo.auth.register('dup@test.com', 'pass', 'User2', 'user')
       ).rejects.toThrow('Email already registered');
     });
 
     it('should login with correct credentials', async () => {
-      await repo.auth.register('login@test.com', 'secret', 'Login User', 'planner');
+      await repo.auth.register('login@test.com', 'secret', 'Login User', 'user');
       // logout to clear module-level currentUser
       await repo.auth.logout();
 
       const user = await repo.auth.login('login@test.com', 'secret');
       expect(user.email).toBe('login@test.com');
       expect(user.name).toBe('Login User');
-      expect(user.role).toBe('planner');
+      expect(user.role).toBe('user');
     });
 
     it('should reject login with wrong password', async () => {
-      await repo.auth.register('login@test.com', 'secret', 'User', 'parent');
+      await repo.auth.register('login@test.com', 'secret', 'User', 'user');
       await repo.auth.logout();
 
       await expect(repo.auth.login('login@test.com', 'wrong')).rejects.toThrow(
@@ -93,14 +93,14 @@ describe('Local SQLite Adapter', () => {
     });
 
     it('should return current user after login', async () => {
-      await repo.auth.register('cur@test.com', 'pass', 'Current', 'parent');
+      await repo.auth.register('cur@test.com', 'pass', 'Current', 'user');
       const current = await repo.auth.getCurrentUser();
       expect(current).not.toBeNull();
       expect(current!.email).toBe('cur@test.com');
     });
 
     it('should return null after logout', async () => {
-      await repo.auth.register('cur@test.com', 'pass', 'Current', 'parent');
+      await repo.auth.register('cur@test.com', 'pass', 'Current', 'user');
       await repo.auth.logout();
       // getCurrentUser checks localStorage stub, which we cleared
       const current = await repo.auth.getCurrentUser();
@@ -109,14 +109,14 @@ describe('Local SQLite Adapter', () => {
 
     it('should report isAuthenticated correctly', async () => {
       expect(repo.auth.isAuthenticated()).toBe(false);
-      await repo.auth.register('auth@test.com', 'pass', 'Auth', 'parent');
+      await repo.auth.register('auth@test.com', 'pass', 'Auth', 'user');
       expect(repo.auth.isAuthenticated()).toBe(true);
       await repo.auth.logout();
       expect(repo.auth.isAuthenticated()).toBe(false);
     });
 
     it('should update profile fields', async () => {
-      await repo.auth.register('profile@test.com', 'pass', 'Original', 'parent');
+      await repo.auth.register('profile@test.com', 'pass', 'Original', 'user');
 
       const updated = await repo.auth.updateProfile({
         name: 'Updated Name',
@@ -130,7 +130,7 @@ describe('Local SQLite Adapter', () => {
     });
 
     it('should change password with correct current password', async () => {
-      await repo.auth.register('pw@test.com', 'oldpass', 'PW User', 'parent');
+      await repo.auth.register('pw@test.com', 'oldpass', 'PW User', 'user');
 
       // Should not throw
       await repo.auth.changePassword('oldpass', 'newpass');
@@ -142,7 +142,7 @@ describe('Local SQLite Adapter', () => {
     });
 
     it('should reject password change with wrong current password', async () => {
-      await repo.auth.register('pw@test.com', 'correct', 'PW User', 'parent');
+      await repo.auth.register('pw@test.com', 'correct', 'PW User', 'user');
 
       await expect(repo.auth.changePassword('wrong', 'newpass')).rejects.toThrow(
         'Current password is incorrect'
@@ -155,7 +155,7 @@ describe('Local SQLite Adapter', () => {
         calls.push(user?.email ?? null);
       });
 
-      await repo.auth.register('cb@test.com', 'pass', 'CB', 'parent');
+      await repo.auth.register('cb@test.com', 'pass', 'CB', 'user');
       await repo.auth.logout();
 
       expect(calls).toEqual(['cb@test.com', null]);
@@ -169,7 +169,7 @@ describe('Local SQLite Adapter', () => {
     });
 
     it('should get profile for authenticated user', async () => {
-      await repo.auth.register('gp@test.com', 'pass', 'GP User', 'parent');
+      await repo.auth.register('gp@test.com', 'pass', 'GP User', 'user');
       const profile = await repo.auth.getProfile();
       expect(profile.email).toBe('gp@test.com');
     });
@@ -185,7 +185,7 @@ describe('Local SQLite Adapter', () => {
 
   describe('events', () => {
     beforeEach(async () => {
-      await repo.auth.register('planner@test.com', 'pass', 'Planner', 'planner');
+      await repo.auth.register('planner@test.com', 'pass', 'Planner', 'user');
     });
 
     const sampleEvent = {
@@ -315,7 +315,7 @@ describe('Local SQLite Adapter', () => {
 
   describe('profiles', () => {
     beforeEach(async () => {
-      await repo.auth.register('parent@test.com', 'pass', 'Parent', 'parent');
+      await repo.auth.register('parent@test.com', 'pass', 'Parent', 'user');
     });
 
     const sampleProfile = {
@@ -363,7 +363,7 @@ describe('Local SQLite Adapter', () => {
 
       // Register and login as a different user
       await repo.auth.logout();
-      await repo.auth.register('other@test.com', 'pass', 'Other', 'parent');
+      await repo.auth.register('other@test.com', 'pass', 'Other', 'user');
 
       const list = await repo.profiles.list();
       expect(list).toHaveLength(0);
@@ -412,7 +412,7 @@ describe('Local SQLite Adapter', () => {
     let eventId: string;
 
     beforeEach(async () => {
-      await repo.auth.register('submitter@test.com', 'pass', 'Submitter', 'planner');
+      await repo.auth.register('submitter@test.com', 'pass', 'Submitter', 'user');
       const { event } = await repo.events.create({
         event_name: 'Test Event',
         event_dates: '1 August 2026',
@@ -576,10 +576,10 @@ describe('Local SQLite Adapter', () => {
         email: 'new@test.com',
         password: 'pass',
         name: 'New User',
-        role: 'parent'
+        role: 'user'
       });
       expect(user.email).toBe('new@test.com');
-      expect(user.role).toBe('parent');
+      expect(user.role).toBe('user');
     });
 
     it('should update user role', async () => {
@@ -587,10 +587,10 @@ describe('Local SQLite Adapter', () => {
         email: 'role@test.com',
         password: 'pass',
         name: 'Role User',
-        role: 'parent'
+        role: 'user'
       });
-      const updated = await repo.admin.updateRole(user.id, 'planner');
-      expect(updated.role).toBe('planner');
+      const updated = await repo.admin.updateRole(user.id, 'super');
+      expect(updated.role).toBe('super');
     });
 
     it('should reset user password', async () => {
@@ -598,7 +598,7 @@ describe('Local SQLite Adapter', () => {
         email: 'reset@test.com',
         password: 'oldpass',
         name: 'Reset',
-        role: 'parent'
+        role: 'user'
       });
 
       await repo.admin.resetPassword(user.id, 'newpass');
@@ -614,7 +614,7 @@ describe('Local SQLite Adapter', () => {
         email: 'del@test.com',
         password: 'pass',
         name: 'Del',
-        role: 'parent'
+        role: 'user'
       });
 
       await repo.admin.deleteUser(user.id);

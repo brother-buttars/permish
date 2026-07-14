@@ -112,7 +112,6 @@
 					<a href="/events" class={navClass("/events")}>Activities</a>
 					<a href="/submissions" class={navClass("/submissions")}>Submissions</a>
 					<a href="/groups" class={navClass("/groups")}>Groups</a>
-					<a href="/profiles" class={navClass("/profiles")}>Profiles</a>
 
 					<div class="ml-2">
 						<UserMenu user={currentUser} {pathname} />
@@ -190,7 +189,7 @@
 				<a
 					href="/profiles"
 					class={mobileNavClass("/profiles")}
-					onclick={closeMobile}>Profiles</a
+					onclick={closeMobile}>Youth Profiles</a
 				>
 			{:else}
 				<a href="/login" onclick={closeMobile}>

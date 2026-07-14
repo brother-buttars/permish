@@ -1,16 +1,12 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
-import type PocketBase from 'pocketbase';
 
 declare global {
 	const __APP_VERSION__: string;
 
 	namespace App {
 		// interface Error {}
-		interface Locals {
-			pb: PocketBase;
-			user: Record<string, any> | null;
-		}
+		// interface Locals {}
 		// interface PageData {}
 		// interface PageState {}
 		// interface Platform {}

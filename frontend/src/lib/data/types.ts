@@ -199,6 +199,10 @@ export interface AuditEntry {
 export interface AdminFilter {
   groupId?: string | null;
   activityId?: string | null;
+  /** Activity status filter: 'all' is treated the same as undefined. */
+  status?: 'active' | 'inactive' | 'past' | 'all' | null;
+  /** Organization keys to filter by (matches if event has any overlap). */
+  orgs?: string[];
 }
 
 export interface AdminGroupNode {
@@ -218,6 +222,8 @@ export interface AdminActivity {
   ward: string;
   stake: string;
   is_active: number;
+  /** JSON-encoded array of org keys (parse with parseOrgs from utils/events). */
+  organizations?: string | string[] | null;
   created_at: string;
   group_id: string | null;
   group_name?: string | null;

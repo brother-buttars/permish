@@ -24,17 +24,16 @@ export function setDataMode(mode: DataMode): void {
 }
 
 export async function initRepository(): Promise<DataRepository> {
-  const backend = import.meta.env.PUBLIC_BACKEND || 'express';
   const mode = getDataMode();
 
-  // Express backend ignores data mode — always online
-  if (backend === 'express') {
-    const { createExpressRepository } = await import('./adapters/express');
-    repo = createExpressRepository();
+  // online — direct HTTP to the Permish server (Bun + Hono). The default.
+  if (mode === 'online') {
+    const { createHttpRepository } = await import('./adapters/http');
+    repo = createHttpRepository();
     return repo;
   }
 
-  // PocketBase backend supports all three modes
+  // local — fully offline, in-device SQLite. No server, no sync.
   if (mode === 'local') {
     const { createPlatformDatabase } = await import('./local/platform-database');
     const { initializeLocalSchema } = await import('./local/schema');
@@ -46,33 +45,28 @@ export async function initRepository(): Promise<DataRepository> {
 
     const { BackupManager: BackupManagerClass } = await import('./backup/manager');
     backupManager = new BackupManagerClass(db);
-  } else if (mode === 'hybrid') {
-    const { createPlatformDatabase } = await import('./local/platform-database');
-    const { initializeLocalSchema } = await import('./local/schema');
-    const { createLocalRepository } = await import('./adapters/local');
-    const { createPocketBaseRepository } = await import('./adapters/pocketbase');
-    const { SyncManager: SyncManagerClass } = await import('./sync/manager');
-    const { createHybridRepository } = await import('./sync/hybrid');
-
-    const db = await createPlatformDatabase();
-    await initializeLocalSchema(db);
-    const local = createLocalRepository(db);
-    const remote = createPocketBaseRepository();
-    syncManager = new SyncManagerClass(db, remote);
-    repo = createHybridRepository(local, db, syncManager);
-
-    // Start background sync
-    syncManager.start();
-
-    const { BackupManager: BackupManagerClass } = await import('./backup/manager');
-    backupManager = new BackupManagerClass(db);
-  } else {
-    // online mode — direct PocketBase
-    const { createPocketBaseRepository } = await import('./adapters/pocketbase');
-    repo = createPocketBaseRepository();
+    return repo;
   }
 
-  return repo!;
+  // hybrid — local SQLite for reads/writes, background sync to the HTTP server.
+  const { createPlatformDatabase } = await import('./local/platform-database');
+  const { initializeLocalSchema } = await import('./local/schema');
+  const { createLocalRepository } = await import('./adapters/local');
+  const { createHttpRepository } = await import('./adapters/http');
+  const { SyncManager: SyncManagerClass } = await import('./sync/manager');
+  const { createHybridRepository } = await import('./sync/hybrid');
+
+  const db = await createPlatformDatabase();
+  await initializeLocalSchema(db);
+  const local = createLocalRepository(db);
+  const remote = createHttpRepository();
+  syncManager = new SyncManagerClass(db, remote);
+  repo = createHybridRepository(local, db, syncManager);
+  syncManager.start();
+
+  const { BackupManager: BackupManagerClass } = await import('./backup/manager');
+  backupManager = new BackupManagerClass(db);
+  return repo;
 }
 
 export function getRepository(): DataRepository {

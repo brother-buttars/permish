@@ -95,7 +95,7 @@ describe('auth store', () => {
     });
 
     it('should set user when someone is logged in', async () => {
-      await repo.auth.register('check@test.com', 'pass', 'Check User', 'parent');
+      await repo.auth.register('check@test.com', 'pass', 'Check User', 'user');
 
       await checkAuth();
       const u = get(user);
@@ -120,20 +120,20 @@ describe('auth store', () => {
 
   describe('register', () => {
     it('should register and set user store', async () => {
-      const result = await register('reg@test.com', 'pass', 'Reg User', 'planner');
+      const result = await register('reg@test.com', 'pass', 'Reg User', 'user');
       expect(result.email).toBe('reg@test.com');
 
       const u = get(user);
       expect(u).not.toBeNull();
       expect(u!.email).toBe('reg@test.com');
-      expect(u!.role).toBe('planner');
+      expect(u!.role).toBe('user');
     });
 
     it('should throw on duplicate email', async () => {
-      await register('dup@test.com', 'pass', 'User1', 'parent');
+      await register('dup@test.com', 'pass', 'User1', 'user');
       await logout();
 
-      await expect(register('dup@test.com', 'pass', 'User2', 'parent')).rejects.toThrow(
+      await expect(register('dup@test.com', 'pass', 'User2', 'user')).rejects.toThrow(
         'Email already registered'
       );
     });
@@ -141,7 +141,7 @@ describe('auth store', () => {
 
   describe('login', () => {
     it('should login and set user store', async () => {
-      await repo.auth.register('login@test.com', 'secret', 'Login User', 'parent');
+      await repo.auth.register('login@test.com', 'secret', 'Login User', 'user');
       await repo.auth.logout();
 
       user.set(null);
@@ -154,7 +154,7 @@ describe('auth store', () => {
     });
 
     it('should throw on wrong password', async () => {
-      await repo.auth.register('login@test.com', 'correct', 'User', 'parent');
+      await repo.auth.register('login@test.com', 'correct', 'User', 'user');
       await repo.auth.logout();
 
       await expect(login('login@test.com', 'wrong')).rejects.toThrow(
@@ -165,7 +165,7 @@ describe('auth store', () => {
 
   describe('logout', () => {
     it('should clear user store', async () => {
-      await register('out@test.com', 'pass', 'Out User', 'parent');
+      await register('out@test.com', 'pass', 'Out User', 'user');
       expect(get(user)).not.toBeNull();
 
       await logout();

@@ -4,17 +4,19 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
-	import { getYouthClass, type YouthProgram } from "$lib/utils/youthClass";
+	import { getYouthClass, profileMatchesEventOrgs, type YouthProgram } from "$lib/utils/youthClass";
 	import YouthIcon from "$lib/components/YouthIcon.svelte";
 	import PdfModal from "$lib/components/PdfModal.svelte";
-	import { isPastEvent } from "$lib/utils/events";
+	import { isPastEvent, parseOrgs } from "$lib/utils/events";
+	import { getOrgDisplayLabels } from "$lib/utils/organizations";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import EmptyState from "$lib/components/EmptyState.svelte";
 	import { PageHeader, PageContainer, SegmentedTabs, ListCard, EventStatusBadges } from "$lib/components/molecules";
-	import { YouthClassBadge } from "$lib/components/atoms";
+	import { YouthClassBadge, OrgBadge } from "$lib/components/atoms";
 	import { usePdfPreview, useAuthRequired } from "$lib/components/composables";
 
 	let events: any[] = $state([]);
+	let upcomingForMe: any[] = $state([]);
 	let profiles: any[] = $state([]);
 	let submissions: any[] = $state([]);
 	let view = $state<'planner' | 'parent'>('planner');
@@ -31,12 +33,38 @@
 				repo.submissions.getMine(),
 			];
 			if (isPlanner) promises.push(repo.events.list());
+			else promises.push(repo.events.listForMe().catch(() => []));
 
 			const results = await Promise.all(promises);
 			profiles = results[0];
 			submissions = results[1];
 			if (isPlanner && results[2]) events = results[2];
+			else if (!isPlanner && results[2]) upcomingForMe = results[2];
 		},
+	});
+
+	// For each upcoming event, compute the list of profiles that qualify so we
+	// can show "for: Jordan, Riley" alongside the event.
+	function matchingProfiles(event: any): any[] {
+		const eventOrgs = parseOrgs(event);
+		return profiles.filter((p) =>
+			profileMatchesEventOrgs(
+				p.participant_dob,
+				(p.youth_program as YouthProgram | null) ?? null,
+				eventOrgs,
+			)
+		);
+	}
+
+	const visibleUpcoming = $derived.by(() => {
+		// Active and not-yet-past events, ordered by start date, where at least one
+		// of the parent's profiles qualifies (or there are no profiles, in which
+		// case we still surface everything since the matcher returns true).
+		return upcomingForMe
+			.filter((e) => e.is_active && !isPastEvent(e))
+			.filter((e) => profiles.length === 0 || matchingProfiles(e).length > 0)
+			.sort((a, b) => (a.event_start || '').localeCompare(b.event_start || ''))
+			.slice(0, 6);
 	});
 </script>
 
@@ -133,6 +161,58 @@
 
 		<!-- ═══════ Parent View ═══════ -->
 		{:else}
+			<Card class="mb-6">
+				<CardHeader>
+					<CardTitle class="text-xl">Upcoming Activities</CardTitle>
+					<p class="text-sm text-muted-foreground">
+						Activities in your wards and stake that match your youth profiles.
+					</p>
+				</CardHeader>
+				<CardContent>
+					{#if upcomingForMe.length === 0}
+						<p class="py-4 text-center text-muted-foreground">
+							No upcoming activities yet. Activities posted to your ward or stake will show up here.
+						</p>
+					{:else if visibleUpcoming.length === 0}
+						<p class="py-4 text-center text-muted-foreground">
+							No upcoming activities match your youth profiles.
+						</p>
+					{:else}
+						<div class="space-y-3">
+							{#each visibleUpcoming as event}
+								{@const matches = matchingProfiles(event)}
+								<button
+									type="button"
+									onclick={() => goto(`/form/${event.id}`)}
+									class="w-full text-left rounded-lg border p-4 transition hover:drop-shadow-md"
+								>
+									<div class="flex items-start justify-between gap-3">
+										<div class="min-w-0 flex-1">
+											<p class="font-medium truncate">{event.event_name}</p>
+											<p class="text-sm text-muted-foreground">
+												{event.event_dates}
+												{#if event.group_name} · {event.group_name}{/if}
+											</p>
+										</div>
+										<EventStatusBadges {event} />
+									</div>
+									<div class="mt-2 flex flex-wrap items-center gap-2">
+										{#each getOrgDisplayLabels(parseOrgs(event)) as label}
+											<OrgBadge {label} />
+										{/each}
+									</div>
+									{#if matches.length > 0}
+										<p class="mt-2 text-xs text-muted-foreground">
+											For: {matches.map((p) => p.participant_name).join(', ')}
+										</p>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
+
 			<Card class="mb-6">
 				<CardHeader class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<CardTitle class="text-xl">Youth Profiles</CardTitle>

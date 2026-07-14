@@ -36,11 +36,17 @@ export interface AuthRepository {
 export interface EventRepository {
   create(data: Partial<Event>): Promise<{ event: Event; formUrl: string }>;
   list(options?: { all?: boolean }): Promise<Event[]>;
+  /**
+   * Events visible to the current user via their group memberships — direct
+   * memberships, ancestor groups (stake-level events for ward members), and
+   * descendant groups (ward events for stake members).
+   */
+  listForMe(): Promise<Event[]>;
   getById(id: string): Promise<Event>;
   update(id: string, data: Partial<Event>): Promise<Event>;
   deactivate(id: string): Promise<void>;
   getSubmissions(eventId: string): Promise<Submission[]>;
-  getAllSubmissions(): Promise<AllSubmission[]>;
+  getAllSubmissions(filter?: { groupId?: string | null; activityId?: string | null }): Promise<AllSubmission[]>;
   onSubmissionCreated?(eventId: string, callback: (submission: Submission) => void): () => void;
 }
 
@@ -72,7 +78,13 @@ export interface AdminRepository {
   getStats(filter?: AdminFilter): Promise<SystemStats>;
   listUsers(filter?: AdminFilter): Promise<User[]>;
   getUser(id: string): Promise<User>;
-  createUser(data: { email: string; password: string; name: string; role: string }): Promise<User>;
+  createUser(data: {
+    email: string;
+    password: string;
+    name: string;
+    role: string;
+    assignments?: { groupId: string; role: 'admin' | 'member' }[];
+  }): Promise<User>;
   updateRole(id: string, role: string): Promise<User>;
   resetPassword(id: string, newPassword: string): Promise<void>;
   deleteUser(id: string): Promise<void>;

@@ -19,6 +19,7 @@
 	import AlertBox from "$lib/components/AlertBox.svelte";
 	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
 	import { PageContainer } from "$lib/components/molecules";
+	import { validateSubmissionForm, buildSubmissionPayload, computeAgeLabel, type SubmissionFormFields } from "$lib/utils/submissionForm";
 
 	let { data } = $props();
 
@@ -71,17 +72,18 @@
 	let guardianInitialValue = $state("");
 	let guardianInitialType = $state<"drawn" | "typed" | "hand" | undefined>(undefined);
 
-	let computedAge = $derived.by(() => {
-		if (!dateOfBirth) return "";
-		const today = new Date();
-		const dob = new Date(dateOfBirth);
-		let age = today.getFullYear() - dob.getFullYear();
-		const monthDiff = today.getMonth() - dob.getMonth();
-		if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-			age--;
-		}
-		return age >= 0 ? `${age} years old` : "";
-	});
+	let computedAge = $derived(computeAgeLabel(dateOfBirth));
+
+	function currentFields(): SubmissionFormFields {
+		return {
+			participantName, dateOfBirth, phone, address, city, stateProvince,
+			emergencyContact, primaryPhone, secondaryPhone,
+			hasSpecialDiet, specialDietDetails, hasAllergies, allergyDetails, medications, canSelfAdminister,
+			hasChronicIllness, chronicIllnessDetails, hadRecentSurgery, recentSurgeryDetails, activityLimitations, otherAccommodations,
+			participantSigValue, participantSigType, participantSigDate,
+			guardianSigValue, guardianSigType, guardianSigDate,
+		};
+	}
 
 	function fillFromSubmission(sub: any) {
 		if (!sub) return;
@@ -147,17 +149,8 @@
 		})();
 	});
 
-	function validate(): string[] {
-		const errors: string[] = [];
-		if (!participantName.trim()) errors.push("Participant name is required.");
-		if (!dateOfBirth) errors.push("Date of birth is required.");
-		if (participantSigType !== "hand" && !participantSigValue) errors.push("Participant signature is required.");
-		if (guardianSigType !== "hand" && !guardianSigValue) errors.push("Parent/Guardian signature is required.");
-		return errors;
-	}
-
 	async function handleSubmit() {
-		validationErrors = validate();
+		validationErrors = validateSubmissionForm(currentFields());
 		if (validationErrors.length > 0) {
 			setTimeout(() => {
 				document.getElementById('validation-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -167,37 +160,7 @@
 
 		submitting = true;
 		try {
-			const formData = {
-				participant_name: participantName,
-				participant_dob: dateOfBirth,
-				participant_phone: phone,
-				address,
-				city,
-				state_province: stateProvince,
-				emergency_contact: emergencyContact,
-				emergency_phone_primary: primaryPhone,
-				emergency_phone_secondary: secondaryPhone,
-				special_diet: hasSpecialDiet,
-				special_diet_details: hasSpecialDiet ? specialDietDetails : "",
-				allergies: hasAllergies,
-				allergies_details: hasAllergies ? allergyDetails : "",
-				medications,
-				can_self_administer_meds: canSelfAdminister,
-				chronic_illness: hasChronicIllness,
-				chronic_illness_details: hasChronicIllness ? chronicIllnessDetails : "",
-				recent_surgery: hadRecentSurgery,
-				recent_surgery_details: hadRecentSurgery ? recentSurgeryDetails : "",
-				activity_limitations: activityLimitations,
-				other_accommodations: otherAccommodations,
-				participant_signature: participantSigType === "hand" ? null : participantSigValue,
-				participant_signature_type: participantSigType,
-				participant_signature_date: participantSigDate,
-				guardian_signature: guardianSigType === "hand" ? null : guardianSigValue,
-				guardian_signature_type: guardianSigType,
-				guardian_signature_date: guardianSigDate,
-			};
-
-			await repo.submissions.update(data.submissionId, formData);
+			await repo.submissions.update(data.submissionId, buildSubmissionPayload(currentFields()));
 			goto(`/event/${data.eventId}`);
 		} catch (err: any) {
 			validationErrors = [err.message || "Failed to update submission. Please try again."];

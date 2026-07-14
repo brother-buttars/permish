@@ -56,6 +56,7 @@ export function createHybridRepository(
   const events: EventRepository = {
     // Read methods — straight pass-through to local
     list: local.events.list.bind(local.events),
+    listForMe: local.events.listForMe.bind(local.events),
     getById: local.events.getById.bind(local.events),
     getSubmissions: local.events.getSubmissions.bind(local.events),
     getAllSubmissions: local.events.getAllSubmissions.bind(local.events),

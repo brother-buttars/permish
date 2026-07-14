@@ -33,11 +33,10 @@
 		return unsub;
 	});
 
+	// Admin is user management + all-profiles oversight. Activities and Submissions
+	// are folded into the top-level pages (super users get a group filter there).
 	const tabs = [
-		{ value: "/admin", label: "Overview" },
 		{ value: "/admin/users", label: "Users" },
-		{ value: "/admin/activities", label: "Activities" },
-		{ value: "/admin/submissions", label: "Submissions" },
 		{ value: "/admin/profiles", label: "Profiles" },
 	];
 

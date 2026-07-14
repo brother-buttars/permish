@@ -9,9 +9,10 @@
 	import { parseOrgs } from "$lib/utils/events";
 	import { Select } from "$lib/components/ui/select";
 	import LoadingState from "$lib/components/LoadingState.svelte";
-	import { PageHeader, PageContainer, SegmentedTabs, FilterPanel } from "$lib/components/molecules";
+	import { PageHeader, PageContainer, SegmentedTabs, FilterPanel, AdminFilterBar } from "$lib/components/molecules";
 	import { SubmissionListView } from "$lib/components/organisms";
 	import { useDeleteConfirm, usePdfPreview, useAuthRequired } from "$lib/components/composables";
+	import { adminFilter } from "$lib/stores/adminFilter";
 
 	let view = $state<'planner' | 'parent'>('planner');
 	let allSubmissions: any[] = $state([]);
@@ -33,29 +34,29 @@
 			isPlanner = currentUser.role === 'super';
 			view = isPlanner ? 'planner' : 'parent';
 
-			const promises: Promise<any>[] = [];
-			if (isPlanner) {
-				promises.push(repo.events.getAllSubmissions());
-			}
-			promises.push(repo.submissions.getMine());
-
-			const results = await Promise.all(promises);
-
-			if (isPlanner) {
-				allSubmissions = results[0];
-				mySubmissions = results[1];
-
-				const eventMap = new Map<string, string>();
-				allSubmissions.forEach(s => {
-					if (s.event_id && s.event_name) {
-						eventMap.set(s.event_id, s.event_name);
-					}
-				});
-				uniqueEvents = Array.from(eventMap, ([id, name]) => ({ id, name }));
-			} else {
-				mySubmissions = results[0];
-			}
+			mySubmissions = await repo.submissions.getMine();
+			if (isPlanner) await loadPlanner();
 		},
+	});
+
+	// Super users get a group/activity scope filter here (the admin Submissions
+	// tab folded in). getAllSubmissions carries group_name for scoped display.
+	async function loadPlanner() {
+		allSubmissions = await repo.events.getAllSubmissions({
+			groupId: $adminFilter.groupId,
+			activityId: $adminFilter.activityId,
+		});
+		const eventMap = new Map<string, string>();
+		allSubmissions.forEach(s => {
+			if (s.event_id && s.event_name) eventMap.set(s.event_id, s.event_name);
+		});
+		uniqueEvents = Array.from(eventMap, ([id, name]) => ({ id, name }));
+	}
+
+	$effect(() => {
+		void $adminFilter.groupId;
+		void $adminFilter.activityId;
+		if (auth.ready && isPlanner) loadPlanner();
 	});
 
 	let filteredPlannerSubmissions = $derived.by(() => {
@@ -119,6 +120,10 @@
 
 <PageContainer>
 	<PageHeader title="Submissions" actions={submissionsActions} />
+
+	{#if isPlanner && view === 'planner'}
+		<AdminFilterBar />
+	{/if}
 
 	<FilterPanel showSearch={false}>
 		<div class="flex flex-col gap-4 sm:flex-row">

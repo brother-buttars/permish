@@ -351,7 +351,7 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
   // Auth
   // -----------------------------------------------------------------------
   const auth: AuthRepository = {
-    async register(email: string, password: string, name: string, role: string): Promise<User> {
+    async register(email: string, password: string, name: string, _role: string): Promise<User> {
       const existing = await db.query('SELECT id FROM users WHERE email = ?', [email]);
       if (existing.length > 0) throw new Error('Email already registered');
 
@@ -359,10 +359,12 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
       const password_hash = await hashPassword(password);
       const ts = now();
 
+      // Public registration always creates a regular user (matches the server);
+      // 'super' is only ever granted by an existing admin. Legacy roles collapse to 'user'.
       await db.execute(
         `INSERT INTO users (id, email, password_hash, name, role, created, updated)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [id, email, password_hash, name, role, ts, ts]
+         VALUES (?, ?, ?, ?, 'user', ?, ?)`,
+        [id, email, password_hash, name, ts, ts]
       );
 
       const rows = await db.query('SELECT * FROM users WHERE id = ?', [id]);
@@ -558,6 +560,47 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
       return rows.map(mapEvent);
     },
 
+    async listForMe(): Promise<Event[]> {
+      const user = requireUser();
+      const memberships = await db.query<{ group_id: string }>(
+        'SELECT group_id FROM group_members WHERE user_id = ?',
+        [user.id]
+      );
+      const rootIds = memberships.map((m) => m.group_id);
+      if (rootIds.length === 0) return [];
+
+      const allGroups = await db.query<{ id: string; parent_id: string | null }>(
+        'SELECT id, parent_id FROM groups',
+        []
+      );
+      const parentOf = new Map<string, string | null>();
+      for (const g of allGroups) parentOf.set(g.id, g.parent_id || null);
+
+      // Walk UP (ancestors) only — see backend route for the full rationale.
+      const seen = new Set<string>(rootIds);
+      for (const id of rootIds) {
+        let cursor: string | null = parentOf.get(id) ?? null;
+        while (cursor && !seen.has(cursor)) {
+          seen.add(cursor);
+          cursor = parentOf.get(cursor) ?? null;
+        }
+      }
+
+      const groupIds = [...seen];
+      if (groupIds.length === 0) return [];
+      const placeholders = groupIds.map(() => '?').join(',');
+      const rows = await db.query<any>(
+        `SELECT e.*, COALESCE(sc.cnt, 0) AS submission_count
+         FROM events e
+         LEFT JOIN (SELECT event_id, COUNT(*) AS cnt FROM submissions GROUP BY event_id) sc
+           ON sc.event_id = e.id
+         WHERE e.group_id IN (${placeholders})
+         ORDER BY e.event_start ASC, e.created DESC`,
+        groupIds
+      );
+      return rows.map(mapEvent);
+    },
+
     async getById(id: string): Promise<Event> {
       const rows = await db.query(
         `SELECT e.*, COALESCE(sc.cnt, 0) AS submission_count
@@ -630,7 +673,9 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
       return rows.map(mapSubmission);
     },
 
-    async getAllSubmissions(): Promise<AllSubmission[]> {
+    async getAllSubmissions(_filter?: { groupId?: string | null; activityId?: string | null }): Promise<AllSubmission[]> {
+      // Group/activity scoping is a server-side (super-user) concern; offline
+      // shows the local user's own event submissions regardless of _filter.
       const user = requireUser();
       const rows = await db.query<any>(
         `SELECT s.*, e.event_name, e.event_dates, e.organizations
@@ -1084,9 +1129,28 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
       return mapUser(rows[0]);
     },
 
-    async createUser(data: { email: string; password: string; name: string; role: string }): Promise<User> {
+    async createUser(data: {
+      email: string;
+      password: string;
+      name: string;
+      role: string;
+      assignments?: { groupId: string; role: 'admin' | 'member' }[];
+    }): Promise<User> {
       const existing = await db.query('SELECT id FROM users WHERE email = ?', [data.email]);
       if (existing.length > 0) throw new Error('Email already registered');
+
+      // Pre-validate assignments before any writes.
+      const assignments = data.assignments ?? [];
+      const seen = new Set<string>();
+      for (const a of assignments) {
+        if (!a || typeof a.groupId !== 'string' || !['admin', 'member'].includes(a.role)) {
+          throw new Error('Each assignment needs a groupId and role of admin or member');
+        }
+        if (seen.has(a.groupId)) throw new Error('Duplicate group in assignments');
+        seen.add(a.groupId);
+        const g = await db.query('SELECT id FROM groups WHERE id = ?', [a.groupId]);
+        if (g.length === 0) throw new Error(`Unknown group: ${a.groupId}`);
+      }
 
       const id = crypto.randomUUID();
       const password_hash = await hashPassword(data.password);
@@ -1097,6 +1161,13 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [id, data.email, password_hash, data.name, data.role, ts, ts]
       );
+
+      for (const a of assignments) {
+        await db.execute(
+          `INSERT INTO group_members (id, group_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)`,
+          [crypto.randomUUID(), a.groupId, id, a.role, ts]
+        );
+      }
 
       const rows = await db.query('SELECT * FROM users WHERE id = ?', [id]);
       return mapUser(rows[0]);

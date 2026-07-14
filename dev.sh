@@ -42,14 +42,13 @@ fi
 # Write frontend env file for HTTPS dev mode
 cat > frontend/.env.development << ENVFILE
 PUBLIC_API_URL=https://dev.permish.app
-PUBLIC_BACKEND=express
 VITE_DEV_HTTPS=true
 VITE_HMR_HOST=dev.permish.app
 ENVFILE
 
-# Start backend with CORS allowing the HTTPS dev domain
-echo "Starting backend..."
-(cd backend && CORS_ORIGINS="https://dev.permish.app,https://192.168.3.1,https://${LOCAL_IP}" FRONTEND_URL="https://dev.permish.app" pnpm dev) &
+# Start the Bun + Hono server with CORS allowing the HTTPS dev domain
+echo "Starting server..."
+(cd server && CORS_ORIGINS="https://dev.permish.app,https://192.168.3.1,https://${LOCAL_IP}" FRONTEND_URL="https://dev.permish.app" bun run dev) &
 BACKEND_PID=$!
 
 # Start frontend on port 5173 (Caddy proxies HTTPS:443 → HTTP:5173)

@@ -1,0 +1,23 @@
+{
+  "name": "permish-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Single Bun + Hono + SQLite server for Permish (Phase 0 spike).",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@types/nodemailer": "^8.0.1",
+    "bcryptjs": "^3.0.2",
+    "hono": "^4.9.0",
+    "nodemailer": "^9.0.3",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/bun": "^1.2.0"
+  }
+}
