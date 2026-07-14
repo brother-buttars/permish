@@ -37,7 +37,6 @@ function syncChanges(src: Database, dst: Database, since: number): void {
 const dump = (db: Database) => db.query(`SELECT event_name, leader_phone FROM events WHERE id = 'e1'`).get() as any;
 
 test.skipIf(!available)('cr-sqlite merges concurrent offline edits to the same row (no clobber)', () => {
-	Database.setCustomSQLite(SYS_SQLITE);
 	const A = device();
 	const B = device();
 

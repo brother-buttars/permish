@@ -93,5 +93,11 @@ This is a definitive yes to the plan's Phase 5 question.
 
 ## See also
 
-- `spikes/crsqlite/` — the runnable proof (`bun run spike.ts`).
+- `spikes/crsqlite/` — the runnable proof (`bun test`):
+  - `merge.test.ts` — peer-to-peer column-level merge (no clobber).
+  - `sync-protocol.test.ts` — the **production star topology**: multiple clients
+    converge through a central server by exchanging changesets (push own-site
+    changes, pull others') — the exact protocol a rewritten `SyncManager` +
+    `/api/sync` endpoint would implement. This is what makes the "server + web
+    first" staging concrete.
 - [[decisions/ADR-003-sqlite-raw-sql]] — SQLite/raw-SQL choice this builds on.
