@@ -1,0 +1,19 @@
+# CODEOWNERS
+#
+# Auto-requests a review from the listed owner(s) when a PR touches matching
+# paths. Owners must have write access to the repo. The LAST matching pattern
+# wins. See CONTRIBUTING.md for the full PR workflow.
+#
+# NOTE: code-owner review is not *required* by branch protection today
+# (`require_code_owner_reviews` is off). This is a single-maintainer setup, so
+# requiring it would block the author from merging their own PRs. This file
+# documents ownership and auto-requests review — it does not gate merges yet.
+# When collaborators are added, flip on required code-owner review to enforce it.
+
+# Default owner for everything in the repo
+*                       @brandonbuttars
+
+# High-blast-radius areas — called out explicitly so ownership is unambiguous
+# as the team grows (all @brandonbuttars for now).
+/shared/schema.ts       @brandonbuttars   # single source of truth for the data model
+/.github/               @brandonbuttars   # CI, governance, branch-protection-facing config
