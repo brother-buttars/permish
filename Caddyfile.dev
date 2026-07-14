@@ -1,0 +1,29 @@
+# Permish — Local HTTPS development (used by ./dev.sh)
+#
+# Proxies HTTPS:443 for dev.permish.app (and the LAN IP) to the local
+# Vite dev server (5173) and the Bun + Hono server (3001).
+# Uses mkcert-generated certs at certs/dev.pem / certs/dev-key.pem.
+{
+	# No automatic HTTPS — we supply our own mkcert certs below.
+	auto_https disable_redirects
+}
+
+# Match the desktop hostname and any IP address (mobile access over LAN).
+dev.permish.app, https:// {
+	tls certs/dev.pem certs/dev-key.pem
+
+	# API routes — proxy to the Permish server (Bun + Hono + SQLite)
+	handle /api/* {
+		reverse_proxy localhost:3001
+	}
+
+	# Everything else — the Vite dev server (with HMR websocket support)
+	reverse_proxy localhost:5173
+
+	encode gzip zstd
+
+	log {
+		output stdout
+		format console
+	}
+}
