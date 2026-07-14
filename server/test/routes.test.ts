@@ -36,7 +36,7 @@ async function loginSuper() {
 
 beforeAll(async () => {
   const db = createDb(':memory:');
-  await bootstrapSuperAdmin(db);
+  await bootstrapSuperAdmin(db, { password: 'childofgod', mustChange: false });
   app = createApp(db);
 });
 

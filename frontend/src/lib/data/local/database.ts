@@ -4,6 +4,13 @@
  */
 
 import initSqlJs, { type Database } from 'sql.js';
+// Bundle the WASM binary with the app — "offline-first" must not depend on a
+// CDN being reachable at boot.
+import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
+
+function loadSqlJs() {
+	return initSqlJs({ locateFile: () => sqlWasmUrl });
+}
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -12,7 +19,9 @@ import initSqlJs, { type Database } from 'sql.js';
 export interface LocalDatabase {
   execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number }>;
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
-  close(): void;
+  close(): void | Promise<void>;
+  /** Persist any buffered writes immediately (sql.js specific). */
+  flush?(): Promise<void>;
   /** Export the raw database bytes (sql.js specific). */
   exportDatabase?(): Uint8Array | Promise<Uint8Array>;
   /** Replace the live database with raw bytes and persist (sql.js specific). */
@@ -84,9 +93,12 @@ async function saveToIndexedDB(data: Uint8Array): Promise<void> {
 export class SqlJsDatabase implements LocalDatabase {
   private db: Database;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private dirty = false;
+  private removeUnloadHandlers: (() => void) | null = null;
 
   private constructor(db: Database) {
     this.db = db;
+    this.registerUnloadFlush();
   }
 
   /**
@@ -94,10 +106,7 @@ export class SqlJsDatabase implements LocalDatabase {
    * from IndexedDB.
    */
   static async create(): Promise<SqlJsDatabase> {
-    const SQL = await initSqlJs({
-      // sql.js needs the WASM binary — pull from CDN
-      locateFile: (file: string) => `https://sql.js.org/dist/${file}`
-    });
+    const SQL = await loadSqlJs();
 
     const savedData = await loadFromIndexedDB();
     const db = savedData ? new SQL.Database(savedData) : new SQL.Database();
@@ -112,29 +121,31 @@ export class SqlJsDatabase implements LocalDatabase {
   async execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number }> {
     this.db.run(sql, params as any[]);
     const rowsAffected = this.db.getRowsModified();
+    this.dirty = true;
     this.schedulePersist();
     return { rowsAffected };
   }
 
   async query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
     const stmt = this.db.prepare(sql);
-    if (params) stmt.bind(params as any[]);
-
-    const results: T[] = [];
-    while (stmt.step()) {
-      results.push(stmt.getAsObject() as T);
+    try {
+      if (params) stmt.bind(params as any[]);
+      const results: T[] = [];
+      while (stmt.step()) {
+        results.push(stmt.getAsObject() as T);
+      }
+      return results;
+    } finally {
+      stmt.free();
     }
-    stmt.free();
-    return results;
   }
 
-  close(): void {
-    // Flush any pending persist before closing
-    if (this.persistTimer) {
-      clearTimeout(this.persistTimer);
-      this.persistTimer = null;
-    }
-    this.persistSync();
+  async close(): Promise<void> {
+    // Persist buffered writes for real before tearing down — the debounced
+    // timer may not have fired yet, and its data lives only in WASM memory.
+    await this.flush();
+    this.removeUnloadHandlers?.();
+    this.removeUnloadHandlers = null;
     this.db.close();
   }
 
@@ -145,20 +156,20 @@ export class SqlJsDatabase implements LocalDatabase {
 
   /** Replace the live database with raw bytes and persist to IndexedDB. */
   async importDatabase(data: Uint8Array): Promise<void> {
-    const SQL = await initSqlJs({
-      locateFile: (file: string) => `https://sql.js.org/dist/${file}`
-    });
+    const SQL = await loadSqlJs();
     this.db.close();
     this.db = new SQL.Database(data);
-    await this.persist();
+    this.dirty = true;
+    await this.flush();
   }
 
-  /** Force an immediate persist (useful before page unload). */
+  /** Force an immediate persist (used by close() and page unload). */
   async flush(): Promise<void> {
     if (this.persistTimer) {
       clearTimeout(this.persistTimer);
       this.persistTimer = null;
     }
+    if (!this.dirty) return;
     await this.persist();
   }
 
@@ -178,19 +189,28 @@ export class SqlJsDatabase implements LocalDatabase {
 
   private async persist(): Promise<void> {
     const data = this.db.export();
+    this.dirty = false;
     await saveToIndexedDB(data);
   }
 
-  /** Synchronous fallback used only in close(). */
-  private persistSync(): void {
-    try {
-      const data = this.db.export();
-      // Best-effort synchronous persist via localStorage as a fallback
-      // (IndexedDB is async-only). The async persist() should have already
-      // saved the latest state in most cases.
-      localStorage.setItem('permish_local_db_backup', JSON.stringify(Array.from(data)));
-    } catch {
-      // Ignore — this is a best-effort fallback
-    }
+  /**
+   * The debounce means up to 1s of writes exist only in WASM memory — flush
+   * when the page is being hidden or unloaded so a parent who submits a form
+   * and immediately closes the tab does not lose it. IndexedDB transactions
+   * started during pagehide are allowed to complete by the browser.
+   */
+  private registerUnloadFlush(): void {
+    if (typeof window === 'undefined') return;
+    const onHide = (e: Event) => {
+      if (e.type === 'pagehide' || document.visibilityState === 'hidden') {
+        this.flush().catch((err) => console.error('[SqlJsDatabase] unload flush failed:', err));
+      }
+    };
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onHide);
+    this.removeUnloadHandlers = () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onHide);
+    };
   }
 }

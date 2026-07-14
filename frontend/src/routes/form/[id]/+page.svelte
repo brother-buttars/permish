@@ -18,6 +18,7 @@
 	import PdfViewer from "$lib/components/PdfViewer.svelte";
 	import PermissionFormFields from "$lib/components/PermissionFormFields.svelte";
 	import { linkify } from "$lib/utils/linkify";
+	import { toastSuccess } from "$lib/stores/toast";
 	import { formatFileSize } from "$lib/utils/format";
 	import { validateSubmissionForm, buildSubmissionPayload, buildProfilePayload, emptyFields, type SubmissionFormFields } from "$lib/utils/submissionForm";
 	import LoadingState from "$lib/components/LoadingState.svelte";
@@ -78,21 +79,55 @@
 	let formDirty = $state(false);
 	let formSubmitted = $state(false);
 
-	// Track form changes
+	// Dirty = fields differ from the last programmatic state (empty form, profile
+	// fill, account auto-fill). Prefills update the baseline so they never trigger
+	// a false "unsaved changes" prompt.
+	let fieldsBaseline = JSON.stringify(emptyFields());
+	const draftKey = $derived(`permish_form_draft_${data.eventId}`);
+
 	$effect(() => {
-		if (fields.participantName || fields.dateOfBirth || fields.phone || fields.address || fields.emergencyContact) {
-			formDirty = true;
+		const json = JSON.stringify(fields);
+		formDirty = json !== fieldsBaseline;
+		// Persist a device-local draft so a refresh or evicted mobile tab doesn't
+		// destroy a half-completed form.
+		if (formDirty && !formSubmitted) {
+			try { localStorage.setItem(draftKey, json); } catch { /* quota — draft is best-effort */ }
 		}
 	});
 
-	// Warn before navigating away from dirty form
-	beforeNavigate(({ cancel }) => {
-		if (formDirty && !formSubmitted && !saveProfileModalOpen) {
-			if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-				cancel();
-			}
+	function markFieldsPristine() {
+		fieldsBaseline = JSON.stringify(fields);
+		formDirty = false;
+	}
+
+	function clearDraft() {
+		try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
+	}
+
+	// Confirm before navigating away from a dirty form (ConfirmModal, not confirm())
+	let leaveModalOpen = $state(false);
+	let pendingNavUrl: string | null = null;
+	let allowLeave = false;
+	beforeNavigate(({ cancel, to }) => {
+		if (formDirty && !formSubmitted && !saveProfileModalOpen && !allowLeave) {
+			cancel();
+			pendingNavUrl = to?.url.href ?? null;
+			leaveModalOpen = true;
 		}
 	});
+	function confirmLeave() {
+		allowLeave = true;
+		leaveModalOpen = false;
+		if (pendingNavUrl) goto(pendingNavUrl);
+	}
+
+	// Refresh/tab-close guard — beforeNavigate only covers SvelteKit navigations
+	function handleBeforeUnload(e: BeforeUnloadEvent) {
+		if (formDirty && !formSubmitted) {
+			e.preventDefault();
+			e.returnValue = '';
+		}
+	}
 
 	function isPreviewable(mimeType: string): boolean {
 		return mimeType === 'application/pdf' || mimeType?.startsWith('image/');
@@ -126,6 +161,22 @@
 	}
 
 	onMount(() => {
+		// Restore a device-local draft before any prefill runs. The draft stays
+		// dirty (it IS unsaved work), so the leave guard still protects it.
+		let restoredDraft = false;
+		try {
+			const draft = localStorage.getItem(draftKey);
+			if (draft) {
+				fields = { ...emptyFields(), ...JSON.parse(draft) };
+				restoredDraft = true;
+				if (fields.emergencyContact || fields.primaryPhone || fields.secondaryPhone) showEmergency = true;
+				if (fields.hasSpecialDiet || fields.hasAllergies || fields.medications || fields.hasChronicIllness || fields.hadRecentSurgery || fields.activityLimitations || fields.otherAccommodations) showMedical = true;
+				toastSuccess('Restored your in-progress form.');
+			}
+		} catch {
+			// Corrupt draft — start fresh
+		}
+
 		(async () => {
 			try {
 				const result = await repo.submissions.getFormEvent(data.eventId);
@@ -148,6 +199,9 @@
 					if (!fields.emergencyContact && p.name) fields.emergencyContact = p.name;
 					if (!fields.primaryPhone && p.phone) fields.primaryPhone = p.phone;
 					if (fields.emergencyContact || fields.primaryPhone) showEmergency = true;
+					// Account auto-fill is programmatic — it must not trip the
+					// unsaved-changes guard (unless a draft is already in play).
+					if (!restoredDraft) markFieldsPristine();
 				} catch {
 					// User profile fetch is optional
 				}
@@ -162,6 +216,7 @@
 			usedExistingProfile = false;
 			return;
 		}
+		const wasDirty = formDirty;
 		usedExistingProfile = true;
 		fields.participantName = profile.participant_name || "";
 		fields.dateOfBirth = profile.participant_dob || "";
@@ -191,6 +246,10 @@
 		// Reveal optional sections that now carry pre-filled data.
 		if (fields.emergencyContact || fields.primaryPhone || fields.secondaryPhone) showEmergency = true;
 		if (fields.hasSpecialDiet || fields.hasAllergies || fields.medications || fields.hasChronicIllness || fields.hadRecentSurgery || fields.activityLimitations || fields.otherAccommodations) showMedical = true;
+
+		// A profile fill is programmatic, not user typing — don't flag the form
+		// dirty for it (unless the user had already typed something).
+		if (!wasDirty) markFieldsPristine();
 	}
 
 	async function handleSubmit() {
@@ -208,6 +267,7 @@
 			const result = await repo.submissions.submit(data.eventId, buildSubmissionPayload(fields));
 			const submissionId = result.submission?.id || '';
 			formSubmitted = true;
+			clearDraft();
 
 			if (currentUser && !usedExistingProfile) {
 				pendingSubmissionId = submissionId;
@@ -218,6 +278,11 @@
 			goto(`/form/${data.eventId}/success?sid=${submissionId}`);
 		} catch (err: any) {
 			validationErrors = [err.message || "Failed to submit form. Please try again."];
+			// The user is at the bottom sticky button; the error renders at the top.
+			// Without this scroll a server-side failure is invisible.
+			setTimeout(() => {
+				document.getElementById('validation-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			}, 50);
 		} finally {
 			submitting = false;
 		}
@@ -375,6 +440,17 @@
 		</Card>
 	{/if}
 </PageContainer>
+
+<svelte:window on:beforeunload={handleBeforeUnload} />
+
+<ConfirmModal
+	bind:open={leaveModalOpen}
+	title="Leave this form?"
+	message="You have unsaved changes. Your progress is saved as a draft on this device, but the form has not been submitted."
+	confirmLabel="Leave"
+	onConfirm={confirmLeave}
+	onCancel={() => (leaveModalOpen = false)}
+/>
 
 <ConfirmModal
 	bind:open={saveProfileModalOpen}

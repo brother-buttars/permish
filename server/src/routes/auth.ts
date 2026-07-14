@@ -10,7 +10,7 @@ import {
   currentUser,
 } from '../lib/auth.ts';
 import { sanitizeString, validateEmail } from '../lib/validate.ts';
-import { registerLimiter, loginLimiter } from '../lib/rateLimit.ts';
+import { registerLimiter, loginLimiter, forgotPasswordLimiter } from '../lib/rateLimit.ts';
 import { config } from '../config.ts';
 
 interface UserRow {
@@ -22,16 +22,27 @@ interface UserRow {
   must_change_password?: number;
 }
 
+/** Canonical form for stored/compared emails. */
+export function normalizeEmail(email: unknown): string {
+  return String(email ?? '').trim().toLowerCase();
+}
+
+// Compared against when the email is unknown so login latency does not reveal
+// whether an account exists.
+const DUMMY_HASH = bcrypt.hashSync('timing-equalizer-placeholder', 10);
+
 export function createAuthRoutes(db: DB) {
   const app = new Hono<AppEnv>();
 
   app.post('/register', registerLimiter, async (c) => {
-    const { email, password, name, role } = await c.req.json().catch(() => ({}));
+    const body = await c.req.json().catch(() => ({}));
+    const { password, name, role } = body;
+    const email = normalizeEmail(body.email);
     const errors: string[] = [];
     if (!email || !validateEmail(email)) errors.push('Valid email is required');
     if (!password || password.length < 8) errors.push('Password must be at least 8 characters');
     if (!name || !name.trim()) errors.push('Name is required');
-    if (!['user', 'planner', 'parent'].includes(role)) errors.push('Role must be "user"');
+    if (!['user', 'planner', 'parent'].includes(role)) errors.push('Invalid role');
     if (errors.length) return c.json({ error: errors.join(', ') }, 400);
 
     const existing = db.query<{ id: string }, [string]>('SELECT id FROM users WHERE email = ?').get(email);
@@ -39,8 +50,14 @@ export function createAuthRoutes(db: DB) {
 
     const id = crypto.randomUUID();
     const password_hash = await bcrypt.hash(password, 10);
-    db.query('INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)')
-      .run(id, email, password_hash, sanitizeString(name) as string, 'user');
+    try {
+      db.query('INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)')
+        .run(id, email, password_hash, sanitizeString(name) as string, 'user');
+    } catch (err) {
+      // Concurrent register with the same email raced past the SELECT above
+      if (String(err).includes('UNIQUE')) return c.json({ error: 'Email already registered' }, 409);
+      throw err;
+    }
 
     const user: AuthUser = { id, email, name, role: 'user' };
     await setAuthCookie(c, user);
@@ -48,14 +65,14 @@ export function createAuthRoutes(db: DB) {
   });
 
   app.post('/login', loginLimiter, async (c) => {
-    const { email, password } = await c.req.json().catch(() => ({}));
+    const body = await c.req.json().catch(() => ({}));
+    const email = normalizeEmail(body.email);
+    const password = body.password;
     if (!email || !password) return c.json({ error: 'Email and password required' }, 400);
 
     const row = db.query<UserRow, [string]>('SELECT * FROM users WHERE email = ?').get(email);
-    if (!row) return c.json({ error: 'Invalid credentials' }, 401);
-
-    const valid = await bcrypt.compare(password, row.password_hash);
-    if (!valid) return c.json({ error: 'Invalid credentials' }, 401);
+    const valid = await bcrypt.compare(password, row?.password_hash ?? DUMMY_HASH);
+    if (!row || !valid) return c.json({ error: 'Invalid credentials' }, 401);
 
     const user: AuthUser = { id: row.id, email: row.email, name: row.name, role: row.role };
     await setAuthCookie(c, user);
@@ -122,9 +139,23 @@ export function createAuthRoutes(db: DB) {
 
   app.put('/setup-credentials', requireAuth, async (c) => {
     const me = currentUser(c);
-    const { email, name, password } = await c.req.json().catch(() => ({}));
+    const body = await c.req.json().catch(() => ({}));
+    const { name, password, currentPassword } = body;
+    const email = normalizeEmail(body.email);
     if (!email || !name || !password) return c.json({ error: 'Email, name, and password are required' }, 400);
+    if (!validateEmail(email)) return c.json({ error: 'Valid email is required' }, 400);
     if (password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
+
+    // First-login credential setup is open (the flag gates everything else);
+    // afterwards, rotating email+password demands the current password so a
+    // stolen session cannot become a permanent takeover.
+    if (!c.get('mustChangePassword')) {
+      if (!currentPassword) return c.json({ error: 'Current password is required' }, 400);
+      const row = db.query<UserRow, [string]>('SELECT * FROM users WHERE id = ?').get(me.id);
+      if (!row || !(await bcrypt.compare(currentPassword, row.password_hash))) {
+        return c.json({ error: 'Current password is incorrect' }, 401);
+      }
+    }
 
     const clash = db
       .query<{ id: string }, [string, string]>('SELECT id FROM users WHERE email = ? AND id != ?')
@@ -133,7 +164,7 @@ export function createAuthRoutes(db: DB) {
 
     const password_hash = await bcrypt.hash(password, 10);
     db.query('UPDATE users SET email = ?, name = ?, password_hash = ?, must_change_password = 0 WHERE id = ?')
-      .run(email, name, password_hash, me.id);
+      .run(email, sanitizeString(name) as string, password_hash, me.id);
 
     const user: AuthUser = { id: me.id, email, name, role: me.role };
     await setAuthCookie(c, user);
@@ -157,16 +188,22 @@ export function createAuthRoutes(db: DB) {
   });
 
   // Phase 0: token issuance without email delivery (email service ported in Phase 1).
-  app.post('/forgot-password', async (c) => {
-    const { email } = await c.req.json().catch(() => ({}));
+  app.post('/forgot-password', forgotPasswordLimiter, async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const email = normalizeEmail(body.email);
     if (!email) return c.json({ error: 'Email is required' }, 400);
+    // Keep the table bounded: drop tokens that can never be used again.
+    db.query("DELETE FROM password_reset_tokens WHERE used = 1 OR expires_at < datetime('now')").run();
     const user = db.query<{ id: string }, [string]>('SELECT id FROM users WHERE email = ?').get(email);
     if (user) {
       const token = crypto.randomUUID();
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       db.query('INSERT INTO password_reset_tokens (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)')
         .run(crypto.randomUUID(), user.id, token, expiresAt);
-      console.log(`[dev] password reset link: ${config.frontendUrl}/reset-password?token=${token}`);
+      // A reset link is a live credential — never write it to production logs.
+      if (!config.isProduction) {
+        console.log(`[dev] password reset link: ${config.frontendUrl}/reset-password?token=${token}`);
+      }
     }
     return c.json({ message: 'If an account exists with that email, a reset link has been sent.' });
   });

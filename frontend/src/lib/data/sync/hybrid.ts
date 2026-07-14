@@ -232,6 +232,7 @@ export function createHybridRepository(
     async revokeInvite(groupId, inviteId) {
       await local.groups.revokeInvite(groupId, inviteId);
       await queueChange(db, syncManager, 'group_invites', inviteId, 'update', {
+        group_id: groupId,
         revoked_at: new Date().toISOString(),
       });
     },
@@ -251,8 +252,22 @@ export function createHybridRepository(
   // Assemble the hybrid DataRepository
   // -------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Auth — local, but profile edits (guardian signature, phone, address) must
+  // reach the server or they exist on this device only.
+  // ---------------------------------------------------------------------------
+
+  const auth: DataRepository['auth'] = {
+    ...local.auth,
+    async updateProfile(data) {
+      const result = await local.auth.updateProfile(data);
+      await queueChange(db, syncManager, 'users', result.id, 'update', data);
+      return result;
+    }
+  };
+
   return {
-    auth: local.auth, // Auth is always local in hybrid mode
+    auth,
     events,
     profiles,
     submissions,

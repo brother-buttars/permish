@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import type { DB } from '../db.ts';
 import { type AppEnv, type AuthUser, requireAuth, currentUser } from '../lib/auth.ts';
 import { isEffectiveGroupAdmin, countGroupAdmins } from '../lib/groups.ts';
+import { joinLimiter } from '../lib/rateLimit.ts';
+import { clientProvidedId } from '../lib/validate.ts';
 import { config } from '../config.ts';
 import { createTransport, sendGroupInvite, sendRemovalNotice } from '../services/email.ts';
 import { generateCode, generateToken, isInviteUsable, inviteUrl, addMembershipWithPropagation, type InviteRow } from '../services/invites.ts';
@@ -111,7 +113,10 @@ export function createGroupRoutes(db: DB) {
       if ((!pm || pm.role !== 'admin') && me.role !== 'super') return c.json({ error: 'Must be a group admin to create subgroups' }, 403);
     }
 
-    const id = crypto.randomUUID();
+    const id = clientProvidedId(b.id) ?? crypto.randomUUID();
+    if (b.id && db.query('SELECT 1 FROM groups WHERE id = ?').get(id)) {
+      return c.json({ error: 'A group with this id already exists' }, 409);
+    }
     const inviteCode = generateCode();
     db.query(
       `INSERT INTO groups (id, name, type, parent_id, ward, stake, leader_name, leader_phone, leader_email, invite_code)
@@ -161,7 +166,7 @@ export function createGroupRoutes(db: DB) {
     return c.json({ group: updated });
   });
 
-  app.post('/join', async (c) => {
+  app.post('/join', joinLimiter, async (c) => {
     const me = currentUser(c);
     const { invite_code } = await c.req.json().catch(() => ({}));
     if (!invite_code) return c.json({ error: 'Invite code is required' }, 400);
@@ -199,7 +204,9 @@ export function createGroupRoutes(db: DB) {
     const group = db.query('SELECT id, name FROM groups WHERE id = ?').get(id) as { id: string; name: string } | null;
     if (!group) return c.json({ error: 'Group not found' }, 404);
 
-    const { role, email, max_uses, expires_at } = await c.req.json().catch(() => ({}));
+    const body = await c.req.json().catch(() => ({}));
+    const { role, max_uses, expires_at } = body;
+    const email = body.email ? String(body.email).trim().toLowerCase() : null;
     const inviteRole = role === 'admin' ? 'admin' : 'member';
     const inviteId = crypto.randomUUID();
     const isEmailInvite = !!email;
@@ -228,7 +235,9 @@ export function createGroupRoutes(db: DB) {
     const me = currentUser(c);
     const id = c.req.param('id');
     if (!isEffectiveGroupAdmin(db, id, me.id, me.role)) return c.json({ error: 'Must be a group admin to invite' }, 403);
-    const { email, role } = await c.req.json().catch(() => ({}));
+    const legacyBody = await c.req.json().catch(() => ({}));
+    const role = legacyBody.role;
+    const email = legacyBody.email ? String(legacyBody.email).trim().toLowerCase() : '';
     if (!email) return c.json({ error: 'Email is required' }, 400);
     const inviteRole = role === 'admin' ? 'admin' : 'member';
     const group = db.query('SELECT id, name FROM groups WHERE id = ?').get(id) as { id: string; name: string } | null;

@@ -3,6 +3,7 @@ import {
 	computeAge,
 	computeAgeLabel,
 	validateSubmissionForm,
+	emptyFields,
 	buildSubmissionPayload,
 	buildProfilePayload,
 	type SubmissionFormFields,
@@ -77,7 +78,25 @@ describe('validateSubmissionForm', () => {
 
 	it('requires a signature value when the type is not hand', () => {
 		const errs = validateSubmissionForm(fields({ participantSigType: 'drawn', participantSigValue: '' }));
-		expect(errs).toContain('Participant signature is required.');
+		expect(errs.some((e) => e.startsWith('Participant signature is required'))).toBe(true);
+	});
+
+	it('rejects a completely untouched form — unsigned submissions must not validate', () => {
+		// Regression: signatures used to default to "hand", so a parent who never
+		// reached the Signatures section submitted a blank-signature medical release.
+		const errs = validateSubmissionForm({ ...emptyFields(), participantName: 'Kid', dateOfBirth: '2013-01-01', participantSigDate: '2026-07-01' });
+		expect(errs.some((e) => e.startsWith('Participant signature is required'))).toBe(true);
+		expect(errs.some((e) => e.startsWith('Parent/Guardian signature is required'))).toBe(true);
+	});
+
+	it('requires the participant signature date', () => {
+		const errs = validateSubmissionForm(fields({ participantSigDate: '' }));
+		expect(errs).toContain('Participant signature date is required.');
+	});
+
+	it('rejects a future date of birth', () => {
+		const errs = validateSubmissionForm(fields({ dateOfBirth: '2099-01-01' }));
+		expect(errs).toContain('Date of birth must be a valid past date.');
 	});
 
 	it('accepts a provided drawn/typed signature', () => {

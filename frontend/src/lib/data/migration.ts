@@ -7,6 +7,7 @@
 
 import type { DataRepository } from './repository';
 import type { LocalDatabase } from './local/database';
+import { replayPendingChange } from './sync/replay';
 
 export interface MigrationProgress {
   step: string;
@@ -35,11 +36,11 @@ export async function pullDataToLocal(
     const remoteEvents = await remote.events.list({ all: true });
     for (const event of remoteEvents) {
       await db.execute(
-        `INSERT OR REPLACE INTO events (id, created_by, event_name, event_dates, event_start, event_end,
+        `INSERT OR REPLACE INTO events (id, created_by, group_id, event_name, event_dates, event_start, event_end,
          event_description, ward, stake, leader_name, leader_phone, leader_email,
          notify_email, notify_phone, notify_carrier, organizations, additional_details, is_active)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [event.id, event.created_by, event.event_name, event.event_dates,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [event.id, event.created_by, event.group_id || null, event.event_name, event.event_dates,
          event.event_start || null, event.event_end || null,
          event.event_description, event.ward, event.stake, event.leader_name,
          event.leader_phone, event.leader_email, event.notify_email || null,
@@ -149,23 +150,12 @@ export async function pushPendingToRemote(
 
     try {
       const payload = JSON.parse(change.payload);
-      switch (change.collection) {
-        case 'events':
-          if (change.operation === 'create') await remote.events.create(payload);
-          else if (change.operation === 'update') await remote.events.update(change.record_id, payload);
-          else if (change.operation === 'delete') await remote.events.deactivate(change.record_id);
-          break;
-        case 'child_profiles':
-          if (change.operation === 'create') await remote.profiles.create(payload);
-          else if (change.operation === 'update') await remote.profiles.update(change.record_id, payload);
-          else if (change.operation === 'delete') await remote.profiles.delete(change.record_id);
-          break;
-        case 'submissions':
-          if (change.operation === 'create') await remote.submissions.submit(payload.event_id, payload);
-          else if (change.operation === 'update') await remote.submissions.update(change.record_id, payload);
-          else if (change.operation === 'delete') await remote.submissions.delete(change.record_id);
-          break;
-      }
+      await replayPendingChange(remote, {
+        collection: change.collection,
+        operation: change.operation,
+        record_id: change.record_id,
+        payload,
+      });
       await db.execute('UPDATE pending_changes SET synced_at = datetime("now") WHERE id = ?', [change.id]);
       pushed++;
     } catch (err: any) {

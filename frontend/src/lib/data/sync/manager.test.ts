@@ -173,7 +173,8 @@ describe('SyncManager', () => {
 
       await manager.sync();
 
-      expect(remote.events.create).toHaveBeenCalledWith({ event_name: 'Camp' });
+      // Creates carry the locally-minted id so the server keeps the same identity
+      expect(remote.events.create).toHaveBeenCalledWith({ event_name: 'Camp', id: 'rec-1' });
 
       // Should be marked as synced
       const rows = await db.query<{ synced_at: string | null }>(
@@ -219,7 +220,7 @@ describe('SyncManager', () => {
 
       await manager.sync();
 
-      expect(remote.profiles.create).toHaveBeenCalledWith({ participant_name: 'Alice' });
+      expect(remote.profiles.create).toHaveBeenCalledWith({ participant_name: 'Alice', id: 'prof-1' });
     });
 
     it('should replay submission operations', async () => {
@@ -234,7 +235,8 @@ describe('SyncManager', () => {
 
       expect(remote.submissions.submit).toHaveBeenCalledWith('evt-1', {
         event_id: 'evt-1',
-        participant_name: 'Jane'
+        participant_name: 'Jane',
+        id: 'sub-1'
       });
     });
 
@@ -249,6 +251,87 @@ describe('SyncManager', () => {
       await manager.sync();
 
       expect(remote.auth.updateProfile).toHaveBeenCalledWith({ name: 'New Name' });
+    });
+
+    it('should replay group mutations instead of dropping them', async () => {
+      (remote.groups.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'grp-1' });
+      (remote.groups.join as ReturnType<typeof vi.fn>).mockResolvedValue({ group: { id: 'grp-1' } });
+      (remote.groups.removeMember as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+      const createId = await insertPendingChange(db, {
+        id: 'chg-g1',
+        collection: 'groups',
+        record_id: 'grp-1',
+        operation: 'create',
+        payload: JSON.stringify({ name: 'Oak Ward', type: 'ward' })
+      });
+      await insertPendingChange(db, {
+        id: 'chg-g2',
+        collection: 'group_members',
+        record_id: 'grp-1',
+        operation: 'create',
+        payload: JSON.stringify({ invite_code: 'ABCDEF123456' })
+      });
+      await insertPendingChange(db, {
+        id: 'chg-g3',
+        collection: 'group_members',
+        record_id: 'grp-1:usr-9',
+        operation: 'delete',
+        payload: '{}'
+      });
+
+      await manager.sync();
+
+      expect(remote.groups.create).toHaveBeenCalledWith({ name: 'Oak Ward', type: 'ward', id: 'grp-1' });
+      expect(remote.groups.join).toHaveBeenCalledWith('ABCDEF123456');
+      expect(remote.groups.removeMember).toHaveBeenCalledWith('grp-1', 'usr-9');
+
+      const rows = await db.query<{ synced_at: string | null }>(
+        'SELECT synced_at FROM pending_changes WHERE id = ?',
+        [createId]
+      );
+      expect(rows[0].synced_at).not.toBeNull();
+    });
+
+    it('should NOT mark unknown collections as synced', async () => {
+      const changeId = await insertPendingChange(db, {
+        collection: 'nonsense',
+        record_id: 'x-1',
+        operation: 'create',
+        payload: '{}'
+      });
+
+      await manager.sync();
+
+      const rows = await db.query<{ synced_at: string | null; retry_count: number; last_error: string | null }>(
+        'SELECT synced_at, retry_count, last_error FROM pending_changes WHERE id = ?',
+        [changeId]
+      );
+      expect(rows[0].synced_at).toBeNull();
+      expect(rows[0].retry_count).toBeGreaterThan(0);
+      expect(rows[0].last_error).toContain('Unknown collection');
+    });
+
+    it('accepts delete-permanent and reassign operations (extended CHECK)', async () => {
+      await insertPendingChange(db, {
+        id: 'chg-dp',
+        collection: 'events',
+        record_id: 'evt-1',
+        operation: 'delete-permanent',
+        payload: '{}'
+      });
+      await insertPendingChange(db, {
+        id: 'chg-ra',
+        collection: 'events',
+        record_id: 'evt-2',
+        operation: 'reassign',
+        payload: JSON.stringify({ userId: 'usr-2' })
+      });
+
+      await manager.sync();
+
+      expect(remote.events.remove).toHaveBeenCalledWith('evt-1');
+      expect(remote.events.reassignOwner).toHaveBeenCalledWith('evt-2', 'usr-2');
     });
 
     it('should increment retry_count on failure', async () => {
@@ -353,13 +436,10 @@ describe('SyncManager', () => {
         new Error('Network down')
       );
 
-      // The pull methods catch errors internally and log warnings,
-      // so sync itself won't throw. The db.execute for local_meta
-      // should still work. Status ends up 'idle' because the pull
-      // methods swallow errors. This is by design.
+      // A failed pull must surface as an error — the old behavior swallowed
+      // it and stamped last_pull_at, showing "Synced" after a total failure.
       await manager.sync();
-      // Status should be 'idle' since errors are caught inside pull
-      expect(manager.status).toBe('idle');
+      expect(manager.status).toBe('error');
     });
 
     it('should report offline when navigator is offline', async () => {
