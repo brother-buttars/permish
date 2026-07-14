@@ -16,6 +16,21 @@ import { createAdminRoutes } from './routes/admin.ts';
 export function createApp(db: DB) {
   const app = new Hono<AppEnv>();
 
+  // Every response — including errors and 404s below — keeps the {error} JSON
+  // contract the frontend adapters parse.
+  app.onError((err, c) => {
+    console.error('[server] unhandled error:', err);
+    return c.json({ error: 'Internal server error' }, 500);
+  });
+  app.notFound((c) => c.json({ error: 'Not found' }, 404));
+
+  app.use('*', async (c, next) => {
+    await next();
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('X-Frame-Options', 'DENY');
+    c.header('Referrer-Policy', 'no-referrer');
+  });
+
   // CORS: allow the frontend origin(s); reflect origin so cookie credentials work.
   const allowed = new Set([config.frontendUrl, ...config.corsOrigins]);
   app.use(

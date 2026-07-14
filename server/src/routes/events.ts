@@ -18,6 +18,30 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   'text/plain',
 ]);
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+// Multipart framing overhead allowance for the Content-Length pre-check.
+const MULTIPART_SLACK_BYTES = 64 * 1024;
+
+/** The client-supplied MIME type must match the file's leading bytes. */
+function matchesMagic(type: string, b: Uint8Array): boolean {
+  const at = (sig: number[], offset = 0) => sig.every((v, i) => b[offset + i] === v);
+  switch (type) {
+    case 'application/pdf': return at([0x25, 0x50, 0x44, 0x46]); // %PDF
+    case 'image/jpeg': return at([0xff, 0xd8, 0xff]);
+    case 'image/png': return at([0x89, 0x50, 0x4e, 0x47]);
+    case 'image/gif': return at([0x47, 0x49, 0x46, 0x38]); // GIF8
+    case 'image/webp': return at([0x52, 0x49, 0x46, 0x46]) && at([0x57, 0x45, 0x42, 0x50], 8); // RIFF....WEBP
+    case 'application/msword':
+    case 'application/vnd.ms-excel':
+      return at([0xd0, 0xcf, 0x11, 0xe0]); // legacy OLE container
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+      return at([0x50, 0x4b, 0x03, 0x04]); // zip container
+    case 'text/plain':
+      return !b.slice(0, 512).includes(0); // no NUL bytes
+    default:
+      return false;
+  }
+}
 
 export function createEventRoutes(db: DB) {
   const app = new Hono<AppEnv>();
@@ -382,11 +406,17 @@ export function createEventRoutes(db: DB) {
     const existing = db.query<{ count: number }, [string]>('SELECT COUNT(*) as count FROM event_attachments WHERE event_id = ?').get(eventId)!;
     if (existing.count >= 10) return c.json({ error: 'Maximum 10 attachments per event' }, 400);
 
+    // Reject oversized requests before buffering the multipart body.
+    const declared = Number(c.req.header('content-length') ?? 0);
+    if (declared > MAX_ATTACHMENT_BYTES + MULTIPART_SLACK_BYTES) return c.json({ error: 'File too large' }, 413);
+
     const body = await c.req.parseBody();
     const file = body['file'];
     if (!(file instanceof File)) return c.json({ error: 'No file uploaded' }, 400);
     if (!ALLOWED_ATTACHMENT_TYPES.has(file.type)) return c.json({ error: 'File type not allowed' }, 400);
     if (file.size > MAX_ATTACHMENT_BYTES) return c.json({ error: 'File too large' }, 400);
+    const head = new Uint8Array(await file.slice(0, 512).arrayBuffer());
+    if (!matchesMagic(file.type, head)) return c.json({ error: 'File content does not match its type' }, 400);
 
     mkdirSync(config.uploadsDir, { recursive: true });
     const filename = `${crypto.randomUUID()}${extname(file.name)}`;

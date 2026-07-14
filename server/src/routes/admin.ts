@@ -142,11 +142,13 @@ export function createAdminRoutes(db: DB) {
   });
 
   app.put('/users/:id/password', async (c) => {
+    const me = currentUser(c);
     const { newPassword } = await c.req.json().catch(() => ({}));
     if (!newPassword || newPassword.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
     if (!db.query('SELECT id FROM users WHERE id = ?').get(c.req.param('id'))) return c.json({ error: 'User not found' }, 404);
     const password_hash = await bcrypt.hash(newPassword, 10);
     db.query('UPDATE users SET password_hash = ? WHERE id = ?').run(password_hash, c.req.param('id'));
+    audit.record(db, { actorId: me.id, action: 'user.password_reset', targetType: 'user', targetId: c.req.param('id') });
     return c.json({ message: 'Password reset successfully' });
   });
 

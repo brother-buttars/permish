@@ -8,6 +8,7 @@ node_modules/
 /data/
 backend/data/
 backend/uploads/
+server/uploads/
 backend/pdfs/
 pdfs/
 .svelte-kit/

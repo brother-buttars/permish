@@ -856,6 +856,8 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
   const submissions: SubmissionRepository = {
     async getFormEvent(eventId: string): Promise<{ event: Event; attachments: Attachment[] }> {
       const event = await events.getById(eventId);
+      // Mirror the server's 410: deactivated activities don't accept submissions offline either.
+      if (!event.is_active) throw new Error('This form is no longer accepting submissions');
       const attRows = await db.query(
         'SELECT * FROM event_attachments WHERE event_id = ? ORDER BY display_order',
         [eventId]
@@ -865,6 +867,8 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
 
     async submit(eventId: string, data: Record<string, unknown>): Promise<{ submission: Submission }> {
       const user = requireUser();
+      const event = await events.getById(eventId);
+      if (!event.is_active) throw new Error('This form is no longer accepting submissions');
       const id = crypto.randomUUID();
       const ts = now();
       const dob = (data.participant_dob as string) ?? '';
