@@ -316,18 +316,22 @@
 						<Textarea id="description" bind:value={description} placeholder="Describe the activity..." rows={4} />
 						{#if errors.description}<p class="text-sm text-destructive">{errors.description}</p>{/if}
 					</div>
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div class="space-y-2">
-							<Label for="ward">Ward</Label>
-							<Input id="ward" bind:value={ward} placeholder="Ward name" />
-							{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
+					<!-- Ward/Stake come from the selected group; only asked for on a private
+					     activity, or if the group didn't supply a stake. -->
+					{#if !selectedGroupId || !stake.trim()}
+						<div class="grid gap-4 sm:grid-cols-2">
+							<div class="space-y-2">
+								<Label for="ward">Ward</Label>
+								<Input id="ward" bind:value={ward} placeholder="Ward name" />
+								{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
+							</div>
+							<div class="space-y-2">
+								<Label for="stake">Stake *</Label>
+								<Input id="stake" bind:value={stake} placeholder="Stake name" />
+								{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
+							</div>
 						</div>
-						<div class="space-y-2">
-							<Label for="stake">Stake *</Label>
-							<Input id="stake" bind:value={stake} placeholder="Stake name" />
-							{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
-						</div>
-					</div>
+					{/if}
 				</CardContent>
 			</Card>
 
