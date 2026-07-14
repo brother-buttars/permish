@@ -116,16 +116,29 @@ export function createAdminRoutes(db: DB) {
 
   app.delete('/users/:id', (c) => {
     const me = currentUser(c);
-    const user = db.query<{ id: string; role: string }, [string]>('SELECT id, role FROM users WHERE id = ?').get(c.req.param('id'));
+    const id = c.req.param('id');
+    const user = db.query<{ id: string; role: string }, [string]>('SELECT id, role FROM users WHERE id = ?').get(id);
     if (!user) return c.json({ error: 'User not found' }, 404);
     if (user.id === me.id) return c.json({ error: 'Cannot delete your own account' }, 400);
     if (user.role === 'super') {
       const n = db.query<{ count: number }, []>("SELECT COUNT(*) as count FROM users WHERE role = 'super'").get()!.count;
       if (n <= 1) return c.json({ error: 'Cannot delete the last super admin' }, 400);
     }
-    db.query('DELETE FROM users WHERE id = ?').run(c.req.param('id'));
-    audit.record(db, { actorId: me.id, action: 'user.deleted', targetType: 'user', targetId: c.req.param('id'), meta: { role: user.role } });
-    return c.json({ message: 'User deleted' });
+
+    // The user is referenced by rows whose FKs to users(id) don't cascade
+    // (foreign_keys is ON), so a bare DELETE would fail. Reassign their events
+    // to the deleting admin and clean up their own records, all atomically.
+    const reassignedEvents = db.query<{ count: number }, [string]>('SELECT COUNT(*) as count FROM events WHERE created_by = ?').get(id)!.count;
+    db.transaction(() => {
+      db.query('UPDATE events SET created_by = ? WHERE created_by = ?').run(me.id, id);
+      db.query('UPDATE submissions SET submitted_by = NULL WHERE submitted_by = ?').run(id);
+      db.query('DELETE FROM child_profiles WHERE user_id = ?').run(id);
+      db.query('DELETE FROM password_reset_tokens WHERE user_id = ?').run(id);
+      db.query('DELETE FROM users WHERE id = ?').run(id);
+    })();
+
+    audit.record(db, { actorId: me.id, action: 'user.deleted', targetType: 'user', targetId: id, meta: { role: user.role, reassignedEvents } });
+    return c.json({ message: 'User deleted', reassignedEvents });
   });
 
   app.put('/users/:id/password', async (c) => {

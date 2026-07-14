@@ -168,4 +168,30 @@ describe('admin (super only)', () => {
     expect(s.userCount).toBeGreaterThan(0);
     expect(s).toHaveProperty('submissionCount');
   });
+
+  it('deletes a user who owns an event, reassigning the event to the deleting admin', async () => {
+    const planner = await registerPlanner('deleteme@test.app');
+    const me = await (await planner.req('/api/auth/me')).json();
+    const created = await planner.req('/api/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        event_name: 'Orphan Event', event_dates: '1 May 2026', event_description: 'x',
+        ward: 'W', stake: 'S', leader_name: 'L', leader_phone: '801-555-0000', leader_email: 'l@test.app',
+      }),
+    });
+    const { event } = await created.json();
+
+    const superJar = await loginSuper();
+    const superMe = await (await superJar.req('/api/auth/me')).json();
+
+    const del = await superJar.req(`/api/admin/users/${me.user.id}`, { method: 'DELETE' });
+    expect(del.status).toBe(200);
+    expect((await del.json()).reassignedEvents).toBe(1);
+
+    // The user is gone but their event survives, now owned by the admin.
+    expect((await superJar.req(`/api/admin/users/${me.user.id}`)).status).toBe(404);
+    const eventRes = await superJar.req(`/api/events/${event.id}`);
+    expect(eventRes.status).toBe(200);
+    expect((await eventRes.json()).event.created_by).toBe(superMe.user.id);
+  });
 });
