@@ -22,6 +22,10 @@ export const SYNC: Record<'events' | 'child_profiles' | 'submissions', SyncSpec>
         "kind": "plain"
       },
       {
+        "name": "group_id",
+        "kind": "plain"
+      },
+      {
         "name": "event_name",
         "kind": "plain"
       },

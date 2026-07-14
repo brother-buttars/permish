@@ -1,7 +1,7 @@
 ---
 title: "Todos"
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-07-14
 tags:
   - index
 ---
@@ -24,6 +24,12 @@ _None._
 
 ## Completed
 
+- ~~[[todos/TODO-012-enforce-must-change-password|TODO-012: Enforce must_change_password + random bootstrap credentials]]~~ -- gate in auth middleware + random/env bootstrap password, completed 2026-07-14
+- ~~[[todos/TODO-013-local-db-durability|TODO-013: Local DB durability]]~~ -- close() persists, unload flush, WASM bundled, completed 2026-07-14
+- ~~[[todos/TODO-014-hybrid-sync-correctness|TODO-014: Hybrid sync correctness]]~~ -- client UUIDs on create, group replay, CHECK enum v7 migration, owned-submission pull, profile sync, completed 2026-07-14
+- ~~[[todos/TODO-015-submissions-pii-authz|TODO-015: Submissions PII exposure]]~~ -- adminOnly on listing, join rate-limited, 12-char codes, completed 2026-07-14
+- ~~[[todos/TODO-016-parent-form-integrity|TODO-016: Parent form integrity]]~~ -- drawn-signature default, draft persistence, beforeunload, progress bar visible, completed 2026-07-14
+- ~~[[todos/TODO-017-auth-hardening|TODO-017: Auth hardening]]~~ -- setup-credentials locked, DB-backed auth, socket-keyed limits, reset-token log gated, completed 2026-07-14
 - ~~[[todos/TODO-001-frontend-tests|TODO-001: Add frontend test suite]]~~ -- 39 Vitest tests, completed 2026-03-22
 - ~~[[todos/TODO-002-cicd-pipeline|TODO-002: Set up CI/CD pipeline]]~~ -- GitHub Actions, completed 2026-03-22
 - ~~[[todos/TODO-003-remove-puppeteer|TODO-003: Remove Puppeteer]]~~ -- Removed 2026-03-22

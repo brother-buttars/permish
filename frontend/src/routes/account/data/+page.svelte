@@ -67,17 +67,27 @@
 				});
 
 				toastSuccess(`Downloaded ${result.events} events, ${result.profiles} profiles, ${result.submissions} submissions.`);
-				db.close();
+				// close() persists buffered writes to IndexedDB before tearing down
+				await db.close();
 			}
 
 			if (to === 'online' && (from === 'hybrid' || from === 'local')) {
 				if (from === 'hybrid') {
 					const mgr = getSyncManager();
 					if (mgr) {
-						const count = await mgr.getPendingCount();
+						let count = await mgr.getPendingCount();
 						if (count > 0) {
 							migrationProgress = `Pushing ${count} pending changes...`;
 							await mgr.sync();
+							// sync() never rejects — verify the queue actually drained
+							// before abandoning the local DB, or those changes are lost.
+							count = await mgr.getPendingCount();
+							if (count > 0) {
+								throw new Error(
+									`${count} change${count === 1 ? '' : 's'} could not be synced to the server. ` +
+									'Fix or discard them under Account → Sync before switching to online mode.'
+								);
+							}
 						}
 					}
 				}

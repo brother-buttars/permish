@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS pending_changes (
     id TEXT PRIMARY KEY,
     collection TEXT NOT NULL,
     record_id TEXT NOT NULL,
-    operation TEXT NOT NULL CHECK(operation IN ('create', 'update', 'delete')),
+    operation TEXT NOT NULL CHECK(operation IN ('create', 'update', 'delete', 'delete-permanent', 'reassign')),
     payload TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     synced_at TEXT,

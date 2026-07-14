@@ -48,6 +48,9 @@ services:
       - DB_PATH=/app/data/permish.sqlite
       - PDF_DIR=/app/pdfs
       - UPLOADS_DIR=/app/uploads
+      # Set true only when requests arrive via the caddy proxy (production profile),
+      # so rate limiting keys on the real client IP instead of the proxy socket.
+      - TRUST_PROXY=${TRUST_PROXY:-false}
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://localhost:3001/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s

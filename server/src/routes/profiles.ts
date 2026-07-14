@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { DB } from '../db.ts';
 import { type AppEnv, requireAuth, currentUser } from '../lib/auth.ts';
-import { sanitizeString } from '../lib/validate.ts';
+import { sanitizeString, clientProvidedId } from '../lib/validate.ts';
 
 type Row = Record<string, any>;
 
@@ -22,7 +22,10 @@ export function createProfileRoutes(db: DB) {
     if (!d.participant_name || !d.participant_name.trim()) return c.json({ error: 'Participant name is required' }, 400);
     if (!d.participant_dob) return c.json({ error: 'Date of birth is required' }, 400);
 
-    const id = crypto.randomUUID();
+    const id = clientProvidedId(d.id) ?? crypto.randomUUID();
+    if (d.id && db.query('SELECT 1 FROM child_profiles WHERE id = ?').get(id)) {
+      return c.json({ error: 'A profile with this id already exists' }, 409);
+    }
     db.query(
       `INSERT INTO child_profiles (id, user_id, participant_name, participant_dob, participant_phone,
         address, city, state_province, emergency_contact, emergency_phone_primary, emergency_phone_secondary,

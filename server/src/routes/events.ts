@@ -3,7 +3,7 @@ import { mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
 import type { DB } from '../db.ts';
 import { type AppEnv, requireAuth, currentUser } from '../lib/auth.ts';
-import { sanitizeString, validateEmail, validatePhone } from '../lib/validate.ts';
+import { sanitizeString, validateEmail, validatePhone, clientProvidedId } from '../lib/validate.ts';
 import { collectGroupAndDescendantIds } from '../services/audit.ts';
 import * as audit from '../services/audit.ts';
 import { config } from '../config.ts';
@@ -79,7 +79,10 @@ export function createEventRoutes(db: DB) {
       if (err) return c.json({ error: err.message }, err.status);
     }
 
-    const id = crypto.randomUUID();
+    const id = clientProvidedId(b.id) ?? crypto.randomUUID();
+    if (b.id && db.query('SELECT 1 FROM events WHERE id = ?').get(id)) {
+      return c.json({ error: 'An event with this id already exists' }, 409);
+    }
     db.query(
       `INSERT INTO events (id, created_by, event_name, event_dates, event_start, event_end, event_description, ward, stake, leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier, organizations, additional_details, group_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -357,7 +360,8 @@ export function createEventRoutes(db: DB) {
   });
 
   app.get('/:id/submissions', (c) => {
-    const event = accessibleEvent(c, c.req.param('id'));
+    // adminOnly: plain group members must not see other children's PII
+    const event = accessibleEvent(c, c.req.param('id'), true);
     if (!event) return c.json({ error: 'Event not found' }, 404);
     const submissions = db
       .query(

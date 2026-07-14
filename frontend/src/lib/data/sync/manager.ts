@@ -6,12 +6,13 @@
 import type { LocalDatabase } from '../local/database';
 import type { DataRepository } from '../repository';
 import { SYNC, type SyncField, type SyncSpec } from './sync-columns.generated';
+import { replayPendingChange } from './replay';
 
 interface PendingChange {
   id: string;
   collection: string;
   record_id: string;
-  operation: 'create' | 'update' | 'delete';
+  operation: 'create' | 'update' | 'delete' | 'delete-permanent' | 'reassign';
   payload: string; // JSON
   created_at: string;
   synced_at: string | null;
@@ -122,7 +123,12 @@ export class SyncManager {
 
       try {
         const payload = JSON.parse(change.payload);
-        await this.replayChange(change.collection, change.operation, change.record_id, payload);
+        await replayPendingChange(this.remote, {
+          collection: change.collection,
+          operation: change.operation,
+          record_id: change.record_id,
+          payload,
+        });
 
         // Mark as synced
         await this.db.execute(
@@ -139,55 +145,28 @@ export class SyncManager {
     }
   }
 
-  private async replayChange(
-    collection: string,
-    operation: string,
-    recordId: string,
-    payload: Record<string, unknown>
-  ): Promise<void> {
-    switch (collection) {
-      case 'events':
-        if (operation === 'create') await this.remote.events.create(payload);
-        else if (operation === 'update') await this.remote.events.update(recordId, payload);
-        else if (operation === 'delete') await this.remote.events.deactivate(recordId);
-        else if (operation === 'delete-permanent') await this.remote.events.remove(recordId);
-        else if (operation === 'reassign') await this.remote.events.reassignOwner(recordId, payload.userId as string);
-        break;
-
-      case 'child_profiles':
-        if (operation === 'create') await this.remote.profiles.create(payload);
-        else if (operation === 'update') await this.remote.profiles.update(recordId, payload);
-        else if (operation === 'delete') await this.remote.profiles.delete(recordId);
-        break;
-
-      case 'submissions':
-        if (operation === 'create') {
-          const eventId = payload.event_id as string;
-          await this.remote.submissions.submit(eventId, payload);
-        } else if (operation === 'update') {
-          await this.remote.submissions.update(recordId, payload);
-        } else if (operation === 'delete') {
-          await this.remote.submissions.delete(recordId);
-        }
-        break;
-
-      case 'users':
-        if (operation === 'update') await this.remote.auth.updateProfile(payload);
-        break;
-
-      default:
-        console.warn(`[SyncManager] unknown collection for sync: ${collection}`);
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Pull — fetch remote state and upsert into local SQLite
   // ---------------------------------------------------------------------------
 
   private async pullChanges(): Promise<void> {
-    await this.pullCollection('events', SYNC.events, () => this.remote.events.list({ all: true }));
-    await this.pullCollection('child_profiles', SYNC.child_profiles, () => this.remote.profiles.list());
-    await this.pullCollection('submissions', SYNC.submissions, () => this.remote.submissions.getMine());
+    const failures: string[] = [];
+    await this.pullCollection('events', SYNC.events, () => this.remote.events.list({ all: true }), failures);
+    await this.pullCollection('child_profiles', SYNC.child_profiles, () => this.remote.profiles.list(), failures);
+    await this.pullCollection('submissions', SYNC.submissions, () => this.remote.submissions.getMine(), failures);
+    // Submissions OTHER parents made to this user's events (getMine only covers
+    // the user's own submissions — without this, event owners see 0 in hybrid).
+    await this.pullCollection(
+      'submissions',
+      SYNC.submissions,
+      () => this.remote.events.getAllSubmissions(),
+      failures
+    );
+
+    if (failures.length > 0) {
+      // Surface the failure instead of stamping last_pull_at and reporting idle
+      throw new Error(`Pull failed for: ${failures.join(', ')}`);
+    }
 
     // Update last-pull timestamp
     await this.db.execute(
@@ -211,7 +190,8 @@ export class SyncManager {
   private async pullCollection(
     table: 'events' | 'child_profiles' | 'submissions',
     spec: SyncSpec,
-    fetch: () => Promise<{ id: string }[]>
+    fetch: () => Promise<{ id: string }[]>,
+    failures?: string[]
   ): Promise<void> {
     try {
       const records = await fetch();
@@ -240,6 +220,7 @@ export class SyncManager {
       }
     } catch (err) {
       console.warn(`[SyncManager] failed to pull ${table}:`, err);
+      failures?.push(table);
     }
   }
 

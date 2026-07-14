@@ -16,7 +16,7 @@ export interface InviteRow {
 }
 
 export function generateCode(): string {
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex').toUpperCase();
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(6))).toString('hex').toUpperCase();
 }
 
 export function generateToken(): string {

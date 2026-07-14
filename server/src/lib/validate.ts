@@ -19,3 +19,14 @@ export function sanitizeString<T>(str: T, maxLength = 500): T | string {
   if (typeof str !== 'string') return str;
   return str.slice(0, maxLength).replace(/[<>]/g, '');
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Offline-first clients (hybrid mode) mint record ids locally and send them on
+ * create so the same row keeps one identity on both sides. Only well-formed
+ * UUIDs are honored; anything else falls back to a server-minted id.
+ */
+export function clientProvidedId(value: unknown): string | null {
+  return typeof value === 'string' && UUID_RE.test(value) ? value : null;
+}

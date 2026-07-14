@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { DB } from '../db.ts';
 import type { AppEnv } from '../lib/auth.ts';
-import { sanitizeString } from '../lib/validate.ts';
+import { sanitizeString, validateDate, clientProvidedId } from '../lib/validate.ts';
 import { formLoadLimiter, submitLimiter } from '../lib/rateLimit.ts';
 import { generatePdf } from '../services/pdf.ts';
 import { createTransport, sendNotification } from '../services/email.ts';
@@ -76,14 +76,26 @@ export function createFormRoutes(db: DB) {
     if (!d.participant_name || !d.participant_dob || !d.participant_signature_type || !d.participant_signature_date) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
+    if (!validateDate(d.participant_dob)) return c.json({ error: 'Invalid date of birth' }, 400);
+    if (!['drawn', 'typed', 'hand'].includes(d.participant_signature_type)) {
+      return c.json({ error: 'Invalid participant signature type' }, 400);
+    }
+    if (d.guardian_signature_type && !['drawn', 'typed', 'hand'].includes(d.guardian_signature_type)) {
+      return c.json({ error: 'Invalid guardian signature type' }, 400);
+    }
     if (d.participant_signature_type !== 'hand' && !d.participant_signature) {
       return c.json({ error: 'Participant signature is required unless signing by hand' }, 400);
     }
     if (d.participant_signature && d.participant_signature.length > 700000) return c.json({ error: 'Signature too large' }, 400);
     if (d.guardian_signature && d.guardian_signature.length > 700000) return c.json({ error: 'Guardian signature too large' }, 400);
 
-    const id = crypto.randomUUID();
     const age = computeAge(d.participant_dob);
+    if (!Number.isFinite(age) || age < 0 || age > 120) return c.json({ error: 'Invalid date of birth' }, 400);
+
+    const id = clientProvidedId(d.id) ?? crypto.randomUUID();
+    if (d.id && db.query('SELECT 1 FROM submissions WHERE id = ?').get(id)) {
+      return c.json({ error: 'A submission with this id already exists' }, 409);
+    }
     const submittedBy = c.get('user')?.id || null;
 
     db.query(

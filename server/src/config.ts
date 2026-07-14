@@ -13,6 +13,10 @@ export const config = {
   /** JWT lifetime in seconds (matches the old Express default of 24h). */
   jwtExpirySeconds: Number(process.env.JWT_EXPIRY_SECONDS || 24 * 60 * 60),
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+  /** Optional fixed bootstrap password for the initial super admin; random if unset. */
+  adminBootstrapPassword: process.env.ADMIN_BOOTSTRAP_PASSWORD || '',
+  /** Only trust X-Forwarded-For when explicitly behind a proxy (e.g. Caddy). */
+  trustProxy: process.env.TRUST_PROXY === 'true',
   dbPath: process.env.DB_PATH || './data/permish.sqlite',
   pdfDir: process.env.PDF_DIR || './pdfs',
   uploadsDir: process.env.UPLOADS_DIR || './uploads',

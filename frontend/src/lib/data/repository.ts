@@ -101,7 +101,7 @@ export interface AdminRepository {
 export interface GroupRepository {
   list(): Promise<Group[]>;
   getById(id: string): Promise<GroupDetail>;
-  create(data: { name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string; send_leader_invite?: boolean }): Promise<Group>;
+  create(data: { id?: string; name: string; type: string; parent_id?: string; ward?: string; stake?: string; leader_name?: string; leader_phone?: string; leader_email?: string; send_leader_invite?: boolean }): Promise<Group>;
   update(id: string, data: Partial<Group>): Promise<Group>;
   join(inviteCode: string): Promise<{ group: Group; message: string }>;
   /** Legacy email-add: now creates a tokenized invite usable by registered or unregistered recipients. */

@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { config } from './config.ts';
 import type { DB } from './db.ts';
-import { type AppEnv, authMiddleware } from './lib/auth.ts';
+import { type AppEnv, createAuthMiddleware } from './lib/auth.ts';
 import { createAuthRoutes } from './routes/auth.ts';
 import { createFormRoutes } from './routes/form.ts';
 import { createEventRoutes } from './routes/events.ts';
@@ -25,7 +25,7 @@ export function createApp(db: DB) {
       credentials: true,
     })
   );
-  app.use('*', authMiddleware);
+  app.use('*', createAuthMiddleware(db));
 
   const health = (c: Context<AppEnv>) =>
     c.json({ status: 'ok', ok: true, service: 'permish-server', mode: 'bun+hono+sqlite' });

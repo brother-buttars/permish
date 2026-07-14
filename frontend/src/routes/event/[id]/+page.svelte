@@ -27,6 +27,7 @@
 
 	let event: any = $state(null);
 	let submissions: any[] = $state([]);
+	let canViewSubmissions = $state(true);
 	let attachments: any[] = $state([]);
 	let copySuccess = $state(false);
 	let downloading = $state(false);
@@ -52,11 +53,13 @@
 		onReady: async () => {
 			const [eventData, subData, attData] = await Promise.all([
 				repo.events.getById(data.eventId),
-				repo.events.getSubmissions(data.eventId),
+				// Plain group members may view the event but not its submissions (PII)
+				repo.events.getSubmissions(data.eventId).catch(() => null),
 				repo.attachments.list(data.eventId),
 			]);
 			event = eventData;
-			submissions = subData;
+			submissions = subData ?? [];
+			canViewSubmissions = subData !== null;
 			attachments = attData;
 
 			// Load group members so an owner/admin can reassign ownership.
@@ -313,6 +316,7 @@
 		/>
 
 		<!-- Submissions -->
+		{#if canViewSubmissions}
 		<Card>
 			<CardHeader>
 				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -342,6 +346,7 @@
 				/>
 			</CardContent>
 		</Card>
+		{/if}
 	{/if}
 </PageContainer>
 

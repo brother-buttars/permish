@@ -10,7 +10,7 @@ import { SCHEMA_DDL } from './schema.generated';
 // `bun run gen:schema`; never edit schema.generated.ts by hand.
 export { SCHEMA_DDL };
 
-export const LOCAL_SCHEMA_VERSION = 6;
+export const LOCAL_SCHEMA_VERSION = 7;
 
 /**
  * Initialise the local database schema. Safe to call on every startup —
@@ -216,6 +216,39 @@ export async function initializeLocalSchema(db: LocalDatabase): Promise<void> {
       await db.execute(
         'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
         ['schema_version', '6']
+      );
+    }
+
+    // Migration: v6 -> v7 — rebuild pending_changes so the operation CHECK
+    // accepts 'delete-permanent' and 'reassign' (hybrid queues both; the v1
+    // constraint made those INSERTs throw after the local mutation had run)
+    if (currentVersion < 7) {
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS pending_changes_migrated (
+          id TEXT PRIMARY KEY,
+          collection TEXT NOT NULL,
+          record_id TEXT NOT NULL,
+          operation TEXT NOT NULL CHECK(operation IN ('create', 'update', 'delete', 'delete-permanent', 'reassign')),
+          payload TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          synced_at TEXT,
+          retry_count INTEGER DEFAULT 0,
+          last_error TEXT
+        )
+      `);
+      await db.execute(`
+        INSERT INTO pending_changes_migrated
+        SELECT id, collection, record_id, operation, payload, created_at, synced_at, retry_count, last_error
+        FROM pending_changes
+      `);
+      await db.execute('DROP TABLE pending_changes');
+      await db.execute('ALTER TABLE pending_changes_migrated RENAME TO pending_changes');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_pending_unsynced ON pending_changes(synced_at) WHERE synced_at IS NULL'
+      );
+      await db.execute(
+        'INSERT OR REPLACE INTO local_meta (key, value) VALUES (?, ?)',
+        ['schema_version', '7']
       );
     }
   }

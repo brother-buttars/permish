@@ -497,14 +497,15 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
 
       await db.execute(
         `INSERT INTO events (
-          id, created_by, event_name, event_dates, event_start, event_end,
+          id, created_by, group_id, event_name, event_dates, event_start, event_end,
           event_description, ward, stake, leader_name, leader_phone, leader_email,
           notify_email, notify_phone, notify_carrier, organizations, additional_details,
           is_active, created, updated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           user.id,
+          data.group_id ?? null,
           data.event_name ?? '',
           data.event_dates ?? '',
           data.event_start ?? null,
@@ -634,7 +635,8 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
         'notify_phone',
         'notify_carrier',
         'organizations',
-        'additional_details'
+        'additional_details',
+        'group_id'
       ];
 
       for (const key of allowedFields) {

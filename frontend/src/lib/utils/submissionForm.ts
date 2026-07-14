@@ -35,7 +35,11 @@ export interface SubmissionFormFields {
 	guardianSigDate: string;
 }
 
-/** A blank set of form fields. Signatures default to "hand" (the no-op default). */
+/**
+ * A blank set of form fields. Signatures default to "drawn" so a submission
+ * cannot validate with no signature at all — signing on paper ("hand") must be
+ * an explicit choice, never the silent default on a medical release.
+ */
 export function emptyFields(): SubmissionFormFields {
 	return {
 		participantName: '', dateOfBirth: '', phone: '', address: '', city: '', stateProvince: '',
@@ -44,8 +48,8 @@ export function emptyFields(): SubmissionFormFields {
 		medications: '', canSelfAdminister: false,
 		hasChronicIllness: false, chronicIllnessDetails: '', hadRecentSurgery: false, recentSurgeryDetails: '',
 		activityLimitations: '', otherAccommodations: '',
-		participantSigValue: 'hand', participantSigType: 'hand', participantSigDate: '',
-		guardianSigValue: 'hand', guardianSigType: 'hand', guardianSigDate: '',
+		participantSigValue: '', participantSigType: 'drawn', participantSigDate: '',
+		guardianSigValue: '', guardianSigType: 'drawn', guardianSigDate: '',
 	};
 }
 
@@ -75,8 +79,10 @@ export function validateSubmissionForm(f: SubmissionFormFields): string[] {
 	const errors: string[] = [];
 	if (!f.participantName.trim()) errors.push('Participant name is required.');
 	if (!f.dateOfBirth) errors.push('Date of birth is required.');
-	if (f.participantSigType !== 'hand' && !f.participantSigValue) errors.push('Participant signature is required.');
-	if (f.guardianSigType !== 'hand' && !f.guardianSigValue) errors.push('Parent/Guardian signature is required.');
+	else if (computeAge(f.dateOfBirth) === null) errors.push('Date of birth must be a valid past date.');
+	if (f.participantSigType !== 'hand' && !f.participantSigValue) errors.push('Participant signature is required (or choose "By Hand" to sign the printed form).');
+	if (f.guardianSigType !== 'hand' && !f.guardianSigValue) errors.push('Parent/Guardian signature is required (or choose "By Hand" to sign the printed form).');
+	if (!f.participantSigDate) errors.push('Participant signature date is required.');
 	return errors;
 }
 

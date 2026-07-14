@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount } from "svelte";
-	import { goto } from "$app/navigation";
+	import { goto, beforeNavigate } from "$app/navigation";
 	import { getRepository } from '$lib/data';
+	import { user } from "$lib/stores/auth";
+	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { Button } from "$lib/components/ui/button";
 	import {
 		Card,
@@ -15,6 +17,7 @@
 	import PermissionFormFields from "$lib/components/PermissionFormFields.svelte";
 	import { PageContainer } from "$lib/components/molecules";
 	import { validateSubmissionForm, buildSubmissionPayload, emptyFields, type SubmissionFormFields, type SignatureType } from "$lib/utils/submissionForm";
+	import { toastSuccess } from "$lib/stores/toast";
 
 	let { data } = $props();
 
@@ -23,9 +26,45 @@
 	let error = $state("");
 	let submitting = $state(false);
 	let validationErrors: string[] = $state([]);
+	let saved = $state(false);
 
 	// All form fields in one object (shared component + shared helpers).
 	let fields = $state<SubmissionFormFields>(emptyFields());
+
+	// Parents reach this page from /submissions; /event/[id] is a planner page.
+	// Route each audience back to the page they can actually use.
+	const backDest = $derived(
+		$user && event && ($user.role === 'super' || event.created_by === $user.id)
+			? `/event/${data.eventId}`
+			: '/submissions'
+	);
+	const backLabel = $derived(backDest === '/submissions' ? 'Back to My Submissions' : 'Back to Activity');
+
+	// Dirty = fields changed since the submission was loaded in.
+	let fieldsBaseline = $state(JSON.stringify(emptyFields()));
+	const formDirty = $derived(JSON.stringify(fields) !== fieldsBaseline);
+
+	let leaveModalOpen = $state(false);
+	let pendingNavUrl: string | null = null;
+	let allowLeave = false;
+	beforeNavigate(({ cancel, to }) => {
+		if (formDirty && !saved && !allowLeave) {
+			cancel();
+			pendingNavUrl = to?.url.href ?? null;
+			leaveModalOpen = true;
+		}
+	});
+	function confirmLeave() {
+		allowLeave = true;
+		leaveModalOpen = false;
+		if (pendingNavUrl) goto(pendingNavUrl);
+	}
+	function handleBeforeUnload(e: BeforeUnloadEvent) {
+		if (formDirty && !saved) {
+			e.preventDefault();
+			e.returnValue = '';
+		}
+	}
 
 	// Initial values for signature pads (from the existing submission).
 	let participantInitialValue = $state("");
@@ -60,21 +99,23 @@
 
 		fields.otherAccommodations = sub.other_accommodations || "";
 
-		// Signatures
+		// Signatures — preserve the stored type even when there is no signature
+		// value (a "hand" submission must stay "hand", not flip to the drawn
+		// default and fail validation).
 		if (sub.participant_signature) {
 			participantInitialValue = sub.participant_signature;
 			participantInitialType = sub.participant_signature_type || "typed";
 			fields.participantSigValue = sub.participant_signature;
-			fields.participantSigType = sub.participant_signature_type || "drawn";
 		}
+		fields.participantSigType = sub.participant_signature_type || fields.participantSigType;
 		fields.participantSigDate = sub.participant_signature_date || "";
 
 		if (sub.guardian_signature) {
 			guardianInitialValue = sub.guardian_signature;
 			guardianInitialType = sub.guardian_signature_type || "typed";
 			fields.guardianSigValue = sub.guardian_signature;
-			fields.guardianSigType = sub.guardian_signature_type || "drawn";
 		}
+		fields.guardianSigType = sub.guardian_signature_type || fields.guardianSigType;
 		fields.guardianSigDate = sub.guardian_signature_date || "";
 	}
 
@@ -89,6 +130,8 @@
 				]);
 				event = eventResult;
 				fillFromSubmission(submission);
+				// Loading the existing submission is not a user edit
+				fieldsBaseline = JSON.stringify(fields);
 			} catch (err: any) {
 				error = err.message || "Failed to load submission";
 			} finally {
@@ -109,9 +152,14 @@
 		submitting = true;
 		try {
 			await repo.submissions.update(data.submissionId, buildSubmissionPayload(fields));
-			goto(`/event/${data.eventId}`);
+			saved = true;
+			toastSuccess('Submission updated.');
+			goto(backDest);
 		} catch (err: any) {
 			validationErrors = [err.message || "Failed to update submission. Please try again."];
+			setTimeout(() => {
+				document.getElementById('validation-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			}, 50);
 		} finally {
 			submitting = false;
 		}
@@ -165,7 +213,7 @@
 		</Card>
 
 		<div class="mb-6">
-			<Button variant="outline" onclick={() => goto(`/event/${data.eventId}`)}>Back to Activity</Button>
+			<Button variant="outline" onclick={() => goto(backDest)}>{backLabel}</Button>
 		</div>
 
 		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
@@ -197,3 +245,14 @@
 		</form>
 	{/if}
 </PageContainer>
+
+<svelte:window on:beforeunload={handleBeforeUnload} />
+
+<ConfirmModal
+	bind:open={leaveModalOpen}
+	title="Discard changes?"
+	message="You have unsaved changes to this submission. If you leave now they will be lost."
+	confirmLabel="Discard"
+	onConfirm={confirmLeave}
+	onCancel={() => (leaveModalOpen = false)}
+/>

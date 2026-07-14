@@ -259,7 +259,7 @@ export const TABLES: TableDef[] = [
       { name: 'id', type: 'TEXT PRIMARY KEY' },
       { name: 'collection', type: 'TEXT NOT NULL' },
       { name: 'record_id', type: 'TEXT NOT NULL' },
-      { name: 'operation', type: "TEXT NOT NULL CHECK(operation IN ('create', 'update', 'delete'))" },
+      { name: 'operation', type: "TEXT NOT NULL CHECK(operation IN ('create', 'update', 'delete', 'delete-permanent', 'reassign'))" },
       { name: 'payload', type: 'TEXT NOT NULL' },
       { name: 'created_at', type: "TEXT NOT NULL DEFAULT (datetime('now'))" },
       { name: 'synced_at', type: 'TEXT' },
@@ -310,7 +310,7 @@ export const SYNC: Record<'events' | 'child_profiles' | 'submissions', SyncSpec>
   events: {
     immutable: ['id', 'created_by'],
     columns: fields([
-      'id', 'created_by', 'event_name', 'event_dates', 'event_start', 'event_end',
+      'id', 'created_by', 'group_id', 'event_name', 'event_dates', 'event_start', 'event_end',
       'event_description', 'ward', 'stake', 'leader_name', 'leader_phone', 'leader_email',
       'notify_email', 'notify_phone', 'notify_carrier', 'organizations', 'additional_details', 'is_active',
     ]),

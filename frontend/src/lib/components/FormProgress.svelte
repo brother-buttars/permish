@@ -35,7 +35,8 @@
 	}
 </script>
 
-<div class="sticky top-0 z-30 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
+<!-- top-16 clears the sticky AppHeader (top-0 z-40 h-16), which otherwise hides this bar entirely -->
+<div class="sticky top-16 z-30 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
 	<div class="flex items-center justify-between gap-1 max-w-3xl mx-auto">
 		<span class="text-xs font-medium text-muted-foreground whitespace-nowrap">
 			{activeIndex + 1}/{sections.length}
