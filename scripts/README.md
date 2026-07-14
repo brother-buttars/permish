@@ -21,6 +21,19 @@ This writes:
 (`server/test/schema.test.ts`) fails if the committed generated files drift from
 `shared/schema.ts`.
 
+## `check-doc-drift.ts` — living-docs drift guard
+
+Fails if the living documentation reintroduces terminology for architecture that was
+consolidated away. Runs in CI (the **Docs Drift** job) and can be run locally:
+
+```bash
+bun run check:drift   # → bun scripts/check-doc-drift.ts
+```
+
+It scans docs only (not source provenance comments or dated historical records) and skips
+past-tense mentions. To waive a genuine exception, put a `drift-ok` marker on the line. The
+banned terms and scanned paths are the two lists at the top of the script.
+
 ## `backup.sh` — automated SQLite backup
 
 Copies the SQLite database out of the running `server` Docker container.

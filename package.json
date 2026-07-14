@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Permish — repo-root scripts. The single schema source lives in shared/schema.ts.",
   "scripts": {
-    "gen:schema": "bun scripts/gen-schema.ts"
+    "gen:schema": "bun scripts/gen-schema.ts",
+    "check:drift": "bun scripts/check-doc-drift.ts"
   }
 }

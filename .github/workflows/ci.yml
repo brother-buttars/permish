@@ -7,6 +7,19 @@ on:
     branches: [main]
 
 jobs:
+  docs-drift:
+    name: Docs Drift
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Check doc/code drift
+        run: bun run check:drift
+
   server:
     name: Server Tests
     runs-on: ubuntu-latest
