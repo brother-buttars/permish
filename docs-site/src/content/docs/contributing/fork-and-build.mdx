@@ -34,12 +34,12 @@ Edit `frontend/src/lib/utils/organizations.ts` to change the youth organizations
 ### Form Fields
 
 The permission form fields are defined in:
-- **Database schema:** `backend/src/db/schema.js` — column definitions
-- **PDF mapping:** `backend/src/services/pdf.js` — maps fields to the church PDF template
+- **Database schema:** `shared/schema.ts` — the single-source column definitions
+- **PDF mapping:** `server/src/services/pdf.ts` — maps fields to the church PDF template
 - **Form UI:** `frontend/src/routes/form/[id]/+page.svelte` — the form page
 
 To add or modify fields:
-1. Add the column in `schema.js` (use the migration pattern for existing tables).
+1. Add the column in `shared/schema.ts`, then run `bun run gen:schema` to regenerate the DDL.
 2. Update the PDF service if the field appears on the form.
 3. Update the frontend form component.
 4. Update the submission display pages.
@@ -87,7 +87,7 @@ Then open a Pull Request on GitHub against the `main` branch.
 - Keep PRs focused on a single change.
 - Include a description of what changed and why.
 - Add tests for new functionality.
-- Make sure existing tests pass: `cd backend && pnpm test && cd ../frontend && pnpm test`
+- Make sure existing tests pass: `cd server && bun test && cd ../frontend && pnpm test`
 
 ## Keeping Your Fork Updated
 

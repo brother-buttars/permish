@@ -5,7 +5,7 @@ description: Download Permish for macOS, Windows, and Linux
 
 <span class="version-badge">v0.1.0 — Last updated: April 2026</span>
 
-The Permish desktop app bundles the full application with embedded PocketBase. It runs offline on your machine with no server required.
+The Permish desktop app bundles the full application with an embedded SQLite database. It runs offline on your machine with no external server required.
 
 ## Install as PWA (Recommended)
 
@@ -39,12 +39,12 @@ All releases are available on the [GitHub Releases page](https://github.com/brot
 
 ## What's Included
 
-The desktop app is a self-contained package built with [Tauri](https://tauri.app/). It includes:
+The desktop app is a self-contained package built with [Tauri v2](https://tauri.app/). It includes:
 
 - **SvelteKit frontend** — The same web interface, running in a native window.
-- **PocketBase sidecar** — Embedded database for local storage. No external database needed.
-- **Node.js sidecar** — Handles PDF generation, email, and SMS.
-- **Offline-first storage** — All data stays on your machine. Optionally sync to a server.
+- **Native SQLite storage** — Local data via `@tauri-apps/plugin-sql`. No external database needed.
+- **Client-side PDF generation** — Permission-form PDFs are filled in the app with pdf-lib. No backend required.
+- **Offline-first storage** — All data stays on your machine. Optionally sync to a remote server (online/hybrid mode).
 
 ## System Requirements
 

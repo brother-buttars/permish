@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Single Bun + Hono + SQLite server for Permish (Phase 0 spike).",
+  "description": "Single Bun + Hono + SQLite server for Permish — the only backend.",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",

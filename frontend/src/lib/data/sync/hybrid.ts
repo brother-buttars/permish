@@ -1,6 +1,6 @@
 /**
  * HybridAdapter — wraps the local adapter for all reads/writes and queues
- * mutations into pending_changes for background sync to PocketBase.
+ * mutations into pending_changes for background sync to the Bun server.
  *
  * Reads always come from local SQLite (instant, offline-capable).
  * Writes go to local SQLite first, then a pending_change row is inserted,
@@ -42,7 +42,7 @@ async function queueChange(
 
 /**
  * Create a hybrid DataRepository that reads from local SQLite and queues
- * mutations for background sync to the remote PocketBase backend.
+ * mutations for background sync to the remote Bun server (HTTP adapter).
  */
 export function createHybridRepository(
   local: DataRepository,

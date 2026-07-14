@@ -16,7 +16,7 @@ DOMAIN=your-domain.com docker compose --profile production up -d
 That single command:
 1. Starts the Caddy reverse proxy on ports 80 and 443
 2. Obtains a TLS certificate from Let's Encrypt for your domain
-3. Routes `/api/*` requests to the Express backend
+3. Routes `/api/*` requests to the `server` (Bun + Hono, port 3001)
 4. Routes all other requests to the SvelteKit frontend
 
 ## DNS Requirements
@@ -56,15 +56,6 @@ docker compose --profile production up -d
 ```
 
 Caddy reads the `DOMAIN` value and configures HTTPS for that hostname automatically.
-
-## With PocketBase Mode
-
-Combine the `production` and `pocketbase` profiles:
-
-```bash
-DOMAIN=your-domain.com PUBLIC_BACKEND=pocketbase \
-  docker compose --profile pocketbase --profile production up -d
-```
 
 ## How Certificates Work
 

@@ -11,6 +11,6 @@ tags:
 Module documentation for permish.
 
 - [[code-map/frontend|Frontend]] -- SvelteKit pages, components, stores
-- [[code-map/api-layer|API layer]] -- Express routes, middleware, services
+- [[code-map/api-layer|API layer]] -- Bun/Hono routes, middleware, services
 - [[code-map/database-layer|Database layer]] -- SQLite schema, migrations
 - [[code-map/shared|Shared]] -- Utilities, types, configuration

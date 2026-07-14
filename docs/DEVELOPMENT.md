@@ -11,6 +11,7 @@ This guide covers local development setup for all platforms: web, desktop (Tauri
 - [Desktop Development (Tauri)](#desktop-development-tauri)
 - [Mobile Development (Tauri Mobile)](#mobile-development-tauri-mobile)
 - [Data Modes](#data-modes)
+- [Database Schema](#database-schema)
 - [Testing](#testing)
 - [Architecture](#architecture)
 - [Environment Variables](#environment-variables)
@@ -26,10 +27,10 @@ git clone https://github.com/your-org/permish.git
 cd permish
 ```
 
-Terminal 1 (backend):
+Terminal 1 (server):
 
 ```bash
-cd backend && pnpm install && pnpm dev
+cd server && bun install && bun run dev
 ```
 
 Terminal 2 (frontend):
@@ -44,14 +45,14 @@ Open http://localhost:3000.
 
 | Tool    | Version | Install                                      |
 |---------|---------|----------------------------------------------|
+| Bun     | 1.1+    | `curl -fsSL https://bun.sh/install \| bash`  |
 | Node.js | 24 LTS  | `nvm install` (reads `.nvmrc` automatically) |
 | pnpm    | 10+     | `corepack enable && corepack prepare pnpm@latest --activate` |
 | nvm     | any     | [github.com/nvm-sh/nvm](https://github.com/nvm-sh/nvm) |
 
-> **Note:** After switching Node versions, rebuild the native SQLite binding:
-> ```bash
-> cd backend && pnpm rebuild better-sqlite3
-> ```
+> **Note:** The server uses `bun:sqlite` (built into Bun) — there is no native SQLite
+> binding to rebuild when switching Node versions. The frontend's offline mode uses
+> sql.js (WebAssembly), which is also binding-free.
 
 ---
 
@@ -59,13 +60,13 @@ Open http://localhost:3000.
 
 This is the simplest setup. No certificates, no reverse proxy, no Docker.
 
-**Start the backend:**
+**Start the server:**
 
 ```bash
-cd backend
+cd server
 cp ../.env.example ../.env   # first time only — edit with your values
-pnpm install
-pnpm dev                     # starts on port 3001 with --watch
+bun install
+bun run dev                  # starts on port 3001 in watch mode
 ```
 
 **Start the frontend:**
@@ -79,9 +80,10 @@ pnpm dev                     # starts on port 3000
 | Service  | URL                    |
 |----------|------------------------|
 | Frontend | http://localhost:3000   |
-| Backend  | http://localhost:3001   |
+| Server   | http://localhost:3001   |
 
-The frontend proxies API calls to the backend. Hot module replacement (HMR) reloads the page on file changes.
+The browser talks to the server directly with `credentials: 'include'` (there is no
+SvelteKit auth proxy). Hot module replacement (HMR) reloads the page on file changes.
 
 > **Warning:** HTTP mode does not set secure cookies and does not test CORS or mixed-content behavior. Use HTTPS mode (below) to catch production issues early.
 
@@ -98,7 +100,7 @@ Caddy runs as a local reverse proxy on port 443 with locally-trusted TLS certifi
 ```
 Browser (https://dev.permish.app)
   └─► Caddy (port 443, TLS termination)
-        ├─► /api/*  → Express backend (port 3001)
+        ├─► /api/*  → Bun + Hono server (port 3001)
         └─► /*      → Vite dev server (port 5173, with HMR over WSS)
 ```
 
@@ -137,13 +139,13 @@ mkcert -cert-file certs/dev.pem -key-file certs/dev-key.pem \
 ./dev.sh
 ```
 
-This single script starts all three services (backend, frontend, Caddy) and prints the access URLs:
+This single script starts all three services (server, frontend, Caddy) and prints the access URLs:
 
 | Access from       | URL                        |
 |-------------------|----------------------------|
 | Desktop browser   | https://dev.permish.app    |
 | Mobile on LAN     | https://192.168.x.x       |
-| Backend directly  | http://localhost:3001      |
+| Server directly   | http://localhost:3001      |
 
 Press `Ctrl+C` to stop all services.
 
@@ -151,9 +153,9 @@ Press `Ctrl+C` to stop all services.
 
 If you prefer to run each service in its own terminal:
 
-Terminal 1 (backend):
+Terminal 1 (server):
 ```bash
-cd backend && pnpm dev
+cd server && bun run dev
 ```
 
 Terminal 2 (frontend):
@@ -204,7 +206,11 @@ After installing the CA, `https://192.168.x.x` loads without certificate warning
 
 ## Desktop Development (Tauri)
 
-Tauri wraps the SvelteKit frontend in a native window with access to filesystem, sidecar processes (PocketBase, Node.js), and local SQLite.
+Tauri v2 wraps the SvelteKit frontend in a native window from the same shell used for
+mobile. The desktop and mobile apps are **self-contained** — there is no bundled backend
+sidecar. Local data uses native SQLite via `@tauri-apps/plugin-sql` (rusqlite) and PDF
+generation runs client-side (pdf-lib in the frontend). Server-backed (online/hybrid) modes
+talk to a remote Bun server over HTTP via `PUBLIC_API_URL`.
 
 ### Prerequisites
 
@@ -214,37 +220,10 @@ Everything from [Quick Start](#quick-start), plus:
   ```bash
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
   ```
-- **Bun:** Required to compile the Node sidecar
-  ```bash
-  curl -fsSL https://bun.sh/install | bash
-  ```
 - **Platform-specific:**
   - macOS: Xcode Command Line Tools (`xcode-select --install`)
   - Windows: Visual Studio C++ Build Tools, WebView2
   - Linux: `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`
-
-### Prepare Sidecar Binaries
-
-**PocketBase:**
-
-Download from [pocketbase.io/docs](https://pocketbase.io/docs/) and place in `frontend/src-tauri/sidecars/` with the correct target triple name:
-
-```bash
-# Example for macOS Apple Silicon
-cp ~/Downloads/pocketbase frontend/src-tauri/sidecars/pocketbase-aarch64-apple-darwin
-chmod +x frontend/src-tauri/sidecars/pocketbase-aarch64-apple-darwin
-```
-
-**Node sidecar:**
-
-```bash
-cd sidecar
-npm install
-bun build --compile --target=bun-darwin-arm64 ./src/index.js \
-  --outfile ../frontend/src-tauri/sidecars/node-sidecar-aarch64-apple-darwin
-```
-
-See `frontend/src-tauri/sidecars/README.md` for the full list of platform target names.
 
 ### Run in Dev Mode
 
@@ -306,33 +285,60 @@ pnpm tauri:android:build
 
 ## Data Modes
 
-The app supports three data storage modes, selectable via **Settings > Data Storage** on the account page:
+The app supports three data storage modes, selected via the `permish_data_mode` key in
+`localStorage` (surfaced under **Settings > Data Storage** on the account page):
 
 | Mode     | Storage            | Connectivity | Description                                         |
 |----------|--------------------|--------------|-----------------------------------------------------|
-| `online` | Server             | Required     | Default. Server is the source of truth.             |
+| `online` | Bun server         | Required     | Default. The server is the source of truth.         |
 | `local`  | In-browser SQLite  | None         | Fully offline. Data stays in the browser (sql.js).  |
-| `hybrid` | Local SQLite + sync| Optional     | Local-first with background sync to PocketBase.     |
+| `hybrid` | Local SQLite + sync| Optional     | Local-first with background sync to the Bun server. |
 
 - **online** is the default for web deployments
 - **local** is the default for the desktop Tauri app
 - **hybrid** is useful for intermittent connectivity (e.g., camp locations with poor signal)
 
+All three go through the repository pattern (`frontend/src/lib/data/`): `online` uses the
+HTTP adapter, `local` uses the sql.js adapter, and `hybrid` composes the local adapter with
+a background `SyncManager`. There is a single backend, so there is no `PUBLIC_BACKEND`
+switch — the server URL comes from `PUBLIC_API_URL` (or the current origin, or a user-set
+`permish_server_url` in localStorage).
+
+---
+
+## Database Schema
+
+The data model is defined **once** in `shared/schema.ts`. Regenerate every target's DDL
+from the repo root:
+
+```bash
+bun run gen:schema
+```
+
+This writes three generated files (never edit them by hand):
+
+- `server/src/schema.generated.ts` — server DDL (`bun:sqlite`)
+- `frontend/src/lib/data/local/schema.generated.ts` — local DDL (sql.js)
+- `frontend/src/lib/data/sync/sync-columns.generated.ts` — per-collection sync column specs
+
+A guard test (`server/test/schema.test.ts`) fails if the committed generated files drift
+from `shared/schema.ts`.
+
 ---
 
 ## Testing
 
-### Backend Tests
+### Server Tests
 
 ```bash
-cd backend
-pnpm test
+cd server
+bun test
 ```
 
-- **Framework:** Jest + supertest
-- **Database:** In-memory SQLite (`:memory:`) -- no test data persists
+- **Runner:** `bun test`
+- **Database:** In-memory SQLite (`createDb(':memory:')`) — no test data persists
+- **Transport:** In-process via Hono's `app.request()` — no network or ports
 - **Rate limiting:** Disabled when `NODE_ENV=test`
-- **Test count:** 89 tests
 
 ### Frontend Tests
 
@@ -342,7 +348,6 @@ pnpm test
 ```
 
 - **Framework:** Vitest
-- **Test count:** 155 tests
 
 Watch mode (re-runs on file changes):
 
@@ -350,25 +355,6 @@ Watch mode (re-runs on file changes):
 cd frontend
 pnpm test:watch
 ```
-
-### PocketBase E2E Tests
-
-```bash
-cd scripts
-node test-pocketbase-e2e.js
-```
-
-- **Test count:** 26 tests
-- Requires a running PocketBase instance
-
-### Test Summary
-
-| Suite          | Command                              | Tests |
-|----------------|--------------------------------------|-------|
-| Backend        | `cd backend && pnpm test`            | 89    |
-| Frontend       | `cd frontend && pnpm test`           | 155   |
-| PocketBase E2E | `cd scripts && node test-pocketbase-e2e.js` | 26 |
-| **Total**      |                                      | **270** |
 
 ---
 
@@ -378,32 +364,31 @@ node test-pocketbase-e2e.js
 
 ```
 permish/
-├── backend/           Express API server (Node.js)
+├── server/            Bun + Hono + SQLite server (the only backend)
 │   ├── src/
-│   │   ├── index.js       Entry point, middleware, route mounting
-│   │   ├── config.js      Environment variable loading
-│   │   ├── db/            SQLite schema, connection, migrations
-│   │   ├── middleware/    Auth, validation, rate limiting
-│   │   ├── routes/        API route handlers
-│   │   ├── services/      Email, SMS, PDF generation
-│   │   └── templates/     Church PDF template
-│   └── tests/             Jest test suites
+│   │   ├── index.ts        HTTP entry (export default { port, fetch })
+│   │   ├── app.ts          Hono app factory (createApp(db)) — testable
+│   │   ├── config.ts       Environment config
+│   │   ├── db.ts           bun:sqlite schema + super-admin bootstrap
+│   │   ├── lib/            auth (JWT cookie), validate, rateLimit, groups
+│   │   ├── routes/         auth, events, form, submissions, profiles, groups, invites, admin
+│   │   ├── services/       pdf, email, sms, invites, audit
+│   │   └── templates/      Church PDF template
+│   └── test/               bun test suites (in-process via app.request)
+├── shared/            shared/schema.ts — single source of truth for the data model
 ├── frontend/          SvelteKit app (Svelte 5, Tailwind v4)
 │   ├── src/
 │   │   ├── app.css        Theme (oklch colors, dark mode)
 │   │   ├── lib/
-│   │   │   ├── api.ts         Backend API client
+│   │   │   ├── data/          Repository pattern (adapters, local, sync, backup)
 │   │   │   ├── stores/        Svelte stores (auth, toast)
 │   │   │   ├── components/    UI components (shadcn-style)
 │   │   │   └── utils/         Shared utilities
 │   │   └── routes/            SvelteKit pages
-│   └── src-tauri/         Tauri desktop/mobile config
-├── sidecar/           Node.js sidecar (PDF, email, SMS for PocketBase mode)
-├── scripts/           Migration and utility scripts
-├── pb_migrations/     PocketBase collection schemas
+│   └── src-tauri/         Tauri v2 desktop/mobile config
+├── scripts/           Utility scripts (gen-schema.ts, backup.sh)
 ├── certs/             Local dev TLS certificates (gitignored)
-├── docker-compose.yml     Production Docker setup
-├── docker-compose.dev.yml Local HTTPS Docker setup
+├── docker-compose.yml     Docker setup (server + frontend, optional caddy)
 ├── Caddyfile              Production Caddy config
 ├── Caddyfile.dev          Local HTTPS Caddy config
 └── dev.sh                 Local HTTPS startup script
@@ -415,40 +400,33 @@ permish/
                     ┌──────────────┐
                     │   Browser    │
                     └──────┬───────┘
-                           │
-              ┌────────────┼────────────┐
-              │ Express Mode│PocketBase  │
-              │            │  Mode      │
-              ▼            │            ▼
-     ┌────────────┐       │   ┌──────────────┐
-     │  Express   │       │   │ PocketBase   │
-     │  Backend   │       │   │ (auth, CRUD) │
-     │            │       │   └──────┬───────┘
-     │ - Auth     │       │          │
-     │ - CRUD     │       │   ┌──────┴───────┐
-     │ - PDF gen  │       │   │ Node Sidecar │
-     │ - Email    │       │   │ (PDF, email) │
-     │ - SMS      │       │   └──────┬───────┘
-     └──────┬─────┘       │          │
-            │             │          │
-            ▼             │          ▼
-     ┌────────────┐       │   ┌──────────────┐
-     │  SQLite    │       │   │  PocketBase   │
-     │ (better-   │       │   │   Database    │
-     │  sqlite3)  │       │   └──────────────┘
-     └────────────┘       │
-                          │
+                           │  getRepository()
+              ┌────────────┼─────────────┐
+              │            │             │
+          online        local         hybrid
+              │            │             │
+              ▼            ▼             ▼
+     ┌──────────────┐  ┌────────┐  ┌──────────────┐
+     │ HTTP adapter │  │ sql.js │  │ local + sync │
+     └──────┬───────┘  └────────┘  └──────┬───────┘
+            │                             │ background push/pull
+            ▼                             ▼
+     ┌──────────────────────────────────────────┐
+     │  Bun + Hono + SQLite server (server/)     │
+     │  routes · auth (JWT cookie) · PDF · email │
+     │  · SMS — one process, one bun:sqlite DB    │
+     └──────────────────────────────────────────┘
 ```
 
 ### Route Mounting Order
 
-In `backend/src/index.js`, routes are mounted in a specific order. Form routes MUST come before event routes since both use the `/api/events` prefix:
+In `server/src/app.ts`, the public form routes are mounted BEFORE the authed events
+routes since both use the `/api/events` prefix:
 
-1. Auth routes (`/api/auth`)
-2. Form routes (`/api/events` -- public: `/:id/form`, `/:id/submit`)
-3. Events routes (`/api/events` -- planner-only, requires auth)
-4. Profiles routes (`/api/profiles`)
-5. Submissions routes (`/api/submissions` -- `/mine` before `/:id/*`)
+1. Form routes (`/api/events` — public: `/:id/form`, `/:id/submit`, attachment reads)
+2. Events routes (`/api/events` — authed CRUD + attachment writes)
+3. Auth (`/api/auth`), Profiles (`/api/profiles`), Submissions (`/api/submissions` — `/mine` before `/:id/*`)
+4. Groups (`/api/groups`), Invites (`/api/invites` — public token preview/accept), Admin (`/api/admin` — super only)
 
 See `CLAUDE.md` for the full list of conventions and field name mappings.
 
@@ -456,47 +434,48 @@ See `CLAUDE.md` for the full list of conventions and field name mappings.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` in the project root:
+The server reads its config from the environment (see `server/src/config.ts`). Copy
+`.env.example` to `.env` in the project root:
 
 ```bash
 cp .env.example .env
 ```
 
-### Required for All Modes
+### Server
 
-| Variable      | Description                        |
-|---------------|------------------------------------|
-| `JWT_SECRET`  | Secret key for signing JWT tokens  |
+| Variable             | Default                  | Description                                            |
+|----------------------|--------------------------|--------------------------------------------------------|
+| `PORT`               | `3001`                   | Port the server listens on                             |
+| `JWT_SECRET`         | `dev-secret-change-me`   | Secret for signing JWTs. **In production it must be set to a non-default value or the server refuses to start.** |
+| `JWT_EXPIRY_SECONDS` | `86400`                  | JWT lifetime in seconds (24h)                          |
+| `FRONTEND_URL`       | `http://localhost:3000`  | Frontend origin (used for links and CORS)              |
+| `DB_PATH`            | `./data/permish.sqlite`  | SQLite database file path                              |
+| `PDF_DIR`            | `./pdfs`                 | Directory for generated PDFs                           |
+| `UPLOADS_DIR`        | `./uploads`              | Directory for uploaded event attachments               |
+| `CORS_ORIGINS`       | *(empty)*                | Extra allowed origins, comma-separated                 |
 
 ### Email (Optional)
 
-| Variable     | Description                               |
-|--------------|-------------------------------------------|
-| `EMAIL_HOST` | SMTP server (e.g., `smtp.gmail.com`)      |
-| `EMAIL_PORT` | SMTP port (default: `587`)                |
-| `EMAIL_USER` | SMTP username                             |
-| `EMAIL_PASS` | SMTP password or app-specific password    |
-| `EMAIL_FROM` | Sender email address                      |
+| Variable             | Default            | Description                                    |
+|----------------------|--------------------|------------------------------------------------|
+| `EMAIL_PROVIDER`     | `gmail`            | `gmail` (SMTP) or `resend`                      |
+| `SMTP_HOST`          | `smtp.gmail.com`   | SMTP server hostname                            |
+| `SMTP_PORT`          | `587`              | SMTP server port                                |
+| `SMTP_USER`          | *(empty)*          | SMTP username                                   |
+| `SMTP_PASS`          | *(empty)*          | SMTP password or app-specific password          |
+| `RESEND_API_KEY`     | *(empty)*          | API key when `EMAIL_PROVIDER=resend`            |
+| `EMAIL_FROM_NAME`    | `Permish`          | Sender display name                             |
+| `EMAIL_FROM_ADDRESS` | *(empty)*          | Sender email address                            |
 
 > **Tip for Gmail:** Use an App Password (not your account password). Go to Google Account > Security > App passwords.
 
-### PocketBase Mode
-
-| Variable           | Description                       |
-|--------------------|-----------------------------------|
-| `PUBLIC_BACKEND`   | Set to `pocketbase`               |
-| `PUBLIC_PB_URL`    | PocketBase URL for the browser    |
-| `PUBLIC_SIDECAR_URL` | Node sidecar URL for the browser |
-| `PB_ADMIN_EMAIL`   | PocketBase superuser email        |
-| `PB_ADMIN_PASSWORD`| PocketBase superuser password     |
+SMS is delivered through carrier email gateways, so it reuses the email transport above —
+there are no separate SMS credentials.
 
 ### Frontend Build-Time Variables
 
-These are baked into the SvelteKit build and must be set at build time (or passed as Docker build args):
+Baked into the SvelteKit build (set at build time, or passed as Docker build args):
 
-| Variable             | Default                    | Description                    |
-|----------------------|----------------------------|--------------------------------|
-| `PUBLIC_BACKEND`     | `express`                  | `express` or `pocketbase`      |
-| `PUBLIC_API_URL`     | `http://localhost:3001`    | Express backend URL            |
-| `PUBLIC_PB_URL`      | `http://localhost:8090`    | PocketBase URL                 |
-| `PUBLIC_SIDECAR_URL` | `http://localhost:3002`    | Node sidecar URL               |
+| Variable         | Default                 | Description                          |
+|------------------|-------------------------|--------------------------------------|
+| `PUBLIC_API_URL` | `http://localhost:3001` | Server URL as seen by the browser    |

@@ -33,11 +33,11 @@ Welcome to the BTRS knowledge vault for **permish**.
 
 ## Quick reference
 
-- **Framework**: SvelteKit (frontend) + Express 5 (backend)
-- **Language**: TypeScript (frontend) / JavaScript (backend)
+- **Framework**: SvelteKit (frontend) + Bun/Hono (backend)
+- **Language**: TypeScript (frontend and backend)
 - **Component library**: shadcn-svelte (hand-built)
-- **Test framework**: Jest + supertest
-- **ORM**: better-sqlite3 (raw SQL)
+- **Test framework**: `bun test` (in-process via Hono `app.request()`)
+- **Database**: `bun:sqlite` (raw SQL)
 - **Styling**: Tailwind CSS v4
 - **Auth**: JWT via HttpOnly cookies (bcryptjs)
 - **PDF**: pdf-lib (fills official church PDF)

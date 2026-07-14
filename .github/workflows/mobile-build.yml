@@ -43,21 +43,8 @@ jobs:
         working-directory: frontend
         run: pnpm tauri ios init
 
-      - name: Download PocketBase sidecar
-        run: |
-          PB_VERSION="0.27.2"
-          SIDECAR_DIR="frontend/src-tauri/sidecars"
-          mkdir -p "$SIDECAR_DIR"
-          curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_darwin_arm64.zip" -o /tmp/pb.zip
-          cd /tmp && unzip -o pb.zip pocketbase
-          mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-aarch64-apple-darwin"
-          chmod +x "$SIDECAR_DIR/pocketbase-aarch64-apple-darwin"
-
-      - name: Create Node sidecar placeholder
-        run: |
-          SIDECAR_DIR="frontend/src-tauri/sidecars"
-          echo "#!/bin/sh" > "$SIDECAR_DIR/node-sidecar-aarch64-apple-darwin"
-          chmod +x "$SIDECAR_DIR/node-sidecar-aarch64-apple-darwin"
+      # The app is self-contained (native SQLite via plugin-sql +
+      # client-side pdf-lib) — no backend sidecar to download or bundle.
 
       - name: Build Tauri iOS
         working-directory: frontend
@@ -131,21 +118,8 @@ jobs:
         working-directory: frontend
         run: pnpm tauri android init
 
-      - name: Download PocketBase sidecar
-        run: |
-          PB_VERSION="0.27.2"
-          SIDECAR_DIR="frontend/src-tauri/sidecars"
-          mkdir -p "$SIDECAR_DIR"
-          curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_amd64.zip" -o /tmp/pb.zip
-          cd /tmp && unzip -o pb.zip pocketbase
-          mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-x86_64-unknown-linux-gnu"
-          chmod +x "$SIDECAR_DIR/pocketbase-x86_64-unknown-linux-gnu"
-
-      - name: Create Node sidecar placeholder
-        run: |
-          SIDECAR_DIR="frontend/src-tauri/sidecars"
-          echo "#!/bin/sh" > "$SIDECAR_DIR/node-sidecar-x86_64-unknown-linux-gnu"
-          chmod +x "$SIDECAR_DIR/node-sidecar-x86_64-unknown-linux-gnu"
+      # The app is self-contained (native SQLite via plugin-sql +
+      # client-side pdf-lib) — no backend sidecar to download or bundle.
 
       - name: Build Tauri Android
         working-directory: frontend

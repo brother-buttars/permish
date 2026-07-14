@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Permish — automated SQLite backup
 #
+# Copies the SQLite database out of the running `server` Docker container.
+#
 # Usage:
 #   scripts/backup.sh [BACKUP_DIR] [RETENTION_DAYS]
 #
@@ -21,17 +23,14 @@ TIMESTAMP="$(date +%F-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 cd "$PROJECT_DIR"
 
-if docker compose ps --services --filter status=running 2>/dev/null | grep -q '^backend$'; then
-  OUT="$BACKUP_DIR/permish-$TIMESTAMP.db"
-  docker compose cp backend:/app/data/permish.db "$OUT"
-  echo "[$(date -Iseconds)] Express backup -> $OUT"
+if docker compose ps --services --filter status=running 2>/dev/null | grep -q '^server$'; then
+  OUT="$BACKUP_DIR/permish-$TIMESTAMP.sqlite"
+  docker compose cp server:/app/data/permish.sqlite "$OUT"
+  echo "[$(date -Iseconds)] SQLite backup -> $OUT"
+else
+  echo "[$(date -Iseconds)] server container not running; nothing to back up" >&2
+  exit 1
 fi
 
-if docker compose ps --services --filter status=running 2>/dev/null | grep -q '^pocketbase$'; then
-  OUT="$BACKUP_DIR/pb_data-$TIMESTAMP.tar.gz"
-  docker compose cp pocketbase:/pb/pb_data - | gzip > "$OUT"
-  echo "[$(date -Iseconds)] PocketBase backup -> $OUT"
-fi
-
-find "$BACKUP_DIR" -type f \( -name 'permish-*.db' -o -name 'pb_data-*.tar.gz' \) -mtime +"$RETENTION_DAYS" -delete
+find "$BACKUP_DIR" -type f -name 'permish-*.sqlite' -mtime +"$RETENTION_DAYS" -delete
 echo "[$(date -Iseconds)] Pruned backups older than $RETENTION_DAYS days"

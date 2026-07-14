@@ -2,16 +2,5 @@
   "name": "permish-scripts",
   "private": true,
   "type": "commonjs",
-  "description": "Migration and utility scripts for Permish",
-  "scripts": {
-    "migrate": "node migrate-to-pocketbase.js",
-    "migrate:dry": "DRY_RUN=true node migrate-to-pocketbase.js",
-    "seed:pocketbase": "node seed-pocketbase.js",
-    "seed:pocketbase:reset": "node seed-pocketbase.js --reset",
-    "test:e2e": "node test-pocketbase-e2e.js"
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.0.0",
-    "pocketbase": "^0.26.8"
-  }
+  "description": "Utility scripts for Permish"
 }

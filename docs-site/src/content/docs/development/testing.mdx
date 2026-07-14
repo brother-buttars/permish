@@ -1,34 +1,31 @@
 ---
 title: Testing
-description: Run the Permish test suites — 270 tests across backend, frontend, and E2E
+description: Run the Permish test suites across the server and frontend
 ---
 
 <span class="version-badge">v0.1.0 — Last updated: April 2026</span>
 
-Permish has 270 tests across three suites.
+Permish has two test suites: the server (`bun test`) and the frontend (Vitest).
 
 ## Test Summary
 
-| Suite          | Framework | Command                                      | Tests |
-|----------------|-----------|----------------------------------------------|-------|
-| Backend        | Jest      | `cd backend && pnpm test`                    | 89    |
-| Frontend       | Vitest    | `cd frontend && pnpm test`                   | 155   |
-| PocketBase E2E | Node.js   | `cd scripts && node test-pocketbase-e2e.js`  | 26    |
-| **Total**      |           |                                              | **270** |
+| Suite    | Framework | Command                       |
+|----------|-----------|-------------------------------|
+| Server   | bun test  | `cd server && bun test`       |
+| Frontend | Vitest    | `cd frontend && pnpm test`    |
 
-## Backend Tests
+## Server Tests
 
 ```bash
-cd backend
-pnpm test
+cd server
+bun test
 ```
 
-- **Framework:** Jest + supertest
+- **Framework:** `bun test`
+- **Harness:** Each suite builds the Hono app in-process with `createApp(createDb(':memory:'))` and drives it via `app.request()` — no network or ports involved.
 - **Database:** In-memory SQLite (`:memory:`) — no test data persists between runs
 - **Rate limiting:** Disabled when `NODE_ENV=test`
-- **Coverage areas:** Auth, events, forms, submissions, profiles, PDF generation, email, SMS
-
-The test database is created fresh for each test suite using `app.locals.db` override.
+- **Coverage areas:** Auth, events, forms, submissions, profiles, PDF generation, and a schema guard test that fails if the generated DDL drifts from `shared/schema.ts`
 
 ## Frontend Tests
 
@@ -49,43 +46,36 @@ cd frontend
 pnpm test:watch
 ```
 
-## PocketBase E2E Tests
-
-```bash
-cd scripts
-node test-pocketbase-e2e.js
-```
-
-- **Prerequisite:** A running PocketBase instance (start with `docker compose --profile pocketbase up -d`)
-- **Coverage areas:** Auth flow, CRUD operations, realtime subscriptions, sidecar integration
-
 ## Running All Tests
 
-Run all three suites in sequence:
+Run both suites in sequence:
 
 ```bash
-cd backend && pnpm test && cd ../frontend && pnpm test
+cd server && bun test && cd ../frontend && pnpm test
 ```
-
-The PocketBase E2E suite requires a running PocketBase instance and is typically run separately.
 
 ## Writing Tests
 
-### Backend
+### Server
 
-Tests live in `backend/tests/`. Each test file uses supertest to make HTTP requests against the Express app with an in-memory database:
+Tests live in `server/test/`. Each test file builds the Hono app in-process and drives it with `app.request()` against an in-memory database:
 
-```javascript
-const request = require('supertest');
-const app = require('../src/index');
+```typescript
+import { test, expect, beforeAll } from 'bun:test';
+import { createDb, bootstrapSuperAdmin } from '../src/db.ts';
+import { createApp } from '../src/app.ts';
 
-describe('GET /api/events', () => {
-  it('returns events for authenticated planner', async () => {
-    const res = await request(app)
-      .get('/api/events')
-      .set('Cookie', authCookie);
-    expect(res.status).toBe(200);
-  });
+let app: ReturnType<typeof createApp>;
+
+beforeAll(() => {
+  const db = createDb(':memory:');
+  bootstrapSuperAdmin(db);
+  app = createApp(db);
+});
+
+test('GET /api/events returns events for an authenticated planner', async () => {
+  const res = await app.request('/api/events', { headers: { Cookie: authCookie } });
+  expect(res.status).toBe(200);
 });
 ```
 

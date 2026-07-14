@@ -98,7 +98,7 @@ frontend/             SvelteKit app
       utils/          Shared utilities
     routes/           SvelteKit pages
   src-tauri/          Tauri v2 (desktop + iOS/Android)
-    tauri.conf.json   App config; bundles the server executable as a sidecar
+    tauri.conf.json   App config; self-contained (native SQLite via plugin-sql, no sidecar)
 scripts/              Utility scripts
 docker-compose.yml    server + frontend (optional caddy production profile)
 ```
@@ -224,7 +224,7 @@ Domain types in `frontend/src/lib/data/types.ts` are the single source of truth.
 - Typed signatures set as text in form fields
 - Form is flattened after filling (fields become static)
 - PDF generation runs in the Bun server process (`server/src/services/pdf.ts`)
-- In local-only mode, server-side PDF generation is not available (no server)
+- In local-only mode (incl. the desktop/mobile app) there is no server; the frontend generates PDFs client-side with pdf-lib (`frontend/src/lib/services/pdf.ts`)
 
 ### Database
 

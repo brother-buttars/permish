@@ -29,7 +29,7 @@ export interface AuthRepository {
   resetPassword(token: string, newPassword: string): Promise<void>;
   isAuthenticated(): boolean;
   onAuthChange?(callback: (user: User | null) => void): () => void;
-  /** Express-mode only: complete first-login credential setup for a super-admin. */
+  /** Server-backed only (online/hybrid): complete first-login credential setup for a super-admin. */
   setupCredentials?(email: string, name: string, password: string): Promise<User>;
 }
 

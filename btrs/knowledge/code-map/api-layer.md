@@ -11,22 +11,26 @@ tags:
 
 ## Overview
 
-Express 5 backend providing REST API for auth, events, form submissions, profiles, and PDF generation. JWT auth via HttpOnly cookies.
+A single Bun + Hono + SQLite (`bun:sqlite`) backend providing the REST API for auth, events, form submissions, profiles, groups, invites, and PDF generation. JWT auth via HttpOnly SameSite=Strict cookies.
 
 ## Key files
 
 | File | Purpose |
 |------|---------|
-| `backend/src/index.js` | Entry point, middleware, route mounting |
-| `backend/src/routes/auth.js` | Login, register, logout, session check |
-| `backend/src/routes/events.js` | CRUD for events (planner-only) |
-| `backend/src/routes/form.js` | Public form load and submission |
-| `backend/src/routes/profiles.js` | Child profile CRUD |
-| `backend/src/routes/submissions.js` | Submission management, PDF download |
-| `backend/src/middleware/auth.js` | JWT extraction, auth guards |
-| `backend/src/middleware/rateLimiter.js` | Rate limiting per endpoint |
-| `backend/src/services/pdf.js` | PDF generation via pdf-lib |
-| `backend/src/services/email.js` | Email via Nodemailer |
+| `server/src/index.ts` | HTTP entry (`export default { port, fetch }`) |
+| `server/src/app.ts` | Hono app factory (`createApp(db)`), route mounting |
+| `server/src/db.ts` | `bun:sqlite` schema + super-admin bootstrap |
+| `server/src/config.ts` | Environment config |
+| `server/src/routes/auth.ts` | Login, register, logout, session check |
+| `server/src/routes/events.ts` | CRUD for events (authed) |
+| `server/src/routes/form.ts` | Public form load and submission |
+| `server/src/routes/profiles.ts` | Child profile CRUD |
+| `server/src/routes/submissions.ts` | Submission management, PDF download |
+| `server/src/routes/{groups,invites,admin}.ts` | Groups, invites, super-admin |
+| `server/src/lib/auth.ts` | JWT cookie, `authMiddleware`, `requireAuth` |
+| `server/src/lib/rateLimit.ts` | Rate limiting per endpoint |
+| `server/src/services/pdf.ts` | PDF generation via pdf-lib |
+| `server/src/services/email.ts` | Email via Nodemailer |
 
 ## Dependencies
 

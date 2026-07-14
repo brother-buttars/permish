@@ -23,7 +23,7 @@ SvelteKit app providing the user-facing interface for form submission, event man
 | `frontend/src/routes/events/+page.svelte` | Event list for planners |
 | `frontend/src/routes/create/+page.svelte` | Create new event |
 | `frontend/src/routes/profiles/+page.svelte` | Child profile management |
-| `frontend/src/lib/api.ts` | Backend API fetch wrapper |
+| `frontend/src/lib/data/index.ts` | Repository provider factory (`getRepository()`) |
 | `frontend/src/lib/components/SignaturePad.svelte` | Signature capture component |
 | `frontend/src/app.css` | Theme variables (oklch) and dark mode |
 

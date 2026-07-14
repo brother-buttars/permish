@@ -1,6 +1,6 @@
 /**
  * SyncManager — reads pending_changes from local SQLite and replays them
- * to the remote PocketBase adapter when online.
+ * to the remote Bun server (via the HTTP adapter) when online.
  */
 
 import type { LocalDatabase } from '../local/database';

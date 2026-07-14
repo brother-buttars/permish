@@ -20,8 +20,8 @@ A mobile-friendly web app that digitizes the LDS Church "Parental or Guardian Pe
 ### Stack
 
 - **Frontend:** SvelteKit + shadcn-svelte
-- **Backend:** Node.js / Express
-- **Database:** SQLite (file-based, no separate container)
+- **Backend:** Bun + Hono
+- **Database:** SQLite via `bun:sqlite` (file-based, no separate container)
 - **PDF Generation:** pdf-lib (fills actual church PDF form fields)
 - **Email:** Nodemailer (Gmail SMTP default, Resend-ready abstraction)
 - **SMS:** Carrier email gateways via Nodemailer (see Known Limitations)
@@ -32,10 +32,10 @@ A mobile-friendly web app that digitizes the LDS Church "Parental or Guardian Pe
 
 | Service | Description |
 |---------|-------------|
-| `frontend` | SvelteKit app, proxies API calls to backend |
-| `backend` | Express API, PDF generation, email/SMS sending |
+| `frontend` | SvelteKit app; the browser calls the server directly |
+| `server` | Bun + Hono API, PDF generation, email/SMS sending |
 
-SQLite runs inside the backend container. No separate DB container.
+SQLite runs inside the server container. No separate DB container.
 
 ### Volumes
 
@@ -70,7 +70,7 @@ SQLite is a single file. Recommend periodic file copy (e.g., cron job copying th
 
 ### Rate Limiting
 
-Public endpoints are rate-limited using `express-rate-limit`:
+Public endpoints are rate-limited (see `server/src/lib/rateLimit.ts`):
 
 | Endpoint | Limit |
 |----------|-------|

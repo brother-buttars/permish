@@ -11,43 +11,51 @@ tags:
 
 ## Stack
 
-- Express 5 (JavaScript, CommonJS)
-- better-sqlite3 for database
-- JWT auth via HttpOnly cookies
+- Hono (TypeScript, ESM) on Bun
+- `bun:sqlite` for database
+- JWT auth via HttpOnly SameSite=Strict cookies
 
 ## File patterns
 
-- Routes: `backend/src/routes/{resource}.js`
-- Middleware: `backend/src/middleware/{name}.js`
-- Services: `backend/src/services/{name}.js`
+- Routes: `server/src/routes/{resource}.ts`
+- Middleware / auth helpers: `server/src/lib/{name}.ts`
+- Services: `server/src/services/{name}.ts`
 
 ## Structure
 
-Routes use Express Router with middleware composition:
+Each resource exports a factory returning a Hono router; middleware is composed per route. Routers are mounted in `server/src/app.ts` via `createApp(db)`:
 
-```javascript
-const { Router } = require('express');
-const { requireAuth, requirePlanner } = require('../middleware/auth');
-const router = Router();
+```typescript
+import { Hono } from 'hono';
+import { requireAuth } from '../lib/auth';
 
-router.get('/', requireAuth, requirePlanner, (req, res) => { ... });
-module.exports = router;
+export function createEventRoutes(db: Database) {
+  const app = new Hono();
+
+  app.get('/', requireAuth, (c) => {
+    const user = c.get('user');
+    // ...
+    return c.json({ events });
+  });
+
+  return app;
+}
 ```
 
 ## Rules
 
-1. Route mounting order in `index.js` is critical -- form routes BEFORE events routes (both use `/api/events` prefix).
-2. `extractUser` runs on every request; `requireAuth` / `requirePlanner` for protected routes.
-3. Auth uses JWT in HttpOnly SameSite=Strict cookies via `setAuthCookie`.
+1. Route mounting order in `app.ts` is critical -- form routes BEFORE events routes (both use `/api/events` prefix).
+2. `authMiddleware` populates `c.get('user')` on every request; `requireAuth` guards protected routes; admin routes additionally require `role === 'super'`.
+3. Auth uses JWT in HttpOnly SameSite=Strict cookies (see `server/src/lib/auth.ts`).
 4. Rate limiters skip in test env (`NODE_ENV=test`).
 5. Use `crypto.randomUUID()` instead of `uuid` package (ESM-only issue).
 6. Database column names must match exactly between backend schema and frontend API calls.
 
 ## Canonical examples
 
-- `backend/src/routes/auth.js` -- auth route patterns
-- `backend/src/routes/events.js` -- CRUD with auth middleware
-- `backend/src/middleware/auth.js` -- middleware pattern
+- `server/src/routes/auth.ts` -- auth route patterns
+- `server/src/routes/events.ts` -- CRUD with auth middleware
+- `server/src/lib/auth.ts` -- middleware pattern
 
 ## Anti-patterns
 

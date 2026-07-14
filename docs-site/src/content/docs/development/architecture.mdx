@@ -1,44 +1,37 @@
 ---
 title: Architecture
-description: Permish codebase structure, data modes, and backend options
+description: Permish codebase structure, the single backend, and data modes
 ---
 
 <span class="version-badge">v0.1.0 — Last updated: April 2026</span>
 
-Permish supports two backend modes and three data storage modes. This page explains how the pieces fit together.
+Permish has one backend and three data storage modes. This page explains how the pieces fit together.
 
-## Backend Modes
+## Backend
 
-### Express Mode (Default)
-
-The Express backend handles auth, CRUD, PDF generation, email, and SMS. Data is stored in SQLite via `better-sqlite3`.
+A single **Bun + Hono + SQLite (`bun:sqlite`)** server in `server/` is the only backend. One TypeScript process handles auth, CRUD, PDF generation, email, and SMS.
 
 ```
-Browser → SvelteKit Frontend → Express Backend → SQLite
+Browser → SvelteKit Frontend → Bun + Hono Server → SQLite (bun:sqlite)
 ```
 
-### PocketBase Mode
-
-PocketBase replaces Express for auth, CRUD, and realtime subscriptions. A Node.js sidecar handles PDF generation, email, and SMS since PocketBase cannot do those natively.
-
-```
-Browser → SvelteKit Frontend → PocketBase (auth, CRUD)
-                             → Node Sidecar (PDF, email, SMS)
-```
+The frontend never imports the server SDK directly. All data access goes through a **repository pattern** (`frontend/src/lib/data/`) whose HTTP adapter is a thin REST client for the server. The browser calls the server directly with `credentials: 'include'`; SvelteKit does not proxy auth.
 
 ## Data Modes
 
-The app supports three data storage modes, selectable via **Settings > Data Storage**:
+The app supports three data storage modes, controlled by the `localStorage` key `permish_data_mode`:
 
-| Mode     | Storage            | Connectivity | Description                                     |
-|----------|--------------------|--------------|--------------------------------------------------|
-| `online` | Server             | Required     | Default for web. Server is the source of truth.  |
+| Mode     | Storage            | Connectivity | Description                                       |
+|----------|--------------------|--------------|---------------------------------------------------|
+| `online` | Bun server         | Required     | Default for web. Server is the source of truth.   |
 | `local`  | In-browser SQLite  | None         | Fully offline. Data stays in the browser (sql.js).|
-| `hybrid` | Local SQLite + sync| Optional     | Local-first with background sync to PocketBase.  |
+| `hybrid` | Local SQLite + sync| Optional     | Local-first with background sync to the Bun server.|
 
-- **online** — Default for web deployments.
-- **local** — Default for the desktop Tauri app. All data is stored locally.
-- **hybrid** — Useful for intermittent connectivity (e.g., camp locations with poor signal). Works offline and syncs when a connection is available.
+- **online** — Default for web deployments. Uses the HTTP adapter.
+- **local** — Fully offline. Data never leaves the device (sql.js in the browser; native SQLite via `@tauri-apps/plugin-sql` on desktop/mobile).
+- **hybrid** — Useful for intermittent connectivity (e.g., camp locations with poor signal). Works offline and syncs to the Bun server when a connection is available.
+
+The server URL comes from `PUBLIC_API_URL` (or the current origin, or a user-set `permish_server_url` in localStorage).
 
 ## Data Flow Diagram
 
@@ -46,57 +39,58 @@ The app supports three data storage modes, selectable via **Settings > Data Stor
                     ┌──────────────┐
                     │   Browser    │
                     └──────┬───────┘
+                           │  getRepository()
+                           ▼
+                    ┌──────────────┐
+                    │ Repository   │
+                    │ (HTTP/local/ │
+                    │  hybrid)     │
+                    └──────┬───────┘
+                           │ online / hybrid
+                           ▼
+                    ┌──────────────┐
+                    │ Bun + Hono   │
+                    │ Server       │
+                    │ - Auth (JWT) │
+                    │ - CRUD       │
+                    │ - PDF        │
+                    │ - Email/SMS  │
+                    └──────┬───────┘
                            │
-              ┌────────────┼────────────┐
-              │ Express    │ PocketBase │
-              │ Mode       │ Mode       │
-              ▼            │            ▼
-     ┌────────────┐        │   ┌──────────────┐
-     │  Express   │        │   │ PocketBase   │
-     │  Backend   │        │   │ (auth, CRUD) │
-     │            │        │   └──────┬───────┘
-     │ - Auth     │        │          │
-     │ - CRUD     │        │   ┌──────┴───────┐
-     │ - PDF      │        │   │ Node Sidecar │
-     │ - Email    │        │   │ (PDF, email) │
-     │ - SMS      │        │   └──────┬───────┘
-     └──────┬─────┘        │          │
-            │              │          │
-            ▼              │          ▼
-     ┌────────────┐        │   ┌──────────────┐
-     │  SQLite    │        │   │  PocketBase  │
-     │ (better-   │        │   │  Database    │
-     │  sqlite3)  │        │   └──────────────┘
-     └────────────┘        │
+                           ▼
+                    ┌──────────────┐
+                    │ SQLite       │
+                    │ (bun:sqlite) │
+                    └──────────────┘
 ```
 
 ## Directory Structure
 
 ```
 permish/
-├── backend/               Express API server (Node.js)
+├── server/                Bun + Hono + SQLite server (the only backend)
 │   ├── src/
-│   │   ├── index.js       Entry point, middleware, route mounting
-│   │   ├── config.js      Environment variable loading
-│   │   ├── db/            SQLite schema, connection, migrations
-│   │   ├── middleware/     Auth, validation, rate limiting
+│   │   ├── index.ts       HTTP entry (export default { port, fetch })
+│   │   ├── app.ts         Hono app factory (createApp(db)) — testable
+│   │   ├── config.ts      Environment config
+│   │   ├── db.ts          bun:sqlite schema + super-admin bootstrap
+│   │   ├── lib/           Auth (JWT cookie), validate, rate limiting
 │   │   ├── routes/        API route handlers
-│   │   ├── services/      Email, SMS, PDF generation
+│   │   ├── services/      Email, SMS, PDF, invites, audit
 │   │   └── templates/     Church PDF template
-│   └── tests/             Jest test suites
+│   └── test/              bun test suites (in-process via app.request)
 ├── frontend/              SvelteKit app (Svelte 5, Tailwind v4)
 │   ├── src/
 │   │   ├── app.css        Theme (oklch colors, dark mode)
 │   │   ├── lib/
-│   │   │   ├── api.ts         Backend API client
+│   │   │   ├── data/          Repository pattern (adapters, sync, backup)
 │   │   │   ├── stores/        Svelte stores (auth, toast)
 │   │   │   ├── components/    UI components (shadcn-style)
 │   │   │   └── utils/         Shared utilities
 │   │   └── routes/            SvelteKit pages
-│   └── src-tauri/             Tauri desktop/mobile config
-├── sidecar/               Node.js sidecar (PocketBase mode)
-├── scripts/               Migration and utility scripts
-├── pb_migrations/         PocketBase collection schemas
+│   └── src-tauri/             Tauri v2 desktop/mobile config
+├── shared/                Single source of truth for the data schema
+├── scripts/               Utility scripts
 ├── certs/                 Local dev TLS certificates (gitignored)
 ├── docker-compose.yml     Production Docker setup
 ├── Caddyfile              Production Caddy config
@@ -108,24 +102,25 @@ permish/
 
 | File | Purpose |
 |------|---------|
-| `backend/src/index.js` | Express entry point. Route mounting order is critical (form routes before event routes). |
-| `backend/src/db/schema.js` | SQLite schema and migrations. The definitive source for field names. |
-| `backend/src/services/pdf.js` | PDF generation using `pdf-lib`. Fills the official church PDF template. |
-| `backend/src/templates/permission-form.pdf` | The actual church form used as a PDF template. |
-| `frontend/src/lib/api.ts` | Backend API client. All HTTP requests go through this module. |
+| `server/src/index.ts` | HTTP entry point (`export default { port, fetch }`). |
+| `server/src/app.ts` | Hono app factory (`createApp(db)`). Route mounting order is critical (form routes before event routes). |
+| `server/src/db.ts` | `bun:sqlite` schema and super-admin bootstrap. |
+| `server/src/services/pdf.ts` | PDF generation using `pdf-lib`. Fills the official church PDF template. |
+| `server/src/templates/permission-form.pdf` | The actual church form used as a PDF template. |
+| `shared/schema.ts` | Single source of truth for the data model. Generated DDL is derived from it. |
+| `frontend/src/lib/data/` | Repository pattern layer. All data access goes through it. |
 | `frontend/src/app.css` | Theme variables in oklch format with dark mode support. |
 | `frontend/src/lib/components/ui/` | Hand-built shadcn-style base components (Svelte 5 runes). |
-| `docker-compose.yml` | Docker Compose configuration with profiles for Express, PocketBase, and production HTTPS. |
+| `docker-compose.yml` | Docker Compose configuration (`server` + `frontend`, optional `caddy` production profile). |
 
 ## Route Mounting Order
 
-In `backend/src/index.js`, form routes **must** be mounted before event routes since both use the `/api/events` prefix:
+In `server/src/app.ts`, the public form routes **must** be mounted before the authed events routes since both use the `/api/events` prefix:
 
-1. Auth routes (`/api/auth`)
-2. Form routes (`/api/events` — public: `/:id/form`, `/:id/submit`)
-3. Events routes (`/api/events` — planner-only, requires auth)
-4. Profiles routes (`/api/profiles`)
-5. Submissions routes (`/api/submissions` — `/mine` before `/:id/*`)
+1. Form routes (`/api/events` — public: `/:id/form`, `/:id/submit`, attachment reads)
+2. Events routes (`/api/events` — authed CRUD + attachment writes)
+3. Auth (`/api/auth`), Profiles (`/api/profiles`), Submissions (`/api/submissions` — `/mine` before `/:id/*`)
+4. Groups (`/api/groups`), Invites (`/api/invites`), Admin (`/api/admin` — super only)
 
 ## Next Steps
 

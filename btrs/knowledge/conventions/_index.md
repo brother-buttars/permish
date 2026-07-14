@@ -12,8 +12,8 @@ Project conventions and patterns for permish.
 
 - [[conventions/registry|Component and utility registry]] -- existing components, utilities, stores
 - [[conventions/ui|UI conventions]] -- Svelte 5 runes, shadcn-svelte patterns
-- [[conventions/api|API conventions]] -- Express 5 routes, middleware, auth
+- [[conventions/api|API conventions]] -- Bun/Hono routes, middleware, auth
 - [[conventions/database|Database conventions]] -- SQLite schema, migrations
-- [[conventions/testing|Testing conventions]] -- Jest + supertest patterns
+- [[conventions/testing|Testing conventions]] -- bun test (server) + Vitest (frontend) patterns
 - [[conventions/styling|Styling conventions]] -- Tailwind CSS v4, oklch theme
 - [[conventions/anti-patterns|Anti-patterns]] -- common mistakes to avoid
