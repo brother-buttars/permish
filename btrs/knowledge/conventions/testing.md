@@ -43,6 +43,13 @@ test('GET /api/endpoint returns 200', async () => {
 2. Rate limiters are skipped when `NODE_ENV=test`.
 3. Run server tests with `bun test` from `server/`; frontend tests with `pnpm test` from `frontend/`.
 
+## CI drift guards
+
+Two guards run in CI to keep code and docs from silently diverging:
+
+- **Schema drift** -- `server/test/schema.test.ts` fails if the generated SQLite files drift from `shared/schema.ts` (runs as part of `bun test`).
+- **Doc drift** -- `bun run check:drift` (`scripts/check-doc-drift.ts`, the **Docs Drift** CI job) fails if living docs reintroduce terminology for architecture that was consolidated away. Skips past-tense mentions; waive an exception with a `drift-ok` marker on the line.
+
 ## Canonical examples
 
 - `server/test/routes.test.ts` -- good route test structure

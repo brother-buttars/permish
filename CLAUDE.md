@@ -248,6 +248,12 @@ the committed generated files drift from `shared/schema.ts`.
 - `crypto.randomUUID()` for IDs
 - Frontend tests use Vitest
 
+### Drift guards (CI)
+
+Two guards keep docs and code from silently diverging (both run in CI):
+- **Schema drift** — `server/test/schema.test.ts` fails if the generated SQLite files drift from `shared/schema.ts` (part of `bun test`).
+- **Doc drift** — `bun run check:drift` (`scripts/check-doc-drift.ts`) fails if the living docs reintroduce terminology for architecture that was consolidated away. It scans docs only (not source provenance comments or dated historical records) and skips past-tense mentions; waive a genuine exception with a `drift-ok` marker on the line.
+
 ## Route Mounting Order (Critical)
 
 In `server/src/app.ts`, the PUBLIC form routes (`createFormRoutes`) MUST be mounted
