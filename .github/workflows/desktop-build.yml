@@ -68,59 +68,8 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      # Download PocketBase sidecar for the target platform
-      - name: Download PocketBase sidecar
-        shell: bash
-        run: |
-          PB_VERSION="0.27.2"
-          SIDECAR_DIR="frontend/src-tauri/sidecars"
-          mkdir -p "$SIDECAR_DIR"
-
-          case "${{ matrix.target }}" in
-            aarch64-apple-darwin)
-              curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_darwin_arm64.zip" -o /tmp/pb.zip
-              cd /tmp && unzip -o pb.zip pocketbase
-              mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-aarch64-apple-darwin"
-              chmod +x "$SIDECAR_DIR/pocketbase-aarch64-apple-darwin"
-              ;;
-            x86_64-apple-darwin)
-              curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_darwin_amd64.zip" -o /tmp/pb.zip
-              cd /tmp && unzip -o pb.zip pocketbase
-              mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-x86_64-apple-darwin"
-              chmod +x "$SIDECAR_DIR/pocketbase-x86_64-apple-darwin"
-              ;;
-            x86_64-unknown-linux-gnu)
-              curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_amd64.zip" -o /tmp/pb.zip
-              cd /tmp && unzip -o pb.zip pocketbase
-              mv /tmp/pocketbase "$SIDECAR_DIR/pocketbase-x86_64-unknown-linux-gnu"
-              chmod +x "$SIDECAR_DIR/pocketbase-x86_64-unknown-linux-gnu"
-              ;;
-            x86_64-pc-windows-msvc)
-              curl -sL "https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_windows_amd64.zip" -o pb.zip
-              unzip -o pb.zip pocketbase.exe
-              mv pocketbase.exe "$SIDECAR_DIR/pocketbase-x86_64-pc-windows-msvc.exe"
-              ;;
-          esac
-
-      # Build Node sidecar for the target platform
-      # For now, skip this step -- the sidecar needs bun or pkg to compile
-      # TODO: Add bun build --compile step when sidecar is production-ready
-      - name: Create Node sidecar placeholder
-        shell: bash
-        run: |
-          SIDECAR_DIR="frontend/src-tauri/sidecars"
-          # Create a placeholder script that will be replaced with compiled binary
-          case "${{ matrix.target }}" in
-            *windows*)
-              echo "@echo off" > "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}.exe"
-              echo "echo Node sidecar placeholder" >> "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}.exe"
-              ;;
-            *)
-              echo "#!/bin/sh" > "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}"
-              echo "echo Node sidecar placeholder" >> "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}"
-              chmod +x "$SIDECAR_DIR/node-sidecar-${{ matrix.target }}"
-              ;;
-          esac
+      # The desktop app is self-contained (native SQLite via plugin-sql +
+      # client-side pdf-lib) — no backend sidecar to download or bundle.
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
