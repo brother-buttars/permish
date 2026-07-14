@@ -86,6 +86,8 @@
 <PageContainer>
 	{#if !auth.ready}
 		<LoadingState />
+	{:else if auth.error}
+		<EmptyState message="Something went wrong loading your dashboard." description={auth.error} actionLabel="Retry" onAction={auth.retry} />
 	{:else}
 		{#snippet dashboardActions()}
 			{#if auth.user?.role === "super"}

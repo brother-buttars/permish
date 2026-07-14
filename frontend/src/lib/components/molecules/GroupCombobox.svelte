@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Input } from "$lib/components/ui/input";
+	import { cn } from "$lib/utils";
 	import type { Group } from "$lib/data/types";
 
 	let {
@@ -27,6 +28,7 @@
 	let query = $state("");
 	let open = $state(false);
 	let editing = $state(false);
+	let activeIndex = $state(-1);
 
 	let filtered = $derived(
 		query.trim() === ""
@@ -46,14 +48,38 @@
 		selectedGroupId = group.id;
 		editing = false;
 		open = false;
+		activeIndex = -1;
 		onSelect?.(group);
 	}
 
 	function onInput() {
 		editing = true;
 		open = true;
+		activeIndex = -1;
 		const picked = groups.find((g) => g.id === selectedGroupId);
 		if (!picked || label(picked) !== query) selectedGroupId = "";
+	}
+
+	// Keyboard operation: arrows move the highlight, Enter picks, Escape closes.
+	// (Selection used to fire on mousedown only, so keyboard users could never
+	// choose a group — Enter fired click after blur had already closed the list.)
+	function onKeydown(e: KeyboardEvent) {
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			open = true;
+			activeIndex = Math.min(activeIndex + 1, filtered.length - 1);
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			activeIndex = Math.max(activeIndex - 1, 0);
+		} else if (e.key === "Enter") {
+			if (open && activeIndex >= 0 && filtered[activeIndex]) {
+				e.preventDefault();
+				select(filtered[activeIndex]);
+			}
+		} else if (e.key === "Escape") {
+			open = false;
+			activeIndex = -1;
+		}
 	}
 </script>
 
@@ -62,18 +88,36 @@
 		{id}
 		bind:value={query}
 		oninput={onInput}
+		onkeydown={onKeydown}
 		onfocus={() => (open = true)}
-		onblur={() => setTimeout(() => { open = false; editing = false; }, 150)}
+		onblur={() => setTimeout(() => { open = false; editing = false; activeIndex = -1; }, 150)}
 		autocomplete="off"
+		role="combobox"
+		aria-expanded={open && filtered.length > 0}
+		aria-controls="{id}-listbox"
+		aria-activedescendant={activeIndex >= 0 && filtered[activeIndex] ? `${id}-opt-${filtered[activeIndex].id}` : undefined}
+		aria-autocomplete="list"
 		{placeholder}
 	/>
 	{#if open && filtered.length > 0}
-		<div class="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-input bg-popover shadow-md">
-			{#each filtered as group (group.id)}
+		<div
+			id="{id}-listbox"
+			role="listbox"
+			class="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-input bg-popover shadow-md"
+		>
+			{#each filtered as group, i (group.id)}
 				<button
 					type="button"
-					class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-					onmousedown={() => select(group)}
+					id="{id}-opt-{group.id}"
+					role="option"
+					aria-selected={selectedGroupId === group.id}
+					tabindex="-1"
+					class={cn(
+						"flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground",
+						i === activeIndex && "bg-accent text-accent-foreground",
+					)}
+					onmousedown={(e) => e.preventDefault()}
+					onclick={() => select(group)}
 				>
 					<span>{label(group)}</span>
 					{#if selectedGroupId === group.id}

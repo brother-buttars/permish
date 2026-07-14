@@ -1086,16 +1086,12 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
       ]);
     },
 
-    getUrl(eventId: string, attachmentId: string): string {
+    getUrl(eventId: string, attachmentId: string): string | Promise<string> {
       const cacheKey = `${eventId}:${attachmentId}`;
+      // Cached → synchronous; otherwise resolve once the blob is loaded.
+      // (Returning '' here made first-time previews fetch the page's own HTML.)
       if (blobUrlCache.has(cacheKey)) return blobUrlCache.get(cacheKey)!;
-
-      // We need to fetch blob data synchronously — getUrl is sync.
-      // Use a data URL placeholder initially; actual URL is created lazily.
-      // The caller should use getUrlAsync() if possible, but for interface
-      // compatibility we kick off an async load and return a placeholder.
-      this._loadBlobUrl(eventId, attachmentId);
-      return blobUrlCache.get(cacheKey) ?? '';
+      return this._loadBlobUrl(eventId, attachmentId);
     },
 
     // Internal helper — not on the interface but we attach it for the getUrl workaround

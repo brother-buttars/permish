@@ -128,14 +128,41 @@
 		}
 	}
 
-	async function handleRoleChange(userId: string, newRole: string) {
+	// Role changes are privilege changes — a mis-tap on the dropdown must not
+	// silently grant super. Confirm before applying; reload to revert the
+	// select's visual state if the admin cancels.
+	let roleChangeOpen = $state(false);
+	let roleChangeTarget = $state<{ id: string; name: string; role: string } | null>(null);
+	let roleChangeLoading = $state(false);
+
+	function handleRoleChange(userId: string, newRole: string) {
+		const target = users.find((u) => u.id === userId);
+		if (!target || target.role === newRole) return;
+		roleChangeTarget = { id: userId, name: target.name, role: newRole };
+		roleChangeOpen = true;
+	}
+
+	async function confirmRoleChange() {
+		if (!roleChangeTarget) return;
+		roleChangeLoading = true;
 		try {
-			await repo.admin.updateRole(userId, newRole);
+			await repo.admin.updateRole(roleChangeTarget.id, roleChangeTarget.role);
 			toastSuccess("Role updated.");
-			await loadUsers();
+			roleChangeOpen = false;
+			roleChangeTarget = null;
 		} catch (err: any) {
 			toastError(err.message || "Failed to update role.");
+		} finally {
+			roleChangeLoading = false;
+			await loadUsers();
 		}
+	}
+
+	async function cancelRoleChange() {
+		roleChangeOpen = false;
+		roleChangeTarget = null;
+		// Re-render the selects with the unchanged roles
+		await loadUsers();
 	}
 
 	async function confirmDelete() {
@@ -366,6 +393,19 @@
 	confirmLabel="Delete User"
 	onConfirm={confirmDelete}
 	loading={deleting}
+/>
+
+<ConfirmModal
+	bind:open={roleChangeOpen}
+	title="Change Role"
+	message={roleChangeTarget?.role === 'super'
+		? `Make ${roleChangeTarget?.name} a super admin? They will have full access to all users, groups, and children's submissions.`
+		: `Change ${roleChangeTarget?.name} to a regular user? They will immediately lose admin access.`}
+	confirmLabel="Change Role"
+	confirmVariant="default"
+	onConfirm={confirmRoleChange}
+	onCancel={cancelRoleChange}
+	loading={roleChangeLoading}
 />
 
 <Modal bind:open={resetModalOpen} size="sm">

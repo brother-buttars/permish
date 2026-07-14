@@ -34,6 +34,9 @@
 	// Whether a saved signature is available (not "hand" type)
 	let hasSavedSig = $derived(!!initialValue && initialType !== "hand");
 
+	// Stable id fragment for label/input association
+	const idBase = $derived(label.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+
 	function getToday(): string {
 		const d = new Date();
 		return d.toISOString().split("T")[0];
@@ -207,13 +210,14 @@
 	<Label>{label}</Label>
 
 	<!-- Mode toggle -->
-	<div class="flex gap-1 rounded-lg border border-input bg-muted p-1">
+	<div class="flex gap-1 rounded-lg border border-input bg-muted p-1" role="group" aria-label="{label} signing method">
 		{#if allowHand}
 			<Button
 				type="button"
 				variant={type === 'hand' && !usingSaved ? "default" : "outline"}
 				size="sm"
 				class="flex-1 {type !== 'hand' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
+				aria-pressed={type === 'hand' && !usingSaved}
 				onclick={() => switchMode("hand")}
 			>
 				By Hand
@@ -224,6 +228,7 @@
 			variant={type === 'drawn' && !usingSaved ? "default" : "outline"}
 			size="sm"
 			class="flex-1 {type !== 'drawn' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
+			aria-pressed={type === 'drawn' && !usingSaved}
 			onclick={() => switchMode("drawn")}
 		>
 			Draw
@@ -233,6 +238,7 @@
 			variant={type === 'typed' && !usingSaved ? "default" : "outline"}
 			size="sm"
 			class="flex-1 {type !== 'typed' || usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
+			aria-pressed={type === 'typed' && !usingSaved}
 			onclick={() => switchMode("typed")}
 		>
 			Type
@@ -243,6 +249,7 @@
 				variant={usingSaved ? "default" : "outline"}
 				size="sm"
 				class="flex-1 {!usingSaved ? 'bg-transparent text-foreground/50 border-transparent shadow-none hover:bg-background hover:text-foreground hover:border-border hover:drop-shadow-sm' : ''}"
+				aria-pressed={usingSaved}
 				onclick={applySaved}
 			>
 				Saved
@@ -275,6 +282,7 @@
 				bind:this={canvas}
 				class="w-full rounded-md border border-input bg-white h-[200px] sm:h-[150px]"
 				style="touch-action: none; cursor: crosshair;"
+				aria-label="{label} — draw your signature with your finger or mouse"
 				onpointerdown={onPointerDown}
 				onpointermove={onPointerMove}
 				onpointerup={onPointerUp}
@@ -310,8 +318,8 @@
 	<!-- Date -->
 	{#if showDate}
 		<div class="flex items-center gap-3">
-			<Label class="shrink-0">Date:</Label>
-			<Input type="date" bind:value={date} class="max-w-[200px]" />
+			<Label class="shrink-0" for="{idBase}-sig-date">Date:</Label>
+			<Input id="{idBase}-sig-date" type="date" bind:value={date} class="max-w-[200px]" />
 		</div>
 	{/if}
 </div>

@@ -22,6 +22,7 @@
 	} = $props();
 
 	let modalEl: HTMLDivElement | undefined = $state();
+	let previouslyFocused: HTMLElement | null = null;
 
 	function handleCancel() {
 		open = false;
@@ -53,8 +54,14 @@
 
 	$effect(() => {
 		if (open && modalEl) {
+			previouslyFocused = document.activeElement as HTMLElement | null;
 			const firstBtn = modalEl.querySelector<HTMLElement>('button');
 			firstBtn?.focus();
+		} else if (!open && previouslyFocused) {
+			// Restore focus to the invoking element (e.g. after deleting a row)
+			// so keyboard users don't fall back to <body>.
+			if (previouslyFocused.isConnected) previouslyFocused.focus();
+			previouslyFocused = null;
 		}
 	});
 </script>

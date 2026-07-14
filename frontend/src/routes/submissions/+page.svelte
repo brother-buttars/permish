@@ -8,6 +8,7 @@
 	import { inferProgramFromOrgs } from "$lib/utils/organizations";
 	import { parseOrgs } from "$lib/utils/events";
 	import LoadingState from "$lib/components/LoadingState.svelte";
+	import EmptyState from "$lib/components/EmptyState.svelte";
 	import { PageHeader, PageContainer, SegmentedTabs, FilterPanel, AdminFilterBar } from "$lib/components/molecules";
 	import { SubmissionListView } from "$lib/components/organisms";
 	import { useDeleteConfirm, usePdfPreview, useAuthRequired } from "$lib/components/composables";
@@ -119,6 +120,8 @@
 	<!-- Content -->
 	{#if !auth.ready}
 		<LoadingState />
+	{:else if auth.error}
+		<EmptyState message="Something went wrong loading submissions." description={auth.error} actionLabel="Retry" onAction={auth.retry} />
 	{:else}
 		{@const count = view === 'planner' ? filteredPlannerSubmissions.length : filteredParentSubmissions.length}
 		<Card>

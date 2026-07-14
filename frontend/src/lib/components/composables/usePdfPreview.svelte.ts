@@ -23,27 +23,48 @@ export function usePdfPreview() {
 	let url = $state("");
 	let name = $state("");
 	let loading = $state(false);
+	// Guards against races: a slow response for an earlier open() must not
+	// clobber (and leak past) the URL of a newer open, or resurrect a URL
+	// after close() already ran.
+	let requestSeq = 0;
 
-	async function openPreview(submissionId: string, participantName: string) {
-		name = participantName;
-		loading = true;
-		isOpen = true;
-		try {
-			url = await getSubmissionPdfUrl(submissionId);
-		} catch {
-			toastError("Failed to load PDF");
-			isOpen = false;
-		} finally {
-			loading = false;
-		}
-	}
-
-	function close() {
-		isOpen = false;
+	function revokeCurrent() {
 		if (url) {
 			URL.revokeObjectURL(url);
 			url = "";
 		}
+	}
+
+	async function openPreview(submissionId: string, participantName: string) {
+		const seq = ++requestSeq;
+		revokeCurrent();
+		name = participantName;
+		loading = true;
+		isOpen = true;
+		try {
+			const next = await getSubmissionPdfUrl(submissionId);
+			if (seq !== requestSeq) {
+				// A newer open() or close() superseded this request — the blob
+				// would otherwise be orphaned in memory forever.
+				URL.revokeObjectURL(next);
+				return;
+			}
+			url = next;
+		} catch {
+			if (seq === requestSeq) {
+				toastError("Failed to load PDF");
+				isOpen = false;
+			}
+		} finally {
+			if (seq === requestSeq) loading = false;
+		}
+	}
+
+	function close() {
+		requestSeq++;
+		isOpen = false;
+		loading = false;
+		revokeCurrent();
 	}
 
 	return {
@@ -52,6 +73,7 @@ export function usePdfPreview() {
 		},
 		set isOpen(v: boolean) {
 			isOpen = v;
+			if (!v) close();
 		},
 		get url() {
 			return url;

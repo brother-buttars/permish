@@ -200,8 +200,9 @@
 											{#each filteredStakes as g (g.id)}
 												<button
 													type="button"
-													class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-													onmousedown={() => selectStake(g)}
+													class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none"
+													onmousedown={(e) => e.preventDefault()}
+													onclick={() => selectStake(g)}
 												>
 													<span>{g.name}</span>
 													{#if parentId === g.id}
@@ -212,8 +213,9 @@
 											{#if canCreateNewStake}
 												<button
 													type="button"
-													class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground border-t border-input"
-													onmousedown={() => (stakeOpen = false)}
+													class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none border-t border-input"
+													onmousedown={(e) => e.preventDefault()}
+													onclick={() => (stakeOpen = false)}
 												>
 													<span class="text-muted-foreground">Create new:</span>
 													<span class="font-medium">"{stakeQuery.trim()}"</span>

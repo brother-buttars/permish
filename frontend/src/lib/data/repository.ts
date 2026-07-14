@@ -75,7 +75,12 @@ export interface AttachmentRepository {
   list(eventId: string): Promise<Attachment[]>;
   upload(eventId: string, file: File): Promise<Attachment>;
   delete(eventId: string, attachmentId: string): Promise<void>;
-  getUrl(eventId: string, attachmentId: string): string;
+  /**
+   * Resolve a fetchable URL for an attachment. The HTTP adapter returns a
+   * plain URL synchronously; the local adapter loads the blob lazily and
+   * returns a Promise — callers must await the result.
+   */
+  getUrl(eventId: string, attachmentId: string): string | Promise<string>;
 }
 
 export interface AdminRepository {

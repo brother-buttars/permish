@@ -18,7 +18,8 @@
 	import PdfViewer from "$lib/components/PdfViewer.svelte";
 	import PermissionFormFields from "$lib/components/PermissionFormFields.svelte";
 	import { linkify } from "$lib/utils/linkify";
-	import { toastSuccess } from "$lib/stores/toast";
+	import { toastSuccess, toastError } from "$lib/stores/toast";
+	import { useAttachmentPreview } from "$lib/components/composables";
 	import { formatFileSize } from "$lib/utils/format";
 	import { validateSubmissionForm, buildSubmissionPayload, buildProfilePayload, emptyFields, type SubmissionFormFields } from "$lib/utils/submissionForm";
 	import LoadingState from "$lib/components/LoadingState.svelte";
@@ -41,12 +42,6 @@
 	let loading = $state(true);
 	let error = $state("");
 
-	// Attachment preview modal
-	let attachPreviewOpen = $state(false);
-	let attachPreviewUrl = $state('');
-	let attachPreviewName = $state('');
-	let attachPreviewType = $state('');
-	let attachPreviewLoading = $state(false);
 	let submitting = $state(false);
 	let validationErrors: string[] = $state([]);
 	let currentUser: any = $state(null);
@@ -135,28 +130,21 @@
 
 	const repo = getRepository();
 
-	async function openAttachmentPreview(att: any) {
-		attachPreviewName = att.original_name;
-		attachPreviewType = att.mime_type;
-		attachPreviewLoading = true;
-		attachPreviewOpen = true;
-		try {
-			const url = repo.attachments.getUrl(data.eventId, att.id);
-			const res = await fetch(url);
-			const blob = await res.blob();
-			attachPreviewUrl = URL.createObjectURL(blob);
-		} catch {
-			attachPreviewOpen = false;
-		} finally {
-			attachPreviewLoading = false;
-		}
-	}
+	// Attachment preview — the composable handles blob-URL revocation and races
+	const attachPreview = useAttachmentPreview({
+		getUrl: (att) => repo.attachments.getUrl(data.eventId, att.id),
+	});
 
-	function closeAttachmentPreview() {
-		attachPreviewOpen = false;
-		if (attachPreviewUrl) {
-			URL.revokeObjectURL(attachPreviewUrl);
-			attachPreviewUrl = '';
+	async function downloadAttachment(att: any) {
+		try {
+			const url = await repo.attachments.getUrl(data.eventId, att.id);
+			if (!url) throw new Error('Attachment unavailable');
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = att.original_name;
+			a.click();
+		} catch {
+			toastError('Failed to download attachment.');
 		}
 	}
 
@@ -374,13 +362,13 @@
 										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
 									{/if}
 									{#if isPreviewable(att.mime_type)}
-										<button class="text-primary underline hover:no-underline" onclick={() => openAttachmentPreview(att)}>
+										<button class="text-primary underline hover:no-underline" onclick={() => attachPreview.open(att)}>
 											{att.original_name}
 										</button>
 									{:else}
-										<a href={repo.attachments.getUrl(data.eventId, att.id)} download={att.original_name} class="text-primary underline hover:no-underline">
+										<button class="text-primary underline hover:no-underline" onclick={() => downloadAttachment(att)}>
 											{att.original_name}
-										</a>
+										</button>
 									{/if}
 									<span class="text-muted-foreground">({formatFileSize(att.size)})</span>
 								</li>
@@ -463,25 +451,25 @@
 	loading={saveProfileLoading}
 />
 
-<Modal bind:open={attachPreviewOpen} size="fullscreen" onclose={closeAttachmentPreview}>
+<Modal bind:open={attachPreview.isOpen} size="fullscreen" onclose={attachPreview.close}>
 	{#snippet header({ close })}
 		<div class="flex items-center justify-between border-b px-4 py-3">
-			<h3 class="font-semibold">{attachPreviewName}</h3>
+			<h3 class="font-semibold">{attachPreview.name}</h3>
 			<div class="flex gap-2">
 				<Button variant="ghost" size="sm" onclick={close}>Close</Button>
 			</div>
 		</div>
 	{/snippet}
 	<div class="flex-1 overflow-hidden">
-		{#if attachPreviewLoading}
+		{#if attachPreview.loading}
 			<div class="flex h-full items-center justify-center">
 				<p class="text-muted-foreground">Loading...</p>
 			</div>
-		{:else if attachPreviewType === 'application/pdf'}
-			<PdfViewer src={attachPreviewUrl} class="h-full" />
-		{:else if attachPreviewType?.startsWith('image/')}
+		{:else if attachPreview.mimeType === 'application/pdf'}
+			<PdfViewer src={attachPreview.url} class="h-full" />
+		{:else if attachPreview.mimeType?.startsWith('image/')}
 			<div class="flex h-full items-center justify-center overflow-auto p-4">
-				<img src={attachPreviewUrl} alt={attachPreviewName} class="max-h-full max-w-full object-contain" />
+				<img src={attachPreview.url} alt={attachPreview.name} class="max-h-full max-w-full object-contain" />
 			</div>
 		{/if}
 	</div>

@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label/index.js';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '$lib/components/ui/card/index.js';
 	import AlertBox from "$lib/components/AlertBox.svelte";
+	import { postAuthDestination, nextSuffix } from "$lib/utils/returnUrl";
 
 	let name = $state('');
 	let email = $state('');
@@ -19,7 +20,8 @@
 		submitting = true;
 		try {
 			await register(email, password, name, 'user');
-			goto('/dashboard');
+			// Honor ?next= (invites, deep links) or a stored return URL (import-event)
+			goto(postAuthDestination());
 		} catch (err: any) {
 			error = err.message || 'Registration failed';
 		} finally {
@@ -79,7 +81,7 @@
 				</Button>
 				<p class="text-sm text-muted-foreground text-center">
 					Already have an account?
-					<a href="/login" class="text-primary underline hover:no-underline">Login</a>
+					<a href="/login{nextSuffix()}" class="text-primary underline hover:no-underline">Login</a>
 				</p>
 			</CardFooter>
 		</form>

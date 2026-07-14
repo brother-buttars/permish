@@ -7,7 +7,8 @@ interface Attachment {
 }
 
 interface UseAttachmentPreviewOptions {
-	getUrl: (att: Attachment) => string;
+	/** May resolve asynchronously — the local adapter loads blobs lazily. */
+	getUrl: (att: Attachment) => string | Promise<string>;
 }
 
 /**
@@ -34,31 +35,50 @@ export function useAttachmentPreview(opts: UseAttachmentPreviewOptions) {
 	let name = $state("");
 	let mimeType = $state("");
 	let loading = $state(false);
+	// See usePdfPreview — prevents stale responses from leaking blob URLs.
+	let requestSeq = 0;
+
+	function revokeCurrent() {
+		if (url) {
+			URL.revokeObjectURL(url);
+			url = "";
+		}
+	}
 
 	async function openPreview(att: Attachment) {
+		const seq = ++requestSeq;
+		revokeCurrent();
 		name = att.original_name;
 		mimeType = att.mime_type;
 		loading = true;
 		isOpen = true;
 		try {
-			const fetchUrl = opts.getUrl(att);
+			const fetchUrl = await opts.getUrl(att);
+			if (!fetchUrl) throw new Error("Attachment unavailable");
 			const res = await fetch(fetchUrl, { credentials: "include" });
+			if (!res.ok) throw new Error("Attachment unavailable");
 			const blob = await res.blob();
-			url = URL.createObjectURL(blob);
+			const next = URL.createObjectURL(blob);
+			if (seq !== requestSeq) {
+				URL.revokeObjectURL(next);
+				return;
+			}
+			url = next;
 		} catch {
-			toastError("Failed to load attachment");
-			isOpen = false;
+			if (seq === requestSeq) {
+				toastError("Failed to load attachment");
+				isOpen = false;
+			}
 		} finally {
-			loading = false;
+			if (seq === requestSeq) loading = false;
 		}
 	}
 
 	function close() {
+		requestSeq++;
 		isOpen = false;
-		if (url) {
-			URL.revokeObjectURL(url);
-			url = "";
-		}
+		loading = false;
+		revokeCurrent();
 	}
 
 	return {
@@ -67,6 +87,7 @@ export function useAttachmentPreview(opts: UseAttachmentPreviewOptions) {
 		},
 		set isOpen(v: boolean) {
 			isOpen = v;
+			if (!v) close();
 		},
 		get url() {
 			return url;
