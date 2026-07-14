@@ -24,6 +24,7 @@ _None._
 
 ## Completed
 
+- ~~[[todos/TODO-018-minor-styling-backlog|TODO-018: Fable audit wave 3 — minor styling/refactor backlog]]~~ -- SegmentedTabs/AlertBox/Select/FormField/SubmissionListView convergence, SignaturePad resize/re-blit, Sheet focus trap, tap targets, terminology, completed 2026-07-14
 - ~~[[todos/TODO-012-enforce-must-change-password|TODO-012: Enforce must_change_password + random bootstrap credentials]]~~ -- gate in auth middleware + random/env bootstrap password, completed 2026-07-14
 - ~~[[todos/TODO-013-local-db-durability|TODO-013: Local DB durability]]~~ -- close() persists, unload flush, WASM bundled, completed 2026-07-14
 - ~~[[todos/TODO-014-hybrid-sync-correctness|TODO-014: Hybrid sync correctness]]~~ -- client UUIDs on create, group replay, CHECK enum v7 migration, owned-submission pull, profile sync, completed 2026-07-14

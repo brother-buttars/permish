@@ -181,9 +181,11 @@
 					</div>
 				{:else if needsAuth}
 					<div class="space-y-3">
-						<div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-sm text-center">
-							Sign in to add this activity to your account.
-						</div>
+						<AlertBox
+							variant="warning"
+							class="text-center"
+							message="Sign in to add this activity to your account."
+						/>
 						<Button class="w-full" onclick={loginThenReturn}>
 							Sign In & Add Activity
 						</Button>

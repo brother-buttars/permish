@@ -5,6 +5,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { Select } from '$lib/components/ui/select';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
 	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
@@ -197,10 +198,10 @@
 					</div>
 					<div class="space-y-2">
 						<Label for="inviteRole">Role</Label>
-						<select id="inviteRole" bind:value={inviteRole} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-32">
+						<Select id="inviteRole" bind:value={inviteRole} class="sm:w-32">
 							<option value="member">Member</option>
 							<option value="admin">Admin</option>
-						</select>
+						</Select>
 					</div>
 					<Button type="submit" disabled={inviting}>{inviting ? 'Inviting...' : 'Send invite'}</Button>
 				</form>
@@ -214,10 +215,10 @@
 				<form onsubmit={(e) => { e.preventDefault(); mintInvite(); }} class="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
 					<div class="space-y-2">
 						<Label for="mintRole">Role</Label>
-						<select id="mintRole" bind:value={mintRole} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+						<Select id="mintRole" bind:value={mintRole}>
 							<option value="member">Member</option>
 							<option value="admin">Admin</option>
-						</select>
+						</Select>
 					</div>
 					<div class="space-y-2">
 						<Label for="mintMaxUses">Max uses</Label>
@@ -225,12 +226,12 @@
 					</div>
 					<div class="space-y-2">
 						<Label for="mintExpires">Expires</Label>
-						<select id="mintExpires" bind:value={mintExpiresIn} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+						<Select id="mintExpires" bind:value={mintExpiresIn}>
 							<option value="">Never</option>
 							<option value="24h">24 hours</option>
 							<option value="7d">7 days</option>
 							<option value="30d">30 days</option>
-						</select>
+						</Select>
 					</div>
 					<Button type="submit" disabled={minting}>{minting ? 'Creating...' : 'Create'}</Button>
 				</form>

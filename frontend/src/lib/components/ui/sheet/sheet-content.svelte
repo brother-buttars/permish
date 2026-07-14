@@ -1,16 +1,20 @@
 <script lang="ts">
 	import { cn } from "$lib/utils";
 	import type { Snippet } from "svelte";
+	import { getFocusable, trapTabKey } from "$lib/utils/focusTrap";
 
 	let {
 		open = false,
 		side = "right",
+		label,
 		onclose,
 		children,
 		class: className = "",
 	}: {
 		open?: boolean;
 		side?: "left" | "right" | "top" | "bottom";
+		/** Accessible name announced when the sheet opens. */
+		label?: string;
 		onclose?: () => void;
 		children?: Snippet;
 		class?: string;
@@ -22,12 +26,50 @@
 		top: "inset-x-0 top-0 border-b",
 		bottom: "inset-x-0 bottom-0 border-t",
 	};
+
+	let sheetEl: HTMLDivElement | undefined = $state();
+	let previouslyFocused: HTMLElement | null = null;
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (!open) return;
+		if (e.key === "Escape") {
+			onclose?.();
+			return;
+		}
+		trapTabKey(e, sheetEl);
+	}
+
+	// Focus the first control when the sheet opens; restore focus on close so
+	// keyboard users land back on the trigger.
+	$effect(() => {
+		if (open) {
+			previouslyFocused = document.activeElement as HTMLElement | null;
+			queueMicrotask(() => {
+				(getFocusable(sheetEl)[0] ?? sheetEl)?.focus();
+			});
+		} else if (previouslyFocused) {
+			previouslyFocused.focus();
+			previouslyFocused = null;
+		}
+	});
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 {#if open}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 bg-black/80" onclick={onclose} onkeydown={undefined}></div>
+	<button
+		type="button"
+		class="fixed inset-0 z-50 bg-black/80"
+		aria-label="Close"
+		tabindex="-1"
+		onclick={onclose}
+	></button>
 	<div
+		bind:this={sheetEl}
+		tabindex="-1"
+		role="dialog"
+		aria-modal="true"
+		aria-label={label}
 		class={cn(
 			"fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out",
 			sideClasses[side],

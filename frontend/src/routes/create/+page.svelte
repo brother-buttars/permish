@@ -5,6 +5,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
+	import FormField from "$lib/components/FormField.svelte";
 	import { Textarea } from "$lib/components/ui/textarea";
 	import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
@@ -251,19 +252,15 @@
 					<CardTitle>Activity Details</CardTitle>
 				</CardHeader>
 				<CardContent class="space-y-4">
-					<div class="space-y-2">
-						<Label for="eventName">Activity Name *</Label>
+					<FormField label="Activity Name" id="eventName" required error={errors.eventName}>
 						<Input id="eventName" bind:value={eventName} placeholder="e.g., Youth Camp 2026" />
-						{#if errors.eventName}<p class="text-sm text-destructive">{errors.eventName}</p>{/if}
-					</div>
+					</FormField>
 
 					<div class="space-y-4">
 						<div class="grid gap-4 sm:grid-cols-2">
-							<div class="space-y-2">
-								<Label for="startDate">{isMultiDay ? 'Start Date' : 'Activity Date'} *</Label>
+							<FormField label={isMultiDay ? 'Start Date' : 'Activity Date'} id="startDate" required error={errors.startDate}>
 								<Input id="startDate" type="date" bind:value={startDate} />
-								{#if errors.startDate}<p class="text-sm text-destructive">{errors.startDate}</p>{/if}
-							</div>
+							</FormField>
 							<div class="space-y-2">
 								<Label for="startTime">Start Time</Label>
 								<Input id="startTime" type="time" bind:value={startTime} />
@@ -277,11 +274,9 @@
 
 						{#if isMultiDay}
 							<div class="grid gap-4 sm:grid-cols-2">
-								<div class="space-y-2">
-									<Label for="endDate">End Date *</Label>
+								<FormField label="End Date" id="endDate" required error={errors.endDate}>
 									<Input id="endDate" type="date" bind:value={endDate} />
-									{#if errors.endDate}<p class="text-sm text-destructive">{errors.endDate}</p>{/if}
-								</div>
+								</FormField>
 								<div class="space-y-2">
 									<Label for="endTime">End Time</Label>
 									<Input id="endTime" type="time" bind:value={endTime} />
@@ -298,26 +293,20 @@
 						{/if}
 					</div>
 
-					<div class="space-y-2">
-						<Label for="description">Description *</Label>
+					<FormField label="Description" id="description" required error={errors.description}>
 						<Textarea id="description" bind:value={description} placeholder="Describe the activity..." rows={4} />
-						{#if errors.description}<p class="text-sm text-destructive">{errors.description}</p>{/if}
-					</div>
+					</FormField>
 
 					<!-- Ward/Stake come from the selected group; only asked for on a private
 					     activity, or if the group didn't supply a stake. -->
 					{#if !selectedGroupId || !stake.trim()}
 						<div class="grid gap-4 sm:grid-cols-2">
-							<div class="space-y-2">
-								<Label for="ward">Ward</Label>
+							<FormField label="Ward" id="ward" error={errors.ward}>
 								<Input id="ward" bind:value={ward} placeholder="Ward name" />
-								{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
-							</div>
-							<div class="space-y-2">
-								<Label for="stake">Stake *</Label>
+							</FormField>
+							<FormField label="Stake" id="stake" required error={errors.stake}>
 								<Input id="stake" bind:value={stake} placeholder="Stake name" />
-								{#if errors.stake}<p class="text-sm text-destructive">{errors.stake}</p>{/if}
-							</div>
+							</FormField>
 						</div>
 					{/if}
 				</CardContent>
@@ -380,23 +369,17 @@
 					<CardTitle>Leader Information</CardTitle>
 				</CardHeader>
 				<CardContent class="space-y-4">
-					<div class="space-y-2">
-						<Label for="leaderName">Leader Name *</Label>
+					<FormField label="Leader Name" id="leaderName" required error={errors.leaderName}>
 						<Input id="leaderName" bind:value={leaderName} placeholder="Full name" />
-						{#if errors.leaderName}<p class="text-sm text-destructive">{errors.leaderName}</p>{/if}
-					</div>
+					</FormField>
 
 					<div class="grid gap-4 sm:grid-cols-2">
-						<div class="space-y-2">
-							<Label for="leaderPhone">Phone *</Label>
+						<FormField label="Phone" id="leaderPhone" required error={errors.leaderPhone}>
 							<Input id="leaderPhone" type="tel" bind:value={leaderPhone} placeholder="(555) 123-4567" />
-							{#if errors.leaderPhone}<p class="text-sm text-destructive">{errors.leaderPhone}</p>{/if}
-						</div>
-						<div class="space-y-2">
-							<Label for="leaderEmail">Email *</Label>
+						</FormField>
+						<FormField label="Email" id="leaderEmail" required error={errors.leaderEmail}>
 							<Input id="leaderEmail" type="email" bind:value={leaderEmail} placeholder="leader@example.com" />
-							{#if errors.leaderEmail}<p class="text-sm text-destructive">{errors.leaderEmail}</p>{/if}
-						</div>
+						</FormField>
 					</div>
 				</CardContent>
 			</Card>

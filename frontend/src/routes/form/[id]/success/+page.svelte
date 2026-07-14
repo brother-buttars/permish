@@ -126,7 +126,7 @@
 						<p class="text-muted-foreground">
 							PDF preview is not available.
 							{#if !currentUser}
-								<a href="/login" class="text-primary underline">Log in</a> to view your submitted PDFs.
+								Ask the activity organizer if you need a copy of your form.
 							{/if}
 						</p>
 					</div>

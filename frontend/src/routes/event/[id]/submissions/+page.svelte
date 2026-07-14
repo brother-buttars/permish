@@ -3,20 +3,19 @@
 	import { getRepository } from '$lib/data';
 	import { useAuthRequired, useDeleteConfirm, usePdfPreview } from "$lib/components/composables";
 	import { Button } from "$lib/components/ui/button";
-	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
-	import { formatDate } from "$lib/utils/formatDate";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import JSZip from "jszip";
 	import { saveAs } from "file-saver";
 	import PdfModal from "$lib/components/PdfModal.svelte";
-	import YouthIcon from "$lib/components/YouthIcon.svelte";
 	import { inferProgramFromOrgs } from "$lib/utils/organizations";
+	import { parseOrgs } from "$lib/utils/events";
 	import { Select } from "$lib/components/ui/select";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import EmptyState from "$lib/components/EmptyState.svelte";
 	import { generatePdfForSubmission } from "$lib/services/pdfHelper";
-	import { PageContainer } from "$lib/components/molecules";
+	import { PageContainer, PageHeader, FilterPanel } from "$lib/components/molecules";
+	import { SubmissionListView } from "$lib/components/organisms";
 
 	let { data } = $props();
 
@@ -38,6 +37,8 @@
 			await loadData();
 		},
 	});
+
+	const eventProgram = $derived(inferProgramFromOrgs(parseOrgs(event)));
 
 	let filteredSubmissions = $derived.by(() => {
 		let result = submissions;
@@ -135,180 +136,55 @@
 	<title>Submissions — {event?.event_name || "Activity"}</title>
 </svelte:head>
 
+{#snippet headerActions()}
+	<Button variant="outline" onclick={() => goto(`/event/${data.eventId}`)}>Back to Activity</Button>
+	{#if submissions.length > 0}
+		<Button variant="outline" onclick={downloadAllZip} disabled={downloading}>
+			{downloading ? "Creating ZIP..." : "Download All as ZIP"}
+		</Button>
+	{/if}
+{/snippet}
+
 <PageContainer>
 	{#if !auth.ready}
 		<LoadingState />
 	{:else if auth.error}
 		<EmptyState message="Something went wrong loading submissions." description={auth.error} actionLabel="Retry" onAction={auth.retry} />
 	{:else if !event}
-		<p class="text-center text-destructive">Activity not found.</p>
+		<EmptyState message="Activity not found." />
 	{:else}
-		<!-- Header -->
-		<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div>
-				<h1 class="text-3xl font-bold">{event.event_name}</h1>
-				<p class="text-muted-foreground">
-					{submissions.length} submission{submissions.length === 1 ? '' : 's'}
-				</p>
-			</div>
-			<div class="flex gap-2">
-				<Button variant="outline" onclick={() => goto(`/event/${data.eventId}`)}>Back to Activity</Button>
-				{#if submissions.length > 0}
-					<Button variant="outline" onclick={downloadAllZip} disabled={downloading}>
-						{downloading ? "Creating ZIP..." : "Download All as ZIP"}
-					</Button>
-				{/if}
-			</div>
-		</div>
+		<PageHeader
+			title={event.event_name}
+			subtitle="{submissions.length} submission{submissions.length === 1 ? '' : 's'}"
+			actions={headerActions}
+		/>
 
-		<!-- Filters Bar -->
-		<Card class="mb-6">
-			<CardContent class="flex flex-col gap-4 py-4 sm:flex-row sm:items-center">
-				<div class="flex-1">
-					<input
-						type="text"
-						placeholder="Search by participant or emergency contact..."
-						bind:value={searchQuery}
-						class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					/>
-				</div>
-				<div>
-					<Select bind:value={sortOption}>
-						<option value="date-newest">Date (newest)</option>
-						<option value="date-oldest">Date (oldest)</option>
-						<option value="name-az">Name (A-Z)</option>
-						<option value="name-za">Name (Z-A)</option>
-					</Select>
-				</div>
-			</CardContent>
-		</Card>
+		<FilterPanel bind:search={searchQuery} searchPlaceholder="Search by participant or emergency contact...">
+			<Select bind:value={sortOption} class="sm:max-w-xs">
+				<option value="date-newest">Date (newest)</option>
+				<option value="date-oldest">Date (oldest)</option>
+				<option value="name-az">Name (A-Z)</option>
+				<option value="name-za">Name (Z-A)</option>
+			</Select>
+		</FilterPanel>
 
-		<!-- Results info -->
 		{#if searchQuery.trim() && filteredSubmissions.length !== submissions.length}
 			<p class="mb-4 text-sm text-muted-foreground">
 				Showing {filteredSubmissions.length} of {submissions.length} submissions
 			</p>
 		{/if}
 
-		<!-- Table -->
-		{#if filteredSubmissions.length === 0}
-			<Card>
-				<CardContent class="py-8 text-center">
-					{#if submissions.length === 0}
-						<p class="text-muted-foreground">No submissions yet.</p>
-					{:else}
-						<p class="text-muted-foreground">No submissions match your search.</p>
-					{/if}
-				</CardContent>
-			</Card>
-		{:else}
-			<!-- Mobile card view -->
-			<div class="space-y-3 sm:hidden">
-				{#each filteredSubmissions as sub}
-					<Card>
-						<CardContent class="py-3 px-4">
-							<div class="flex items-center justify-between gap-2">
-								<div class="min-w-0 flex-1">
-									<div class="flex items-center gap-2">
-										<YouthIcon size="sm" program={inferProgramFromOrgs((() => { try { const o = event?.organizations; return typeof o === 'string' ? JSON.parse(o) : (o || []); } catch { return []; } })())} />
-										<p class="font-medium">{sub.participant_name || "\u2014"}</p>
-									</div>
-									<p class="text-sm text-muted-foreground">{sub.emergency_contact || "\u2014"} {sub.emergency_phone_primary ? `\u00b7 ${sub.emergency_phone_primary}` : ""}</p>
-									<p class="text-xs text-muted-foreground">{sub.participant_age ? `Age ${sub.participant_age} \u00b7 ` : ""}{formatDate(sub.submitted_at) || "\u2014"}</p>
-								</div>
-								<div class="flex gap-1">
-									<Button
-										variant="outline"
-										size="sm"
-										class="h-7 text-xs"
-										onclick={() => pdf.open(sub.id, sub.participant_name || 'submission')}
-									>
-										PDF
-									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										class="h-7 text-xs"
-										onclick={() => goto(`/form/${data.eventId}/edit/${sub.id}`)}
-									>
-										Edit
-									</Button>
-									<Button
-										variant="destructive"
-										size="sm"
-										class="h-7 text-xs"
-										onclick={() => del.ask(sub.id, sub.participant_name)}
-										disabled={deleting === sub.id}
-									>
-										{deleting === sub.id ? "..." : "Delete"}
-									</Button>
-								</div>
-							</div>
-						</CardContent>
-					</Card>
-				{/each}
-			</div>
-			<!-- Desktop table view -->
-			<div class="hidden sm:block overflow-x-auto rounded-lg border">
-				<table class="w-full text-sm">
-					<thead>
-						<tr class="border-b bg-muted/50">
-							<th class="px-4 py-3 text-left font-medium">Participant Name</th>
-							<th class="px-4 py-3 text-left font-medium">Age</th>
-							<th class="px-4 py-3 text-left font-medium">Emergency Contact</th>
-							<th class="px-4 py-3 text-left font-medium">Emergency Phone</th>
-							<th class="px-4 py-3 text-left font-medium">Submitted</th>
-							<th class="px-4 py-3 text-left font-medium">Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each filteredSubmissions as sub}
-							<tr class="border-b">
-								<td class="px-4 py-3">
-									<div class="flex items-center gap-2">
-										<YouthIcon size="sm" program={inferProgramFromOrgs((() => { try { const o = event?.organizations; return typeof o === 'string' ? JSON.parse(o) : (o || []); } catch { return []; } })())} />
-										{sub.participant_name || "\u2014"}
-									</div>
-								</td>
-								<td class="px-4 py-3">{sub.participant_age || "\u2014"}</td>
-								<td class="px-4 py-3">{sub.emergency_contact || "\u2014"}</td>
-								<td class="px-4 py-3">{sub.emergency_phone_primary || "\u2014"}</td>
-								<td class="px-4 py-3">{formatDate(sub.submitted_at) || "\u2014"}</td>
-								<td class="px-4 py-3">
-									<div class="flex gap-1">
-										<Button
-											variant="outline"
-											size="sm"
-											class="h-7 text-xs"
-											onclick={() => pdf.open(sub.id, sub.participant_name || 'submission')}
-										>
-											PDF
-										</Button>
-										<Button
-											variant="outline"
-											size="sm"
-											class="h-7 text-xs"
-											onclick={() => goto(`/form/${data.eventId}/edit/${sub.id}`)}
-										>
-											Edit
-										</Button>
-										<Button
-											variant="destructive"
-											size="sm"
-											class="h-7 text-xs"
-											onclick={() => del.ask(sub.id, sub.participant_name)}
-											disabled={deleting === sub.id}
-										>
-											{deleting === sub.id ? "..." : "Delete"}
-										</Button>
-									</div>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-		{/if}
+		<SubmissionListView
+			submissions={filteredSubmissions}
+			showAge={true}
+			showEmergencyPhone={true}
+			getProgram={() => eventProgram}
+			getEditUrl={(sub) => `/form/${data.eventId}/edit/${sub.id}`}
+			onPdfPreview={(sub) => pdf.open(sub.id, sub.participant_name || 'submission')}
+			onDeleteAsk={(sub) => del.ask(sub.id, sub.participant_name ?? '')}
+			{deleting}
+			emptyMessage={submissions.length === 0 ? "No submissions yet." : "No submissions match your search."}
+		/>
 	{/if}
 </PageContainer>
 
