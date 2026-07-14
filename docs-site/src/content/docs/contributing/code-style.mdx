@@ -52,7 +52,7 @@ Use shadcn-svelte components for all UI. Components live in `frontend/src/lib/co
 
 ## Field Name Conventions
 
-Backend database column names **must** match exactly in frontend API calls. The definitive field names are in `backend/src/db/schema.js`.
+Database column names **must** match exactly in frontend API calls. The definitive field names are in `shared/schema.ts` (the single-source data model).
 
 | Correct Name | Not This |
 |---|---|
@@ -115,26 +115,24 @@ The modal uses a blurred backdrop (`backdrop-blur-sm`).
 
 - JWT tokens are stored in HttpOnly SameSite=Strict cookies.
 - `extractUser` middleware runs on every request.
-- `requireAuth` and `requirePlanner` protect routes.
-- The `planner` role can create and manage events. All users can manage child profiles and submit forms.
+- `authMiddleware` populates the request user; `requireAuth` protects routes; admin routes additionally require the `super` role.
+- Planners can create and manage events. All users can manage child profiles and submit forms.
 
 ## Route Mounting Order
 
-In `backend/src/index.js`, form routes **must** come before event routes:
+In `server/src/app.ts`, the public form routes **must** come before the authed event routes (both use `/api/events`):
 
-1. Auth routes (`/api/auth`)
-2. Form routes (`/api/events` — public)
-3. Events routes (`/api/events` — planner-only)
-4. Profiles routes (`/api/profiles`)
-5. Submissions routes (`/api/submissions`)
+1. Form routes (`/api/events` — public: `/:id/form`, `/:id/submit`)
+2. Events routes (`/api/events` — authed CRUD)
+3. Auth (`/api/auth`), Profiles (`/api/profiles`), Submissions (`/api/submissions` — `/mine` before `/:id/*`)
+4. Groups (`/api/groups`), Invites (`/api/invites`), Admin (`/api/admin` — super only)
 
 ## Testing Conventions
 
-- **Backend:** Jest + supertest with in-memory SQLite (`:memory:`)
+- **Server:** `bun test`, in-process via Hono's `app.request()` with in-memory SQLite (`createDb(':memory:')`)
 - **Frontend:** Vitest
 - **UUID generation:** Use `crypto.randomUUID()` instead of the `uuid` package
 - **Rate limiting:** Disabled in test environment (`NODE_ENV=test`)
-- **Test database:** Override `app.locals.db` in test setup
 
 ## Package Manager
 

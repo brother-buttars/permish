@@ -14,7 +14,7 @@ Caddy runs as a local reverse proxy on port 443 with locally-trusted TLS certifi
 ```
 Browser (https://dev.permish.app)
   └── Caddy (port 443, TLS termination)
-        ├── /api/*  → Express backend (port 3001)
+        ├── /api/*  → Bun + Hono server (port 3001)
         └── /*      → Vite dev server (port 5173, HMR over WSS)
 ```
 
@@ -60,13 +60,13 @@ The certificate includes your LAN IP so mobile devices on the same network can c
 ./dev.sh
 ```
 
-This single script starts the backend, frontend, and Caddy, then prints the access URLs:
+This single script starts the server, frontend, and Caddy, then prints the access URLs:
 
 | Access from       | URL                        |
 |-------------------|----------------------------|
 | Desktop browser   | https://dev.permish.app    |
 | Mobile on LAN     | https://192.168.x.x        |
-| Backend directly  | http://localhost:3001       |
+| Server directly   | http://localhost:3001       |
 
 Press `Ctrl+C` to stop all services.
 
@@ -74,10 +74,10 @@ Press `Ctrl+C` to stop all services.
 
 Run each service in its own terminal:
 
-**Terminal 1 — Backend:**
+**Terminal 1 — Server:**
 
 ```bash
-cd backend && pnpm dev
+cd server && bun run dev
 ```
 
 **Terminal 2 — Frontend:**

@@ -11,43 +11,42 @@ tags:
 
 ## Stack
 
-- Jest 30 + supertest (backend only)
-- No frontend tests yet
+- Server: `bun test` (built into Bun) — in-process, no network or ports
+- Frontend: Vitest
 
 ## File patterns
 
-- Test files: `backend/tests/{feature}.test.js`
-- Service tests: `backend/tests/services/{service}.test.js`
-- Setup: `backend/tests/setup.js`
+- Server tests: `server/test/{feature}.test.ts`
+- Schema guard: `server/test/schema.test.ts`
+- Frontend tests: `frontend/src/**/{unit}.test.ts`
 
 ## Structure
 
-Tests use in-memory SQLite and override `app.locals.db`. Rate limiters skip in test env.
+Server tests build the app in-process with an in-memory SQLite DB (`createDb(':memory:')`)
+and drive it via Hono's `app.request()`. Rate limiters skip in test env (`NODE_ENV=test`).
 
-```javascript
-const request = require('supertest');
-const app = require('../src/index');
+```typescript
+import { test, expect } from 'bun:test';
+import { createApp } from '../src/app';
+import { createDb } from '../src/db';
 
-describe('Feature', () => {
-  let db;
-  beforeAll(() => { /* setup in-memory db */ });
-  it('should do something', async () => {
-    const res = await request(app).get('/api/endpoint');
-    expect(res.status).toBe(200);
-  });
+test('GET /api/endpoint returns 200', async () => {
+  const app = createApp(createDb(':memory:'));
+  const res = await app.request('/api/endpoint');
+  expect(res.status).toBe(200);
 });
 ```
 
 ## Rules
 
-1. Use `crypto.randomUUID()` instead of `uuid` package.
+1. Use `crypto.randomUUID()` instead of the `uuid` package.
 2. Rate limiters are skipped when `NODE_ENV=test`.
-3. Run tests with `pnpm test` from `backend/`.
+3. Run server tests with `bun test` from `server/`; frontend tests with `pnpm test` from `frontend/`.
 
 ## Canonical examples
 
-- `backend/tests/auth.test.js` -- good test structure
-- `backend/tests/setup.js` -- test database setup
+- `server/test/routes.test.ts` -- good route test structure
+- `server/test/e2e.test.ts` -- end-to-end flow via `app.request()`
 
 ## Anti-patterns
 

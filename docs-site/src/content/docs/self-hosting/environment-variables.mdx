@@ -11,6 +11,8 @@ Copy the example file and edit it with your values:
 cp .env.example .env
 ```
 
+These variables configure the Bun + Hono server (see `server/src/config.ts`) plus the frontend build.
+
 ## Required
 
 | Variable     | Description                       |
@@ -18,75 +20,51 @@ cp .env.example .env
 | `JWT_SECRET` | Secret key for signing JWT tokens. Use a long, random string. |
 
 :::caution
-Always set a strong, unique `JWT_SECRET` in production. Never use the default or leave it empty.
+Always set a strong, unique `JWT_SECRET` in production. If it is left at the default value, the server refuses to start in production.
 :::
+
+## Server (Core)
+
+| Variable              | Default                    | Description                                   |
+|-----------------------|----------------------------|-----------------------------------------------|
+| `PORT`                | `3001`                     | Port the server listens on                    |
+| `JWT_SECRET`          | *(required)*               | Secret key for signing JWT tokens             |
+| `JWT_EXPIRY_SECONDS`  | `86400`                    | JWT lifetime in seconds (24 h)                |
+| `FRONTEND_URL`        | `http://localhost:3000`    | Public URL of the frontend                    |
+| `DB_PATH`             | `./data/permish.sqlite`    | Path to the SQLite database file              |
+| `PDF_DIR`             | `./pdfs`                   | Directory for generated PDFs                  |
+| `UPLOADS_DIR`         | `./uploads`                | Directory for uploaded event attachments      |
+| `CORS_ORIGINS`        | —                          | Comma-separated list of allowed CORS origins  |
 
 ## Email (Optional)
 
-Required only if you want to send form links and notifications via email.
+Required only if you want to send form links and notifications via email. SMS is delivered through carrier email gateways using these same settings.
 
-| Variable     | Default | Description                            |
-|--------------|---------|----------------------------------------|
-| `EMAIL_HOST` | —       | SMTP server hostname (e.g., `smtp.gmail.com`) |
-| `EMAIL_PORT` | `587`   | SMTP server port                       |
-| `EMAIL_USER` | —       | SMTP username                          |
-| `EMAIL_PASS` | —       | SMTP password or app-specific password |
-| `EMAIL_FROM` | —       | Sender email address                   |
+| Variable              | Default            | Description                                          |
+|-----------------------|--------------------|-----------------------------------------------------|
+| `EMAIL_PROVIDER`      | `gmail`            | Email provider (`gmail`, Resend-ready)              |
+| `SMTP_HOST`           | `smtp.gmail.com`   | SMTP server hostname                                |
+| `SMTP_PORT`           | `587`              | SMTP server port                                    |
+| `SMTP_USER`           | —                  | SMTP username                                       |
+| `SMTP_PASS`           | —                  | SMTP password or app-specific password              |
+| `RESEND_API_KEY`      | —                  | API key when using Resend instead of SMTP           |
+| `EMAIL_FROM_NAME`     | `Permish`          | Display name on outgoing email                      |
+| `EMAIL_FROM_ADDRESS`  | —                  | Sender email address                                |
 
 :::tip[Gmail]
 Use a [Gmail App Password](https://myaccount.google.com/apppasswords), not your account password. Go to Google Account > Security > App passwords.
 :::
 
-## PocketBase Mode
-
-Set these when running with `--profile pocketbase`.
-
-| Variable             | Default                   | Description                       |
-|----------------------|---------------------------|-----------------------------------|
-| `PUBLIC_BACKEND`     | `express`                 | Set to `pocketbase` to use PocketBase |
-| `PUBLIC_PB_URL`      | `http://localhost:8090`   | PocketBase URL (as seen by the browser) |
-| `PUBLIC_SIDECAR_URL` | `http://localhost:3002`   | Node sidecar URL (as seen by the browser) |
-| `PB_ADMIN_EMAIL`     | —                         | PocketBase superuser email        |
-| `PB_ADMIN_PASSWORD`  | —                         | PocketBase superuser password     |
-
-## Ports
-
-Override default port mappings for Docker services.
-
-| Variable        | Default | Description             |
-|-----------------|---------|-------------------------|
-| `BACKEND_PORT`  | `3001`  | Host port for Express backend |
-| `FRONTEND_PORT` | `3000`  | Host port for SvelteKit frontend |
-| `PB_PORT`       | `8090`  | Host port for PocketBase |
-| `SIDECAR_PORT`  | `3002`  | Host port for Node sidecar |
-
 ## Build-Time Variables
 
-These are baked into the SvelteKit build. Set them at build time or pass as Docker build args.
+This is baked into the SvelteKit build. Set it at build time or pass it as a Docker build arg.
 
-| Variable             | Default                   | Description               |
-|----------------------|---------------------------|---------------------------|
-| `PUBLIC_BACKEND`     | `express`                 | `express` or `pocketbase` |
-| `PUBLIC_API_URL`     | `http://localhost:3001`   | Express backend URL       |
-| `PUBLIC_PB_URL`      | `http://localhost:8090`   | PocketBase URL            |
-| `PUBLIC_SIDECAR_URL` | `http://localhost:3002`   | Node sidecar URL          |
+| Variable             | Default                   | Description                                             |
+|----------------------|---------------------------|---------------------------------------------------------|
+| `PUBLIC_API_URL`     | `http://localhost:3001`   | Server URL the browser calls. Falls back to the current origin, or a user-set `permish_server_url` in localStorage. |
 
 ## HTTPS / Production
 
 | Variable | Default     | Description                              |
 |----------|-------------|------------------------------------------|
 | `DOMAIN` | `localhost` | Your domain name. Setting this enables Caddy HTTPS via the `production` profile. |
-
-## Data Migration
-
-Used when migrating from Express (SQLite) to PocketBase mode. See the migration script in `scripts/`.
-
-| Variable             | Default                     | Description                            |
-|----------------------|-----------------------------|----------------------------------------|
-| `SQLITE_PATH`       | `./backend/data/permish.db` | Path to existing SQLite database       |
-| `PB_URL`            | `http://localhost:8090`     | PocketBase server URL                  |
-| `PB_ADMIN_EMAIL`    | *(required)*                | PocketBase superuser email             |
-| `PB_ADMIN_PASSWORD` | *(required)*                | PocketBase superuser password          |
-| `UPLOADS_DIR`       | `./backend/uploads`         | Directory containing uploaded files    |
-| `DRY_RUN`           | `false`                     | Preview migration without writing      |
-| `SEND_RESET_EMAILS` | `false`                     | Send password reset emails after migration |

@@ -33,9 +33,9 @@ Docker Compose file exists but lacks production hardening. Need environment conf
 
 ## Resolution (2026-04-24)
 
-- Health checks: complete — backend, pocketbase, sidecar, and frontend all have `healthcheck` blocks; backend now hits `/api/health` (TODO-011).
+- Health checks: complete — the server and frontend both have `healthcheck` blocks; the server hits `/api/health` (TODO-011).
 - HTTPS: Caddy reverse proxy with automatic certs (`Caddyfile`, `--profile production`).
-- Backups: added `scripts/backup.sh` that handles Express + PocketBase modes with retention pruning. Documented in `docs/DEPLOYMENT.md`.
+- Backups: added `scripts/backup.sh` that snapshots the server's SQLite database with retention pruning. Documented in `docs/DEPLOYMENT.md`.
 - Documentation: `docs/DEPLOYMENT.md` (482 lines) covers VPS, Tauri desktop, mobile.
 
 ## Owner agent

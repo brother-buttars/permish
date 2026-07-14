@@ -1,11 +1,11 @@
 ---
 title: Docker Compose
-description: Deploy Permish with Docker Compose in Express or PocketBase mode
+description: Deploy Permish with Docker Compose — single backend plus an optional production HTTPS profile
 ---
 
 <span class="version-badge">v0.1.0 — Last updated: April 2026</span>
 
-Permish supports two backend modes via Docker Compose profiles. Choose the one that fits your needs.
+Permish runs as a single backend service plus the SvelteKit frontend. An optional `production` profile adds Caddy for automatic HTTPS.
 
 ## Prerequisites
 
@@ -14,9 +14,9 @@ Permish supports two backend modes via Docker Compose profiles. Choose the one t
 - A domain name with DNS A record pointing to your server (for HTTPS)
 - Ports 80 and 443 open in your firewall (for HTTPS)
 
-## Express Mode (Simplest)
+## Standard Deployment
 
-The default deployment. Uses Express with SQLite for data storage.
+The default deployment. A single Bun + Hono server handles auth, CRUD, PDF generation, email, and SMS, backed by SQLite (`bun:sqlite`).
 
 ```bash
 git clone https://github.com/brother-buttars/permish.git
@@ -29,72 +29,34 @@ docker compose up -d
 
 This starts two services:
 
-| Service   | Port | Description                     |
-|-----------|------|---------------------------------|
-| `backend` | 3001 | Express API server              |
-| `frontend`| 3000 | SvelteKit app (server-rendered) |
+| Service    | Port | Description                          |
+|------------|------|--------------------------------------|
+| `server`   | 3001 | Bun + Hono API server (SQLite)       |
+| `frontend` | 3000 | SvelteKit app (server-rendered)      |
 
 Access the app at `http://your-server-ip:3000`.
 
-## PocketBase Mode
-
-Replaces the Express backend with PocketBase for data storage. A Node.js sidecar service handles PDF generation, email, and SMS.
-
-```bash
-PUBLIC_BACKEND=pocketbase docker compose --profile pocketbase up -d
-```
-
-This starts:
-
-| Service      | Port | Description                       |
-|--------------|------|-----------------------------------|
-| `pocketbase` | 8090 | PocketBase (auth, CRUD, realtime) |
-| `sidecar`    | 3002 | Node.js service (PDF, email, SMS) |
-| `frontend`   | 3000 | SvelteKit app                     |
-| `backend`    | 3001 | Express (still runs for healthchecks) |
-
-:::note
-The `backend` container still starts because the frontend depends on it for healthchecks. You can safely ignore it in PocketBase mode.
-:::
-
 ## Production HTTPS
 
-Add automatic HTTPS with Caddy. See [HTTPS & SSL](/permish/self-hosting/https-ssl/) for full details.
+Add automatic HTTPS with Caddy via the `production` profile. See [HTTPS & SSL](/permish/self-hosting/https-ssl/) for full details.
 
 ```bash
 DOMAIN=permish.app docker compose --profile production up -d
 ```
 
-## Combined: PocketBase + HTTPS
-
-```bash
-DOMAIN=permish.app PUBLIC_BACKEND=pocketbase \
-  docker compose --profile pocketbase --profile production up -d
-```
-
-## Port Configuration
-
-Override default ports via environment variables or `.env`:
-
-| Variable        | Default | Description             |
-|-----------------|---------|-------------------------|
-| `BACKEND_PORT`  | `3001`  | Host port for Express   |
-| `FRONTEND_PORT` | `3000`  | Host port for SvelteKit |
-| `PB_PORT`       | `8090`  | Host port for PocketBase|
-| `SIDECAR_PORT`  | `3002`  | Host port for sidecar   |
+This adds the `caddy` service (ports 80/443), which terminates TLS and proxies `/api/*` to `server` and everything else to `frontend`.
 
 ## Docker Volumes
 
 All persistent data lives in Docker volumes, which survive container rebuilds:
 
-| Volume            | Contents                       | Mode    |
-|-------------------|--------------------------------|---------|
-| `db-data`         | SQLite database (`permish.db`) | Express |
-| `pdf-storage`     | Generated PDF files            | Both    |
-| `uploads-storage` | Uploaded event attachments     | Express |
-| `pb-data`         | PocketBase database and files  | PB      |
-| `caddy_data`      | TLS certificates               | HTTPS   |
-| `caddy_config`    | Caddy configuration state      | HTTPS   |
+| Volume            | Contents                          | Container path |
+|-------------------|-----------------------------------|----------------|
+| `db-data`         | SQLite database (`permish.sqlite`)| `/app/data`    |
+| `pdf-storage`     | Generated PDF files               | `/app/pdfs`    |
+| `uploads-storage` | Uploaded event attachments        | `/app/uploads` |
+| `caddy_data`      | TLS certificates (production)     | —              |
+| `caddy_config`    | Caddy configuration state (production) | —         |
 
 ## Next Steps
 

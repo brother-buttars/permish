@@ -11,14 +11,17 @@ tags:
 
 ## Overview
 
-SQLite database via better-sqlite3 with raw SQL queries. Schema defined in `schema.js` with a migration function for adding columns to existing tables.
+SQLite via `bun:sqlite` (built into Bun) with raw SQL queries — no ORM. The data model
+is defined **once** in `shared/schema.ts` and DDL is generated from it with `bun run gen:schema`.
 
 ## Key files
 
 | File | Purpose |
 |------|---------|
-| `backend/src/db/schema.js` | Table creation and column migrations |
-| `backend/src/db/connection.js` | Database connection setup |
+| `shared/schema.ts` | Single source of truth for the data model (all targets) |
+| `server/src/schema.generated.ts` | Generated server DDL (`bun:sqlite`) — never edit by hand |
+| `server/src/db.ts` | Opens the `bun:sqlite` DB, applies the schema, bootstraps the super-admin |
+| `server/test/schema.test.ts` | Guard test — fails if generated files drift from `shared/schema.ts` |
 
 ## Dependencies
 

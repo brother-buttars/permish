@@ -137,31 +137,33 @@ Imports: `import { useDeleteConfirm, usePdfPreview, useAttachmentPreview, useAut
 | toast / toastSuccess / toastError | frontend/src/lib/stores/toast.ts | Toast helper functions |
 | theme / setTheme | frontend/src/lib/stores/theme.ts | Theme management |
 
-## API client
+## Data access (frontend)
 
 | Export | Path | Description |
 |--------|------|-------------|
-| api | frontend/src/lib/api.ts | Fetch wrapper for backend API |
+| getRepository / initRepository | frontend/src/lib/data/index.ts | Provider factory; selects adapter by data mode |
+| createHttpRepository | frontend/src/lib/data/adapters/http.ts | REST client for the Bun server (online mode) |
+| createLocalRepository | frontend/src/lib/data/adapters/local.ts | Offline sql.js adapter (local mode) |
 
-## Backend middleware
+## Server lib (auth, validation, rate limiting)
 
 | Function | Path | Description |
 |----------|------|-------------|
-| extractUser | backend/src/middleware/auth.js | Extract JWT user from cookie |
-| requireAuth | backend/src/middleware/auth.js | Require authenticated user |
-| requirePlanner | backend/src/middleware/auth.js | Require planner role |
-| setAuthCookie | backend/src/middleware/auth.js | Set JWT cookie on response |
-| validateRegistration | backend/src/middleware/validate.js | Registration input validation |
-| validateLogin | backend/src/middleware/validate.js | Login input validation |
-| registerLimiter / loginLimiter / submitLimiter / formLoadLimiter | backend/src/middleware/rateLimiter.js | Rate limiters |
+| authMiddleware | server/src/lib/auth.ts | Populate `c.get('user')` from the JWT cookie on every request |
+| requireAuth | server/src/lib/auth.ts | Require an authenticated user |
+| currentUser | server/src/lib/auth.ts | Read the authed user off the context |
+| setAuthCookie / clearAuthCookie | server/src/lib/auth.ts | Set/clear the JWT cookie on the response |
+| validateEmail / validatePhone / validateDate / sanitizeString | server/src/lib/validate.ts | Input validation + sanitization |
+| rateLimit | server/src/lib/rateLimit.ts | In-memory fixed-window limiter factory |
+| registerLimiter / loginLimiter / submitLimiter / formLoadLimiter | server/src/lib/rateLimit.ts | Configured rate limiters |
 
-## Backend services
+## Server services
 
 | Service | Path | Description |
 |---------|------|-------------|
-| createTransport / sendNotification | backend/src/services/email.js | Email sending via Nodemailer |
-| sms | backend/src/services/sms.js | SMS via carrier email gateways |
-| pdf | backend/src/services/pdf.js | PDF generation via pdf-lib |
+| createTransport / sendNotification / sendGroupInvite / sendRemovalNotice | server/src/services/email.ts | Email sending via Nodemailer |
+| buildSmsEmail / sendSmsNotification / CARRIER_GATEWAYS | server/src/services/sms.ts | SMS via carrier email gateways |
+| generatePdf | server/src/services/pdf.ts | PDF generation via pdf-lib |
 
 ## Types
 

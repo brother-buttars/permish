@@ -44,10 +44,10 @@ See [[conventions/ui#atomic-layering]] for the layering rules.
 
 ## Backend / API
 
-- Do NOT change route mounting order in `index.js` -- form routes must come before events routes
+- Do NOT change route mounting order in `server/src/app.ts` -- public form routes must come before the authed events routes
 - Do NOT use `uuid` package -- use `crypto.randomUUID()`
-- Do NOT use field names that differ from the SQLite schema in `backend/src/db/schema.js`
-- Do NOT forget to add migration checks when adding columns to existing tables
+- Do NOT use field names that differ from the schema in `shared/schema.ts`
+- Do NOT edit the `*.generated.ts` schema files by hand -- change `shared/schema.ts` and run `bun run gen:schema`
 
 ## Database
 

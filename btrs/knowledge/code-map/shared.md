@@ -26,7 +26,8 @@ Cross-cutting utilities, stores, and configuration used by both frontend compone
 | `frontend/src/lib/stores/auth.ts` | Auth state and actions |
 | `frontend/src/lib/stores/toast.ts` | Toast notification system |
 | `frontend/src/lib/stores/theme.ts` | Theme management |
-| `backend/src/config.js` | Environment variable loading |
+| `server/src/config.ts` | Environment variable loading |
+| `shared/schema.ts` | Single-source data model (run `bun run gen:schema`) |
 
 ## Dependencies
 
