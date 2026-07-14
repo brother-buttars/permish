@@ -27,7 +27,7 @@ async function queueChange(
   syncManager: SyncManager,
   collection: string,
   recordId: string,
-  operation: 'create' | 'update' | 'delete',
+  operation: 'create' | 'update' | 'delete' | 'delete-permanent' | 'reassign',
   payload: Record<string, unknown> = {}
 ): Promise<void> {
   await db.execute(
@@ -76,6 +76,17 @@ export function createHybridRepository(
     async deactivate(id) {
       await local.events.deactivate(id);
       await queueChange(db, syncManager, 'events', id, 'delete');
+    },
+
+    async remove(id) {
+      await local.events.remove(id);
+      await queueChange(db, syncManager, 'events', id, 'delete-permanent');
+    },
+
+    async reassignOwner(id, userId) {
+      const result = await local.events.reassignOwner(id, userId);
+      await queueChange(db, syncManager, 'events', id, 'reassign', { userId });
+      return result;
     }
   };
 

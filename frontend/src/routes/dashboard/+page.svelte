@@ -33,7 +33,9 @@
 				repo.submissions.getMine(),
 			]);
 			if (isPlanner) await loadPlannerEvents();
-			else upcomingForMe = await repo.events.listForMe().catch(() => []);
+			// Load the member's group activities for everyone — super users can also
+			// belong to groups and view them under the Parent tab.
+			upcomingForMe = await repo.events.listForMe().catch(() => []);
 		},
 	});
 

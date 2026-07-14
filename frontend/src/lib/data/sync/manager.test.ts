@@ -35,6 +35,8 @@ function createMockRemote(): DataRepository {
       getById: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
       deactivate: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      reassignOwner: vi.fn().mockResolvedValue({}),
       getSubmissions: vi.fn().mockResolvedValue([]),
       getAllSubmissions: vi.fn().mockResolvedValue([])
     },

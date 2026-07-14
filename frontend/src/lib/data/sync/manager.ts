@@ -150,6 +150,8 @@ export class SyncManager {
         if (operation === 'create') await this.remote.events.create(payload);
         else if (operation === 'update') await this.remote.events.update(recordId, payload);
         else if (operation === 'delete') await this.remote.events.deactivate(recordId);
+        else if (operation === 'delete-permanent') await this.remote.events.remove(recordId);
+        else if (operation === 'reassign') await this.remote.events.reassignOwner(recordId, payload.userId as string);
         break;
 
       case 'child_profiles':

@@ -154,6 +154,117 @@ describe('groups + invites', () => {
   });
 });
 
+async function makeEvent(owner: ReturnType<typeof jar>, extra: Record<string, unknown> = {}) {
+  const res = await owner.req('/api/events', {
+    method: 'POST',
+    body: JSON.stringify({
+      event_name: 'Camp', event_dates: '1 June 2026', event_description: 'x',
+      ward: 'W', stake: 'S', leader_name: 'L', leader_phone: '801-555-0000', leader_email: 'l@test.app',
+      ...extra,
+    }),
+  });
+  return (await res.json()).event;
+}
+
+describe('event permanent delete', () => {
+  it('permanently deletes an event with no submissions', async () => {
+    const owner = await registerPlanner('perm-del@test.app');
+    const event = await makeEvent(owner);
+    const del = await owner.req(`/api/events/${event.id}/permanent`, { method: 'DELETE' });
+    expect(del.status).toBe(200);
+    // Gone entirely — not even visible with all=1.
+    const all = await owner.req('/api/events?all=1');
+    expect((await all.json()).events.find((e: any) => e.id === event.id)).toBeUndefined();
+    expect((await owner.req(`/api/events/${event.id}`)).status).toBe(404);
+  });
+
+  it('refuses to delete an event that has submissions', async () => {
+    const owner = await registerPlanner('perm-block@test.app');
+    const event = await makeEvent(owner);
+    const submit = await app.request(`/api/events/${event.id}/submit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participant_name: 'Kid', participant_dob: '2015-01-01', participant_signature_type: 'hand', participant_signature_date: '2026-06-01' }),
+    });
+    expect(submit.status).toBe(201);
+    const del = await owner.req(`/api/events/${event.id}/permanent`, { method: 'DELETE' });
+    expect(del.status).toBe(400);
+    expect((await del.json()).error).toContain('submission');
+    // Still present.
+    expect((await owner.req(`/api/events/${event.id}`)).status).toBe(200);
+  });
+
+  it('rejects permanent delete by an unrelated user', async () => {
+    const owner = await registerPlanner('perm-owner@test.app');
+    const event = await makeEvent(owner);
+    const stranger = await registerPlanner('perm-stranger@test.app');
+    expect((await stranger.req(`/api/events/${event.id}/permanent`, { method: 'DELETE' })).status).toBe(404);
+  });
+});
+
+describe('stake activities + group editing', () => {
+  it('creates an activity with no ward (stake-level)', async () => {
+    const owner = await registerPlanner('stake-activity@test.app');
+    const res = await owner.req('/api/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        event_name: 'Stake Dance', event_dates: '1 July 2026', event_description: 'x',
+        stake: 'Provo Stake', leader_name: 'L', leader_phone: '801-555-0000', leader_email: 'l@test.app',
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { event } = await res.json();
+    expect(event.ward).toBeFalsy();
+    expect(event.stake).toBe('Provo Stake');
+  });
+
+  it('moves an activity into a group the user belongs to via PUT', async () => {
+    const superJar = await loginSuper();
+    const { group } = await (await superJar.req('/api/groups', { method: 'POST', body: JSON.stringify({ name: 'Move Stake', type: 'stake' }) })).json();
+    const event = await makeEvent(superJar);
+    const res = await superJar.req(`/api/events/${event.id}`, { method: 'PUT', body: JSON.stringify({ group_id: group.id }) });
+    expect(res.status).toBe(200);
+    expect((await res.json()).event.group_id).toBe(group.id);
+  });
+
+  it('rejects moving an activity into a group the user is not a member of', async () => {
+    const superJar = await loginSuper();
+    const { group } = await (await superJar.req('/api/groups', { method: 'POST', body: JSON.stringify({ name: 'Foreign Stake', type: 'stake' }) })).json();
+    const outsider = await registerPlanner('group-move-outsider@test.app');
+    const event = await makeEvent(outsider);
+    const res = await outsider.req(`/api/events/${event.id}`, { method: 'PUT', body: JSON.stringify({ group_id: group.id }) });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('event ownership reassignment', () => {
+  it('reassigns a grouped event to a fellow group member', async () => {
+    const superJar = await loginSuper();
+    const { group } = await (await superJar.req('/api/groups', { method: 'POST', body: JSON.stringify({ name: 'Reassign Stake', type: 'stake' }) })).json();
+    const invite = (await (await superJar.req(`/api/groups/${group.id}/invites`, { method: 'POST', body: JSON.stringify({ role: 'member' }) })).json()).invite;
+    const member = await registerPlanner('reassign-member@test.app');
+    await member.req(`/api/invites/${invite.token}/accept`, { method: 'POST' });
+    const memberMe = await (await member.req('/api/auth/me')).json();
+
+    const event = await makeEvent(superJar, { group_id: group.id });
+    const res = await superJar.req(`/api/events/${event.id}/owner`, { method: 'PUT', body: JSON.stringify({ userId: memberMe.user.id }) });
+    expect(res.status).toBe(200);
+    expect((await res.json()).event.created_by).toBe(memberMe.user.id);
+    // The new owner can now see it as theirs.
+    expect((await member.req(`/api/events/${event.id}`)).status).toBe(200);
+  });
+
+  it('refuses to reassign a grouped event to a non-member', async () => {
+    const superJar = await loginSuper();
+    const { group } = await (await superJar.req('/api/groups', { method: 'POST', body: JSON.stringify({ name: 'Closed Stake', type: 'stake' }) })).json();
+    const outsider = await registerPlanner('reassign-outsider@test.app');
+    const outsiderMe = await (await outsider.req('/api/auth/me')).json();
+    const event = await makeEvent(superJar, { group_id: group.id });
+    const res = await superJar.req(`/api/events/${event.id}/owner`, { method: 'PUT', body: JSON.stringify({ userId: outsiderMe.user.id }) });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('member');
+  });
+});
+
 describe('admin (super only)', () => {
   it('rejects non-super and serves stats to super', async () => {
     const normal = await registerPlanner('normal@test.app');

@@ -13,12 +13,12 @@
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import { formatEventDates } from "$lib/utils/formatDate";
 	import AlertBox from "$lib/components/AlertBox.svelte";
-	import { PageContainer } from "$lib/components/molecules";
+	import { PageContainer, GroupCombobox } from "$lib/components/molecules";
 
 	import type { Group } from '$lib/data/types';
 
-	// Groups
-	let adminGroups: Group[] = $state([]);
+	// Groups — any group the user belongs to (member or admin) can host an activity.
+	let myGroups: Group[] = $state([]);
 	let selectedGroupId = $state('');
 
 	// Organizations
@@ -56,22 +56,20 @@
 
 	const auth = useAuthRequired({
 		onReady: async () => {
-			// Load groups where user is admin
+			// Load every group the user belongs to (member or admin) — any of them
+			// can host an activity, and only grouped activities show up for members.
 			try {
 				const repo = getRepository();
-				const allGroups = await repo.groups.list();
-				adminGroups = allGroups.filter(g => g.member_role === 'admin');
+				myGroups = await repo.groups.list();
 			} catch {
 				// Non-critical — groups are optional
 			}
 		},
 	});
 
-	function onGroupSelected() {
-		if (!selectedGroupId) return;
-		const group = adminGroups.find(g => g.id === selectedGroupId);
-		if (!group) return;
-		if (group.ward) ward = group.ward;
+	function applyGroupDefaults(group: Group) {
+		// Stake-level groups have no ward — clear any inherited ward.
+		ward = group.type === 'stake' ? '' : (group.ward || ward);
 		if (group.stake) stake = group.stake;
 		if (group.leader_name) leaderName = group.leader_name;
 		if (group.leader_phone) leaderPhone = group.leader_phone;
@@ -101,7 +99,7 @@
 			}
 		}
 		if (!description.trim()) newErrors.description = "Description is required";
-		if (!ward.trim()) newErrors.ward = "Ward is required";
+		// Ward is optional — stake-level activities have no specific ward.
 		if (!stake.trim()) newErrors.stake = "Stake is required";
 		if (!leaderName.trim()) newErrors.leaderName = "Leader name is required";
 		if (!leaderPhone.trim()) newErrors.leaderPhone = "Leader phone is required";
@@ -217,25 +215,26 @@
 
 		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
 			<!-- Group Selection -->
-			{#if adminGroups.length > 0}
+			{#if myGroups.length > 0}
 				<Card>
 					<CardHeader>
 						<CardTitle>Group</CardTitle>
 					</CardHeader>
 					<CardContent class="space-y-2">
-						<Label for="groupSelect">Associate with a group</Label>
-						<select
-							id="groupSelect"
-							bind:value={selectedGroupId}
-							onchange={onGroupSelected}
-							class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-						>
-							<option value="">No group</option>
-							{#each adminGroups as group}
-								<option value={group.id}>{group.name}{group.ward ? ` (${group.ward})` : ''}</option>
-							{/each}
-						</select>
-						<p class="text-xs text-muted-foreground">Selecting a group will auto-fill ward, stake, and leader info.</p>
+						<Label for="groupCombo">Associate with a group</Label>
+						<GroupCombobox
+							id="groupCombo"
+							groups={myGroups}
+							bind:selectedGroupId
+							onSelect={applyGroupDefaults}
+						/>
+						{#if selectedGroupId}
+							<p class="text-xs text-muted-foreground">
+								Shared with this group. <button type="button" class="text-primary underline hover:no-underline" onclick={() => (selectedGroupId = '')}>Remove</button> to keep it private.
+							</p>
+						{:else}
+							<p class="text-xs text-muted-foreground">Pick a group to share this activity with its members and auto-fill ward, stake, and leader info. Leave blank to keep it visible only to you.</p>
+						{/if}
 					</CardContent>
 				</Card>
 			{:else}
@@ -307,7 +306,7 @@
 
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div class="space-y-2">
-							<Label for="ward">Ward *</Label>
+							<Label for="ward">Ward</Label>
 							<Input id="ward" bind:value={ward} placeholder="Ward name" />
 							{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
 						</div>

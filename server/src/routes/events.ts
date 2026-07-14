@@ -5,6 +5,7 @@ import type { DB } from '../db.ts';
 import { type AppEnv, requireAuth, currentUser } from '../lib/auth.ts';
 import { sanitizeString, validateEmail, validatePhone } from '../lib/validate.ts';
 import { collectGroupAndDescendantIds } from '../services/audit.ts';
+import * as audit from '../services/audit.ts';
 import { config } from '../config.ts';
 
 type Row = Record<string, any>;
@@ -65,7 +66,8 @@ export function createEventRoutes(db: DB) {
       organizations, additional_details, group_id,
     } = b;
 
-    if (!event_name || !event_dates || !event_description || !ward || !stake || !leader_name || !leader_phone || !leader_email) {
+    // Ward is optional — stake-level activities have no specific ward.
+    if (!event_name || !event_dates || !event_description || !stake || !leader_name || !leader_phone || !leader_email) {
       return c.json({ error: 'All event detail fields are required' }, 400);
     }
     if (!validateEmail(leader_email)) return c.json({ error: 'Invalid leader email address' }, 400);
@@ -73,14 +75,8 @@ export function createEventRoutes(db: DB) {
     if (notify_phone && !validatePhone(notify_phone)) return c.json({ error: 'Invalid notification phone number' }, 400);
 
     if (group_id) {
-      const group = db.query<{ id: string }, [string]>('SELECT id FROM groups WHERE id = ?').get(group_id);
-      if (!group) return c.json({ error: 'Group not found' }, 400);
-      const membership = db
-        .query<{ role: string }, [string, string]>('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?')
-        .get(group_id, me.id);
-      if (!membership && me.role !== 'super') {
-        return c.json({ error: 'Must be a member of the group to create events for it' }, 403);
-      }
+      const err = groupMembershipError(me, group_id);
+      if (err) return c.json({ error: err.message }, err.status);
     }
 
     const id = crypto.randomUUID();
@@ -93,7 +89,7 @@ export function createEventRoutes(db: DB) {
       sanitizeString(event_dates) as string,
       event_start || null, event_end || null,
       sanitizeString(event_description, 1000) as string,
-      sanitizeString(ward) as string,
+      sanitizeString(ward || '') as string,
       sanitizeString(stake) as string,
       sanitizeString(leader_name) as string,
       sanitizeString(leader_phone) as string,
@@ -192,6 +188,24 @@ export function createEventRoutes(db: DB) {
     return c.json({ submissions });
   });
 
+  // Validate that `me` may attach events to `groupId`: the group must exist and
+  // the user must belong to it (super users may use any group). Returns an error
+  // descriptor, or null when allowed.
+  function groupMembershipError(
+    me: { id: string; role: string },
+    groupId: string
+  ): { message: string; status: 400 | 403 } | null {
+    const group = db.query<{ id: string }, [string]>('SELECT id FROM groups WHERE id = ?').get(groupId);
+    if (!group) return { message: 'Group not found', status: 400 };
+    const membership = db
+      .query<{ role: string }, [string, string]>('SELECT role FROM group_members WHERE group_id = ? AND user_id = ?')
+      .get(groupId, me.id);
+    if (!membership && me.role !== 'super') {
+      return { message: 'Must be a member of the group to attach events to it', status: 403 };
+    }
+    return null;
+  }
+
   // Resolve an event the current user may access (owner, super, or group member).
   function accessibleEvent(c: Parameters<typeof currentUser>[0], eventId: string, adminOnly = false): Row | null {
     const me = currentUser(c);
@@ -223,11 +237,12 @@ export function createEventRoutes(db: DB) {
     const event = accessibleEvent(c, id, true);
     if (!event) return c.json({ error: 'Event not found' }, 404);
 
+    const me = currentUser(c);
     const b = await c.req.json().catch(() => ({}));
     const {
       event_name, event_dates, event_start, event_end, event_description, ward, stake,
       leader_name, leader_phone, leader_email, notify_email, notify_phone, notify_carrier,
-      is_active, organizations, additional_details,
+      is_active, organizations, additional_details, group_id,
     } = b;
     const val = <T>(field: T | undefined, fallback: T): T => (field !== undefined ? field : fallback);
 
@@ -235,15 +250,22 @@ export function createEventRoutes(db: DB) {
     if (notify_email !== undefined && notify_email && !validateEmail(notify_email)) return c.json({ error: 'Invalid notification email address' }, 400);
     if (notify_phone !== undefined && notify_phone && !validatePhone(notify_phone)) return c.json({ error: 'Invalid notification phone number' }, 400);
 
+    // Allow moving the activity to another group (or detaching it with null/'').
+    if (group_id !== undefined && group_id) {
+      const err = groupMembershipError(me, group_id);
+      if (err) return c.json({ error: err.message }, err.status);
+    }
+    const nextGroupId = group_id !== undefined ? (group_id || null) : (event.group_id as string | null);
+
     db.query(
-      `UPDATE events SET event_name = ?, event_dates = ?, event_start = ?, event_end = ?, event_description = ?, ward = ?, stake = ?, leader_name = ?, leader_phone = ?, leader_email = ?, notify_email = ?, notify_phone = ?, notify_carrier = ?, is_active = ?, organizations = ?, additional_details = ? WHERE id = ?`
+      `UPDATE events SET event_name = ?, event_dates = ?, event_start = ?, event_end = ?, event_description = ?, ward = ?, stake = ?, leader_name = ?, leader_phone = ?, leader_email = ?, notify_email = ?, notify_phone = ?, notify_carrier = ?, is_active = ?, organizations = ?, additional_details = ?, group_id = ? WHERE id = ?`
     ).run(
       sanitizeString(val(event_name, event.event_name)) as string,
       sanitizeString(val(event_dates, event.event_dates)) as string,
       event_start !== undefined ? event_start || null : (event.event_start as string | null),
       event_end !== undefined ? event_end || null : (event.event_end as string | null),
       sanitizeString(val(event_description, event.event_description), 1000) as string,
-      sanitizeString(val(ward, event.ward)) as string,
+      sanitizeString(val(ward, event.ward) || '') as string,
       sanitizeString(val(stake, event.stake)) as string,
       sanitizeString(val(leader_name, event.leader_name)) as string,
       sanitizeString(val(leader_phone, event.leader_phone)) as string,
@@ -254,6 +276,7 @@ export function createEventRoutes(db: DB) {
       is_active !== undefined ? (is_active ? 1 : 0) : (event.is_active as number),
       JSON.stringify(organizations || (event.organizations ? JSON.parse(event.organizations as string) : [])),
       additional_details !== undefined ? (additional_details ? (sanitizeString(additional_details, 5000) as string) : null) : (event.additional_details as string | null),
+      nextGroupId,
       id
     );
     const updated = db.query('SELECT * FROM events WHERE id = ?').get(id);
@@ -266,6 +289,71 @@ export function createEventRoutes(db: DB) {
     if (!event) return c.json({ error: 'Event not found' }, 404);
     db.query('UPDATE events SET is_active = 0 WHERE id = ?').run(id);
     return c.json({ message: 'Event deactivated' });
+  });
+
+  // Permanently remove an event. Refused while it still has submissions —
+  // deactivate instead so submitted forms are never silently destroyed.
+  app.delete('/:id/permanent', (c) => {
+    const me = currentUser(c);
+    const id = c.req.param('id');
+    const event = accessibleEvent(c, id, true);
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+
+    const submissionCount = db.query<{ count: number }, [string]>('SELECT COUNT(*) as count FROM submissions WHERE event_id = ?').get(id)!.count;
+    if (submissionCount > 0) {
+      return c.json({ error: `This activity has ${submissionCount} submission${submissionCount === 1 ? '' : 's'}. Deactivate it instead of deleting.` }, 400);
+    }
+
+    // Remove attachment files from disk, then cascade-delete the DB rows.
+    const attachments = db.query<{ filename: string }, [string]>('SELECT filename FROM event_attachments WHERE event_id = ?').all(id);
+    db.transaction(() => {
+      db.query('DELETE FROM event_attachments WHERE event_id = ?').run(id);
+      db.query('DELETE FROM events WHERE id = ?').run(id);
+    })();
+    for (const a of attachments) {
+      const path = resolve(config.uploadsDir, a.filename);
+      if (existsSync(path)) unlinkSync(path);
+    }
+
+    audit.record(db, { actorId: me.id, action: 'event.deleted', targetType: 'event', targetId: id, groupId: (event.group_id as string) ?? null, meta: { event_name: event.event_name } });
+    return c.json({ message: 'Event deleted' });
+  });
+
+  // Reassign ownership. The new owner must belong to the event's group (or an
+  // ancestor group); ungrouped events may be reassigned to any user.
+  app.put('/:id/owner', async (c) => {
+    const me = currentUser(c);
+    const id = c.req.param('id');
+    const event = accessibleEvent(c, id, true);
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+
+    const { userId } = await c.req.json().catch(() => ({} as { userId?: string }));
+    if (!userId || typeof userId !== 'string') return c.json({ error: 'A new owner (userId) is required' }, 400);
+    const newOwner = db.query<{ id: string; name: string | null }, [string]>('SELECT id, name FROM users WHERE id = ?').get(userId);
+    if (!newOwner) return c.json({ error: 'User not found' }, 404);
+
+    if (event.group_id) {
+      // Walk from the event's group up through its ancestors; the new owner
+      // must be a member of one of them.
+      const allowed: string[] = [];
+      let cursor: string | null = event.group_id as string;
+      const seen = new Set<string>();
+      while (cursor && !seen.has(cursor)) {
+        seen.add(cursor);
+        allowed.push(cursor);
+        const row = db.query<{ parent_id: string | null }, [string]>('SELECT parent_id FROM groups WHERE id = ?').get(cursor);
+        cursor = row?.parent_id ?? null;
+      }
+      const member = db
+        .query(`SELECT 1 FROM group_members WHERE user_id = ? AND group_id IN (${allowed.map(() => '?').join(',')})`)
+        .get(userId, ...allowed);
+      if (!member) return c.json({ error: 'The new owner must be a member of this activity’s group' }, 400);
+    }
+
+    db.query('UPDATE events SET created_by = ? WHERE id = ?').run(userId, id);
+    audit.record(db, { actorId: me.id, action: 'event.reassigned', targetType: 'event', targetId: id, groupId: (event.group_id as string) ?? null, meta: { event_name: event.event_name, newOwnerId: userId } });
+    const updated = db.query('SELECT * FROM events WHERE id = ?').get(id);
+    return c.json({ event: updated });
   });
 
   app.get('/:id/submissions', (c) => {
