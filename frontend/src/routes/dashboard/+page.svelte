@@ -4,16 +4,16 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import { formatDate } from "$lib/utils/formatDate";
-	import { getYouthClass, profileMatchesEventOrgs, type YouthProgram } from "$lib/utils/youthClass";
-	import YouthIcon from "$lib/components/YouthIcon.svelte";
+	import { profileMatchesEventOrgs, type YouthProgram } from "$lib/utils/youthClass";
 	import PdfModal from "$lib/components/PdfModal.svelte";
 	import { isPastEvent, parseOrgs } from "$lib/utils/events";
 	import { getOrgDisplayLabels } from "$lib/utils/organizations";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import EmptyState from "$lib/components/EmptyState.svelte";
-	import { PageHeader, PageContainer, SegmentedTabs, ListCard, EventStatusBadges } from "$lib/components/molecules";
-	import { YouthClassBadge, OrgBadge } from "$lib/components/atoms";
+	import { PageHeader, PageContainer, SegmentedTabs, ListCard, EventStatusBadges, AdminFilterBar } from "$lib/components/molecules";
+	import { OrgBadge } from "$lib/components/atoms";
 	import { usePdfPreview, useAuthRequired } from "$lib/components/composables";
+	import { adminFilter } from "$lib/stores/adminFilter";
 
 	let events: any[] = $state([]);
 	let upcomingForMe: any[] = $state([]);
@@ -28,19 +28,28 @@
 			view = isPlanner ? 'planner' : 'parent';
 
 			const repo = getRepository();
-			const promises: Promise<any>[] = [
+			[profiles, submissions] = await Promise.all([
 				repo.profiles.list(),
 				repo.submissions.getMine(),
-			];
-			if (isPlanner) promises.push(repo.events.list());
-			else promises.push(repo.events.listForMe().catch(() => []));
-
-			const results = await Promise.all(promises);
-			profiles = results[0];
-			submissions = results[1];
-			if (isPlanner && results[2]) events = results[2];
-			else if (!isPlanner && results[2]) upcomingForMe = results[2];
+			]);
+			if (isPlanner) await loadPlannerEvents();
+			else upcomingForMe = await repo.events.listForMe().catch(() => []);
 		},
+	});
+
+	// The single overview: super users get the group/activity scope filter here,
+	// driving the stats + recent list from the (optionally scoped) activity set.
+	async function loadPlannerEvents() {
+		events = await getRepository().admin.listActivities({
+			groupId: $adminFilter.groupId,
+			activityId: $adminFilter.activityId,
+		});
+	}
+
+	$effect(() => {
+		void $adminFilter.groupId;
+		void $adminFilter.activityId;
+		if (auth.ready && auth.user?.role === 'super') loadPlannerEvents();
 	});
 
 	// For each upcoming event, compute the list of profiles that qualify so we
@@ -91,6 +100,8 @@
 
 		<!-- ═══════ Activity Manager View ═══════ -->
 		{#if view === 'planner' && auth.user?.role === 'super'}
+			<AdminFilterBar />
+
 			<!-- Summary stats -->
 			<div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
 				<Card>
@@ -207,46 +218,6 @@
 										</p>
 									{/if}
 								</button>
-							{/each}
-						</div>
-					{/if}
-				</CardContent>
-			</Card>
-
-			<Card class="mb-6">
-				<CardHeader class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-					<CardTitle class="text-xl">Youth Profiles</CardTitle>
-					<Button variant="outline" onclick={() => goto("/profiles")}>Manage Profiles</Button>
-				</CardHeader>
-				<CardContent>
-					{#if profiles.length === 0}
-						<div class="py-4 text-center">
-							<p class="text-muted-foreground">No youth profiles yet.</p>
-							<Button variant="link" onclick={() => goto("/profiles")}>Add a youth profile</Button>
-						</div>
-					{:else}
-						<div class="grid gap-3">
-							{#each profiles as profile}
-								<div class="flex items-center justify-between rounded-lg border p-4">
-									<div class="flex items-center gap-3">
-										<YouthIcon program={profile.youth_program} />
-										<div>
-											<div class="flex items-center gap-2">
-												<p class="font-medium">{profile.participant_name}</p>
-												{#if profile.youth_program && profile.participant_dob}
-													{@const yc = getYouthClass(profile.participant_dob, profile.youth_program as YouthProgram)}
-													{#if yc}
-														<YouthClassBadge label={yc.label} program={yc.program} />
-													{/if}
-												{/if}
-											</div>
-											{#if profile.participant_dob}
-												<p class="text-sm text-muted-foreground">DOB: {formatDate(profile.participant_dob)}</p>
-											{/if}
-										</div>
-									</div>
-									<Button variant="outline" size="sm" onclick={() => goto(`/profiles?edit=${profile.id}`)}>Edit</Button>
-								</div>
 							{/each}
 						</div>
 					{/if}

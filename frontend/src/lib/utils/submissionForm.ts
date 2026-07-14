@@ -35,6 +35,20 @@ export interface SubmissionFormFields {
 	guardianSigDate: string;
 }
 
+/** A blank set of form fields. Signatures default to "hand" (the no-op default). */
+export function emptyFields(): SubmissionFormFields {
+	return {
+		participantName: '', dateOfBirth: '', phone: '', address: '', city: '', stateProvince: '',
+		emergencyContact: '', primaryPhone: '', secondaryPhone: '',
+		hasSpecialDiet: false, specialDietDetails: '', hasAllergies: false, allergyDetails: '',
+		medications: '', canSelfAdminister: false,
+		hasChronicIllness: false, chronicIllnessDetails: '', hadRecentSurgery: false, recentSurgeryDetails: '',
+		activityLimitations: '', otherAccommodations: '',
+		participantSigValue: 'hand', participantSigType: 'hand', participantSigDate: '',
+		guardianSigValue: 'hand', guardianSigType: 'hand', guardianSigDate: '',
+	};
+}
+
 /** Age in whole years for a YYYY-MM-DD date of birth, or null if unparseable/future. */
 export function computeAge(dob: string): number | null {
 	if (!dob) return null;

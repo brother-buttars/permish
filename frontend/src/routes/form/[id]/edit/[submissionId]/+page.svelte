@@ -3,9 +3,6 @@
 	import { goto } from "$app/navigation";
 	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
-	import { Input } from "$lib/components/ui/input";
-	import { Label } from "$lib/components/ui/label";
-	import { Textarea } from "$lib/components/ui/textarea";
 	import {
 		Card,
 		CardHeader,
@@ -13,13 +10,11 @@
 		CardDescription,
 		CardContent,
 	} from "$lib/components/ui/card";
-	import { Separator } from "$lib/components/ui/separator";
-	import SignaturePad from "$lib/components/SignaturePad.svelte";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import AlertBox from "$lib/components/AlertBox.svelte";
-	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
+	import PermissionFormFields from "$lib/components/PermissionFormFields.svelte";
 	import { PageContainer } from "$lib/components/molecules";
-	import { validateSubmissionForm, buildSubmissionPayload, computeAgeLabel, type SubmissionFormFields } from "$lib/utils/submissionForm";
+	import { validateSubmissionForm, buildSubmissionPayload, emptyFields, type SubmissionFormFields, type SignatureType } from "$lib/utils/submissionForm";
 
 	let { data } = $props();
 
@@ -29,105 +24,58 @@
 	let submitting = $state(false);
 	let validationErrors: string[] = $state([]);
 
-	// Form fields
-	let participantName = $state("");
-	let dateOfBirth = $state("");
-	let phone = $state("");
-	let address = $state("");
-	let city = $state("");
-	let stateProvince = $state("");
-	let emergencyContact = $state("");
-	let primaryPhone = $state("");
-	let secondaryPhone = $state("");
+	// All form fields in one object (shared component + shared helpers).
+	let fields = $state<SubmissionFormFields>(emptyFields());
 
-	// Medical
-	let hasSpecialDiet = $state(false);
-	let specialDietDetails = $state("");
-	let hasAllergies = $state(false);
-	let allergyDetails = $state("");
-	let medications = $state("");
-	let canSelfAdminister = $state(false);
-
-	// Conditions
-	let hasChronicIllness = $state(false);
-	let chronicIllnessDetails = $state("");
-	let hadRecentSurgery = $state(false);
-	let recentSurgeryDetails = $state("");
-	let activityLimitations = $state("");
-
-	// Other
-	let otherAccommodations = $state("");
-
-	// Signatures
-	let participantSigValue = $state("hand");
-	let participantSigType = $state<"drawn" | "typed" | "hand">("hand");
-	let participantSigDate = $state("");
-	let guardianSigValue = $state("hand");
-	let guardianSigType = $state<"drawn" | "typed" | "hand">("hand");
-	let guardianSigDate = $state("");
-
-	// Initial values for signature pads (from existing submission)
+	// Initial values for signature pads (from the existing submission).
 	let participantInitialValue = $state("");
-	let participantInitialType = $state<"drawn" | "typed" | "hand" | undefined>(undefined);
+	let participantInitialType = $state<SignatureType | undefined>(undefined);
 	let guardianInitialValue = $state("");
-	let guardianInitialType = $state<"drawn" | "typed" | "hand" | undefined>(undefined);
-
-	let computedAge = $derived(computeAgeLabel(dateOfBirth));
-
-	function currentFields(): SubmissionFormFields {
-		return {
-			participantName, dateOfBirth, phone, address, city, stateProvince,
-			emergencyContact, primaryPhone, secondaryPhone,
-			hasSpecialDiet, specialDietDetails, hasAllergies, allergyDetails, medications, canSelfAdminister,
-			hasChronicIllness, chronicIllnessDetails, hadRecentSurgery, recentSurgeryDetails, activityLimitations, otherAccommodations,
-			participantSigValue, participantSigType, participantSigDate,
-			guardianSigValue, guardianSigType, guardianSigDate,
-		};
-	}
+	let guardianInitialType = $state<SignatureType | undefined>(undefined);
 
 	function fillFromSubmission(sub: any) {
 		if (!sub) return;
-		participantName = sub.participant_name || "";
-		dateOfBirth = sub.participant_dob || "";
-		phone = sub.participant_phone || "";
-		address = sub.address || "";
-		city = sub.city || "";
-		stateProvince = sub.state_province || "";
-		emergencyContact = sub.emergency_contact || "";
-		primaryPhone = sub.emergency_phone_primary || "";
-		secondaryPhone = sub.emergency_phone_secondary || "";
+		fields.participantName = sub.participant_name || "";
+		fields.dateOfBirth = sub.participant_dob || "";
+		fields.phone = sub.participant_phone || "";
+		fields.address = sub.address || "";
+		fields.city = sub.city || "";
+		fields.stateProvince = sub.state_province || "";
+		fields.emergencyContact = sub.emergency_contact || "";
+		fields.primaryPhone = sub.emergency_phone_primary || "";
+		fields.secondaryPhone = sub.emergency_phone_secondary || "";
 
-		hasSpecialDiet = !!sub.special_diet;
-		specialDietDetails = sub.special_diet_details || "";
-		hasAllergies = !!sub.allergies;
-		allergyDetails = sub.allergies_details || "";
-		medications = sub.medications || "";
-		canSelfAdminister = !!sub.can_self_administer_meds;
+		fields.hasSpecialDiet = !!sub.special_diet;
+		fields.specialDietDetails = sub.special_diet_details || "";
+		fields.hasAllergies = !!sub.allergies;
+		fields.allergyDetails = sub.allergies_details || "";
+		fields.medications = sub.medications || "";
+		fields.canSelfAdminister = !!sub.can_self_administer_meds;
 
-		hasChronicIllness = !!sub.chronic_illness;
-		chronicIllnessDetails = sub.chronic_illness_details || "";
-		hadRecentSurgery = !!sub.recent_surgery;
-		recentSurgeryDetails = sub.recent_surgery_details || "";
-		activityLimitations = sub.activity_limitations || "";
+		fields.hasChronicIllness = !!sub.chronic_illness;
+		fields.chronicIllnessDetails = sub.chronic_illness_details || "";
+		fields.hadRecentSurgery = !!sub.recent_surgery;
+		fields.recentSurgeryDetails = sub.recent_surgery_details || "";
+		fields.activityLimitations = sub.activity_limitations || "";
 
-		otherAccommodations = sub.other_accommodations || "";
+		fields.otherAccommodations = sub.other_accommodations || "";
 
 		// Signatures
 		if (sub.participant_signature) {
 			participantInitialValue = sub.participant_signature;
 			participantInitialType = sub.participant_signature_type || "typed";
-			participantSigValue = sub.participant_signature;
-			participantSigType = sub.participant_signature_type || "drawn";
+			fields.participantSigValue = sub.participant_signature;
+			fields.participantSigType = sub.participant_signature_type || "drawn";
 		}
-		participantSigDate = sub.participant_signature_date || "";
+		fields.participantSigDate = sub.participant_signature_date || "";
 
 		if (sub.guardian_signature) {
 			guardianInitialValue = sub.guardian_signature;
 			guardianInitialType = sub.guardian_signature_type || "typed";
-			guardianSigValue = sub.guardian_signature;
-			guardianSigType = sub.guardian_signature_type || "drawn";
+			fields.guardianSigValue = sub.guardian_signature;
+			fields.guardianSigType = sub.guardian_signature_type || "drawn";
 		}
-		guardianSigDate = sub.guardian_signature_date || "";
+		fields.guardianSigDate = sub.guardian_signature_date || "";
 	}
 
 	const repo = getRepository();
@@ -150,7 +98,7 @@
 	});
 
 	async function handleSubmit() {
-		validationErrors = validateSubmissionForm(currentFields());
+		validationErrors = validateSubmissionForm(fields);
 		if (validationErrors.length > 0) {
 			setTimeout(() => {
 				document.getElementById('validation-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -160,7 +108,7 @@
 
 		submitting = true;
 		try {
-			await repo.submissions.update(data.submissionId, buildSubmissionPayload(currentFields()));
+			await repo.submissions.update(data.submissionId, buildSubmissionPayload(fields));
 			goto(`/event/${data.eventId}`);
 		} catch (err: any) {
 			validationErrors = [err.message || "Failed to update submission. Please try again."];
@@ -228,122 +176,13 @@
 				</div>
 			{/if}
 
-			<!-- Contact Information -->
-			<section>
-				<h2 class="mb-4 text-xl font-semibold">Contact Information</h2>
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div class="space-y-2 sm:col-span-2">
-						<Label for="participantName">Participant Name *</Label>
-						<Input id="participantName" bind:value={participantName} placeholder="Full name" required />
-					</div>
-					<div class="space-y-2">
-						<Label for="dob">Date of Birth *</Label>
-						<Input id="dob" type="date" bind:value={dateOfBirth} required />
-						{#if computedAge}
-							<p class="text-sm text-muted-foreground">{computedAge}</p>
-						{/if}
-					</div>
-					<div class="space-y-2">
-						<Label for="phone">Phone</Label>
-						<Input id="phone" type="tel" bind:value={phone} placeholder="(555) 555-5555" />
-					</div>
-					<div class="space-y-2 sm:col-span-2">
-						<Label for="address">Address</Label>
-						<Input id="address" bind:value={address} placeholder="Street address" />
-					</div>
-					<div class="space-y-2">
-						<Label for="city">City</Label>
-						<Input id="city" bind:value={city} placeholder="City" />
-					</div>
-					<div class="space-y-2">
-						<Label for="state">State/Province</Label>
-						<Input id="state" bind:value={stateProvince} placeholder="State or province" />
-					</div>
-				</div>
-
-				<Separator class="my-6" />
-
-				<h3 class="mb-3 text-lg font-medium">Emergency Contact</h3>
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div class="space-y-2 sm:col-span-2">
-						<Label for="emergencyContact">Emergency Contact Name</Label>
-						<Input id="emergencyContact" bind:value={emergencyContact} placeholder="Contact name" />
-					</div>
-					<div class="space-y-2">
-						<Label for="primaryPhone">Primary Phone</Label>
-						<Input id="primaryPhone" type="tel" bind:value={primaryPhone} placeholder="(555) 555-5555" />
-					</div>
-					<div class="space-y-2">
-						<Label for="secondaryPhone">Secondary Phone</Label>
-						<Input id="secondaryPhone" type="tel" bind:value={secondaryPhone} placeholder="(555) 555-5555" />
-					</div>
-				</div>
-			</section>
-
-			<Separator />
-
-			<MedicalInfoSection
-				bind:hasSpecialDiet
-				bind:specialDietDetails
-				bind:hasAllergies
-				bind:allergyDetails
-				bind:medications
-				bind:canSelfAdminister
-				bind:hasChronicIllness
-				bind:chronicIllnessDetails
-				bind:hadRecentSurgery
-				bind:recentSurgeryDetails
-				bind:activityLimitations
-				bind:otherAccommodations
+			<PermissionFormFields
+				bind:fields
+				{participantInitialValue}
+				{participantInitialType}
+				{guardianInitialValue}
+				{guardianInitialType}
 			/>
-
-			<Separator />
-
-			<!-- Permission Text -->
-			<section>
-				<Card class="bg-muted/30">
-					<CardContent class="py-6">
-						<p class="text-sm leading-relaxed">
-							I give permission for my child or youth to participate in the event and
-							activities listed above. I understand that reasonable safety precautions
-							will be taken during these activities and that my child or youth will be
-							under qualified supervision. I authorize the adult leaders supervising
-							this event to administer emergency treatment to the above-named
-							participant for any injuries or illnesses that may occur during the event.
-							If I cannot be reached in an emergency, I authorize the leaders to act in
-							my behalf in obtaining emergency medical treatment, including
-							hospitalization, for the participant.
-						</p>
-					</CardContent>
-				</Card>
-			</section>
-
-			<Separator />
-
-			<!-- Signatures -->
-			<section class="space-y-6">
-				<SignaturePad
-					label="Participant Signature"
-					bind:value={participantSigValue}
-					bind:type={participantSigType}
-					bind:date={participantSigDate}
-					initialValue={participantInitialValue}
-					initialType={participantInitialType}
-					allowHand
-				/>
-
-				<Separator />
-
-				<SignaturePad
-					label="Parent/Guardian Signature"
-					bind:value={guardianSigValue}
-					bind:type={guardianSigType}
-					bind:date={guardianSigDate}
-					initialValue={guardianInitialValue}
-					initialType={guardianInitialType}
-					allowHand
-				/>
-			</section>
 
 			<!-- Submit -->
 			<div class="sticky bottom-0 bg-background pb-4 pt-4">

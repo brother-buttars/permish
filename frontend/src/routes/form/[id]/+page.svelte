@@ -5,9 +5,6 @@
 	import { getRepository } from '$lib/data';
 	import { user } from "$lib/stores/auth";
 	import { Button } from "$lib/components/ui/button";
-	import { Input } from "$lib/components/ui/input";
-	import { Label } from "$lib/components/ui/label";
-	import { Textarea } from "$lib/components/ui/textarea";
 	import {
 		Card,
 		CardHeader,
@@ -16,16 +13,15 @@
 		CardContent,
 	} from "$lib/components/ui/card";
 	import { Separator } from "$lib/components/ui/separator";
-	import SignaturePad from "$lib/components/SignaturePad.svelte";
 	import ProfileSelector from "$lib/components/ProfileSelector.svelte";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import PdfViewer from "$lib/components/PdfViewer.svelte";
+	import PermissionFormFields from "$lib/components/PermissionFormFields.svelte";
 	import { linkify } from "$lib/utils/linkify";
 	import { formatFileSize } from "$lib/utils/format";
-	import { validateSubmissionForm, buildSubmissionPayload, buildProfilePayload, computeAgeLabel, type SubmissionFormFields } from "$lib/utils/submissionForm";
+	import { validateSubmissionForm, buildSubmissionPayload, buildProfilePayload, emptyFields, type SubmissionFormFields } from "$lib/utils/submissionForm";
 	import LoadingState from "$lib/components/LoadingState.svelte";
 	import AlertBox from "$lib/components/AlertBox.svelte";
-	import MedicalInfoSection from "$lib/components/MedicalInfoSection.svelte";
 	import FormProgress from "$lib/components/FormProgress.svelte";
 	import { PageContainer, Modal } from "$lib/components/molecules";
 
@@ -58,44 +54,11 @@
 		currentUser = u;
 	});
 
-	// Form fields
-	let participantName = $state("");
-	let dateOfBirth = $state("");
-	let phone = $state("");
-	let address = $state("");
-	let city = $state("");
-	let stateProvince = $state("");
-	let emergencyContact = $state("");
-	let primaryPhone = $state("");
-	let secondaryPhone = $state("");
+	// All form fields in one object — bound into the shared PermissionFormFields
+	// component and fed to the shared validate/build helpers.
+	let fields = $state<SubmissionFormFields>(emptyFields());
 
-	// Medical
-	let hasSpecialDiet = $state(false);
-	let specialDietDetails = $state("");
-	let hasAllergies = $state(false);
-	let allergyDetails = $state("");
-	let medications = $state("");
-	let canSelfAdminister = $state(false);
-
-	// Conditions
-	let hasChronicIllness = $state(false);
-	let chronicIllnessDetails = $state("");
-	let hadRecentSurgery = $state(false);
-	let recentSurgeryDetails = $state("");
-	let activityLimitations = $state("");
-
-	// Other
-	let otherAccommodations = $state("");
-
-	// Signatures
-	let participantSigValue = $state("hand");
-	let participantSigType = $state<"drawn" | "typed" | "hand">("typed");
-	let participantSigDate = $state("");
-	let guardianSigValue = $state("hand");
-	let guardianSigType = $state<"drawn" | "typed" | "hand">("typed");
-	let guardianSigDate = $state("");
-
-	// Saved guardian signature from user profile (used when switching away from "hand")
+	// Saved guardian signature from user profile (prefilled into the guardian pad).
 	let savedGuardianSig = $state("");
 	let savedGuardianSigType = $state<"drawn" | "typed" | "hand">("typed");
 
@@ -117,7 +80,7 @@
 
 	// Track form changes
 	$effect(() => {
-		if (participantName || dateOfBirth || phone || address || emergencyContact) {
+		if (fields.participantName || fields.dateOfBirth || fields.phone || fields.address || fields.emergencyContact) {
 			formDirty = true;
 		}
 	});
@@ -130,20 +93,6 @@
 			}
 		}
 	});
-
-	let computedAge = $derived(computeAgeLabel(dateOfBirth));
-
-	// Snapshot all form fields into the shared shape for validation/payload helpers.
-	function currentFields(): SubmissionFormFields {
-		return {
-			participantName, dateOfBirth, phone, address, city, stateProvince,
-			emergencyContact, primaryPhone, secondaryPhone,
-			hasSpecialDiet, specialDietDetails, hasAllergies, allergyDetails, medications, canSelfAdminister,
-			hasChronicIllness, chronicIllnessDetails, hadRecentSurgery, recentSurgeryDetails, activityLimitations, otherAccommodations,
-			participantSigValue, participantSigType, participantSigDate,
-			guardianSigValue, guardianSigType, guardianSigDate,
-		};
-	}
 
 	function isPreviewable(mimeType: string): boolean {
 		return mimeType === 'application/pdf' || mimeType?.startsWith('image/');
@@ -196,9 +145,9 @@
 						savedGuardianSig = p.guardian_signature;
 						savedGuardianSigType = p.guardian_signature_type || "typed";
 					}
-					if (!emergencyContact && p.name) emergencyContact = p.name;
-					if (!primaryPhone && p.phone) primaryPhone = p.phone;
-					if (emergencyContact || primaryPhone) showEmergency = true;
+					if (!fields.emergencyContact && p.name) fields.emergencyContact = p.name;
+					if (!fields.primaryPhone && p.phone) fields.primaryPhone = p.phone;
+					if (fields.emergencyContact || fields.primaryPhone) showEmergency = true;
 				} catch {
 					// User profile fetch is optional
 				}
@@ -214,38 +163,38 @@
 			return;
 		}
 		usedExistingProfile = true;
-		participantName = profile.participant_name || "";
-		dateOfBirth = profile.participant_dob || "";
-		phone = profile.participant_phone || "";
-		address = profile.address || "";
-		city = profile.city || "";
-		stateProvince = profile.state_province || "";
-		emergencyContact = profile.emergency_contact || "";
-		primaryPhone = profile.emergency_phone_primary || "";
-		secondaryPhone = profile.emergency_phone_secondary || "";
+		fields.participantName = profile.participant_name || "";
+		fields.dateOfBirth = profile.participant_dob || "";
+		fields.phone = profile.participant_phone || "";
+		fields.address = profile.address || "";
+		fields.city = profile.city || "";
+		fields.stateProvince = profile.state_province || "";
+		fields.emergencyContact = profile.emergency_contact || "";
+		fields.primaryPhone = profile.emergency_phone_primary || "";
+		fields.secondaryPhone = profile.emergency_phone_secondary || "";
 
-		hasSpecialDiet = !!profile.special_diet;
-		specialDietDetails = profile.special_diet_details || "";
-		hasAllergies = !!profile.allergies;
-		allergyDetails = profile.allergies_details || "";
-		medications = profile.medications || "";
-		canSelfAdminister = !!profile.can_self_administer_meds;
+		fields.hasSpecialDiet = !!profile.special_diet;
+		fields.specialDietDetails = profile.special_diet_details || "";
+		fields.hasAllergies = !!profile.allergies;
+		fields.allergyDetails = profile.allergies_details || "";
+		fields.medications = profile.medications || "";
+		fields.canSelfAdminister = !!profile.can_self_administer_meds;
 
-		hasChronicIllness = !!profile.chronic_illness;
-		chronicIllnessDetails = profile.chronic_illness_details || "";
-		hadRecentSurgery = !!profile.recent_surgery;
-		recentSurgeryDetails = profile.recent_surgery_details || "";
-		activityLimitations = profile.activity_limitations || "";
+		fields.hasChronicIllness = !!profile.chronic_illness;
+		fields.chronicIllnessDetails = profile.chronic_illness_details || "";
+		fields.hadRecentSurgery = !!profile.recent_surgery;
+		fields.recentSurgeryDetails = profile.recent_surgery_details || "";
+		fields.activityLimitations = profile.activity_limitations || "";
 
-		otherAccommodations = profile.other_accommodations || "";
+		fields.otherAccommodations = profile.other_accommodations || "";
 
 		// Reveal optional sections that now carry pre-filled data.
-		if (emergencyContact || primaryPhone || secondaryPhone) showEmergency = true;
-		if (hasSpecialDiet || hasAllergies || medications || hasChronicIllness || hadRecentSurgery || activityLimitations || otherAccommodations) showMedical = true;
+		if (fields.emergencyContact || fields.primaryPhone || fields.secondaryPhone) showEmergency = true;
+		if (fields.hasSpecialDiet || fields.hasAllergies || fields.medications || fields.hasChronicIllness || fields.hadRecentSurgery || fields.activityLimitations || fields.otherAccommodations) showMedical = true;
 	}
 
 	async function handleSubmit() {
-		validationErrors = validateSubmissionForm(currentFields());
+		validationErrors = validateSubmissionForm(fields);
 		if (validationErrors.length > 0) {
 			// Scroll to error summary so mobile users see the errors
 			setTimeout(() => {
@@ -256,7 +205,7 @@
 
 		submitting = true;
 		try {
-			const result = await repo.submissions.submit(data.eventId, buildSubmissionPayload(currentFields()));
+			const result = await repo.submissions.submit(data.eventId, buildSubmissionPayload(fields));
 			const submissionId = result.submission?.id || '';
 			formSubmitted = true;
 
@@ -277,7 +226,7 @@
 	async function saveProfileAndRedirect() {
 		saveProfileLoading = true;
 		try {
-			await repo.profiles.create(buildProfilePayload(currentFields()));
+			await repo.profiles.create(buildProfilePayload(fields));
 		} catch {
 			// Profile save is optional, don't block redirect
 		} finally {
@@ -402,137 +351,14 @@
 						</div>
 					{/if}
 
-					<!-- Contact Information -->
-					<section id="section-contact">
-						<h2 class="mb-4 text-xl font-semibold">Contact Information</h2>
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div class="space-y-2 sm:col-span-2">
-						<Label for="participantName">Participant Name *</Label>
-						<Input id="participantName" bind:value={participantName} placeholder="Full name" required />
-					</div>
-					<div class="space-y-2">
-						<Label for="dob">Date of Birth *</Label>
-						<Input id="dob" type="date" bind:value={dateOfBirth} required />
-						{#if computedAge}
-							<p class="text-sm text-muted-foreground">{computedAge}</p>
-						{/if}
-					</div>
-					<div class="space-y-2">
-						<Label for="phone">Phone</Label>
-						<Input id="phone" type="tel" bind:value={phone} placeholder="(555) 555-5555" />
-					</div>
-					<div class="space-y-2 sm:col-span-2">
-						<Label for="address">Address</Label>
-						<Input id="address" bind:value={address} placeholder="Street address" />
-					</div>
-					<div class="space-y-2">
-						<Label for="city">City</Label>
-						<Input id="city" bind:value={city} placeholder="City" />
-					</div>
-					<div class="space-y-2">
-						<Label for="state">State/Province</Label>
-						<Input id="state" bind:value={stateProvince} placeholder="State or province" />
-					</div>
-				</div>
-
-				<Separator class="my-6" />
-
-				<h3 id="section-emergency" class="mb-3 text-lg font-medium">Emergency Contact</h3>
-				{#if showEmergency}
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div class="space-y-2 sm:col-span-2">
-						<Label for="emergencyContact">Emergency Contact Name</Label>
-						<Input id="emergencyContact" bind:value={emergencyContact} placeholder="Contact name" />
-					</div>
-					<div class="space-y-2">
-						<Label for="primaryPhone">Primary Phone</Label>
-						<Input id="primaryPhone" type="tel" bind:value={primaryPhone} placeholder="(555) 555-5555" />
-					</div>
-					<div class="space-y-2">
-						<Label for="secondaryPhone">Secondary Phone</Label>
-						<Input id="secondaryPhone" type="tel" bind:value={secondaryPhone} placeholder="(555) 555-5555" />
-					</div>
-				</div>
-				{:else}
-				<button type="button" onclick={() => (showEmergency = true)} class="w-full rounded-md border border-dashed border-input py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:text-foreground">
-					+ Add an emergency contact <span class="text-xs">(optional)</span>
-				</button>
-				{/if}
-			</section>
-
-			<Separator />
-
-			<div id="section-medical">
-			{#if showMedical}
-			<MedicalInfoSection
-				bind:hasSpecialDiet
-				bind:specialDietDetails
-				bind:hasAllergies
-				bind:allergyDetails
-				bind:medications
-				bind:canSelfAdminister
-				bind:hasChronicIllness
-				bind:chronicIllnessDetails
-				bind:hadRecentSurgery
-				bind:recentSurgeryDetails
-				bind:activityLimitations
-				bind:otherAccommodations
-			/>
-			{:else}
-			<div>
-				<h2 class="mb-3 text-xl font-semibold">Medical &amp; Dietary</h2>
-				<button type="button" onclick={() => (showMedical = true)} class="w-full rounded-md border border-dashed border-input py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:text-foreground">
-					+ Add allergies, medications, or dietary needs <span class="text-xs">(optional)</span>
-				</button>
-			</div>
-			{/if}
-			</div>
-
-			<Separator />
-
-			<!-- Permission Text -->
-			<section id="section-permission">
-				<Card class="bg-muted/30">
-					<CardContent class="py-6">
-						<p class="text-sm leading-relaxed">
-							I give permission for my child or youth to participate in the event and
-							activities listed above. I understand that reasonable safety precautions
-							will be taken during these activities and that my child or youth will be
-							under qualified supervision. I authorize the adult leaders supervising
-							this event to administer emergency treatment to the above-named
-							participant for any injuries or illnesses that may occur during the event.
-							If I cannot be reached in an emergency, I authorize the leaders to act in
-							my behalf in obtaining emergency medical treatment, including
-							hospitalization, for the participant.
-						</p>
-					</CardContent>
-				</Card>
-			</section>
-
-			<Separator />
-
-			<!-- Signatures -->
-			<section id="section-signatures" class="space-y-6">
-				<SignaturePad
-					label="Participant Signature"
-					bind:value={participantSigValue}
-					bind:type={participantSigType}
-					bind:date={participantSigDate}
-					allowHand
-				/>
-
-				<Separator />
-
-				<SignaturePad
-					label="Parent/Guardian Signature"
-					bind:value={guardianSigValue}
-					bind:type={guardianSigType}
-					bind:date={guardianSigDate}
-					initialValue={savedGuardianSig}
-					initialType={savedGuardianSigType}
-					allowHand
-				/>
-			</section>
+					<PermissionFormFields
+						bind:fields
+						progressive
+						bind:showEmergency
+						bind:showMedical
+						guardianInitialValue={savedGuardianSig}
+						guardianInitialType={savedGuardianSigType}
+					/>
 
 					<!-- Submit -->
 					<div class="sticky bottom-0 bg-card pt-4 pb-2">
@@ -552,8 +378,8 @@
 
 <ConfirmModal
 	bind:open={saveProfileModalOpen}
-	title="Save Profile for {participantName}?"
-	message="Your form has been submitted! Would you like to save {participantName}'s information as a profile so you can quickly fill out future forms?"
+	title="Save Profile for {fields.participantName}?"
+	message="Your form has been submitted! Would you like to save {fields.participantName}'s information as a profile so you can quickly fill out future forms?"
 	confirmLabel="Save Profile"
 	confirmVariant="default"
 	onConfirm={saveProfileAndRedirect}
