@@ -15,11 +15,16 @@
 	import { formatFileSize } from "$lib/utils/format";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import LoadingState from "$lib/components/LoadingState.svelte";
-	import { PageContainer } from "$lib/components/molecules";
+	import { PageContainer, GroupCombobox } from "$lib/components/molecules";
+	import type { Group } from "$lib/data/types";
 
 	let { data } = $props();
 
 	let selectedOrgs: string[] = $state([]);
+
+	// Group association (any group the user belongs to can host the activity)
+	let myGroups: Group[] = $state([]);
+	let selectedGroupId = $state("");
 
 	// Form fields
 	let eventName = $state("");
@@ -54,7 +59,11 @@
 	const auth = useAuthRequired({
 		onReady: async () => {
 			try {
+				// Load groups the user belongs to for the association combobox.
+				repo.groups.list().then((gs) => (myGroups = gs)).catch(() => {});
+
 				const event = await repo.events.getById(data.eventId);
+				selectedGroupId = event.group_id || "";
 				eventName = event.event_name || "";
 				// Parse event_start/event_end into separate date and time
 				if (event.event_start) {
@@ -109,6 +118,15 @@
 		return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 	}
 
+	function applyGroupDefaults(group: Group) {
+		// Stake-level groups have no ward — clear any inherited ward.
+		ward = group.type === 'stake' ? '' : (group.ward || ward);
+		if (group.stake) stake = group.stake;
+		if (group.leader_name) leaderName = group.leader_name;
+		if (group.leader_phone) leaderPhone = group.leader_phone;
+		if (group.leader_email) leaderEmail = group.leader_email;
+	}
+
 	function buildDatetime(date: string, time: string): string {
 		if (!date) return '';
 		return time ? `${date}T${time}` : date;
@@ -127,7 +145,7 @@
 			}
 		}
 		if (!description.trim()) newErrors.description = "Description is required";
-		if (!ward.trim()) newErrors.ward = "Ward is required";
+		// Ward is optional — stake-level activities have no specific ward.
 		if (!stake.trim()) newErrors.stake = "Stake is required";
 		if (!leaderName.trim()) newErrors.leaderName = "Leader name is required";
 		if (!leaderPhone.trim()) newErrors.leaderPhone = "Leader phone is required";
@@ -182,6 +200,7 @@
 				notify_carrier: notifyCarrier || null,
 				organizations: selectedOrgs,
 				additional_details: additionalDetails || null,
+				group_id: selectedGroupId || null,
 			});
 
 			// Upload new attachments
@@ -218,6 +237,30 @@
 		</div>
 
 		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-8">
+			{#if myGroups.length > 0}
+				<Card>
+					<CardHeader>
+						<CardTitle>Group</CardTitle>
+					</CardHeader>
+					<CardContent class="space-y-2">
+						<Label for="groupCombo">Associate with a group</Label>
+						<GroupCombobox
+							id="groupCombo"
+							groups={myGroups}
+							bind:selectedGroupId
+							onSelect={applyGroupDefaults}
+						/>
+						{#if selectedGroupId}
+							<p class="text-xs text-muted-foreground">
+								Shared with this group. <button type="button" class="text-primary underline hover:no-underline" onclick={() => (selectedGroupId = '')}>Remove</button> to keep it private.
+							</p>
+						{:else}
+							<p class="text-xs text-muted-foreground">Pick a group to share this activity with its members. Leave blank to keep it visible only to you.</p>
+						{/if}
+					</CardContent>
+				</Card>
+			{/if}
+
 			<Card>
 				<CardHeader>
 					<CardTitle>Activity Details</CardTitle>
@@ -275,7 +318,7 @@
 					</div>
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div class="space-y-2">
-							<Label for="ward">Ward *</Label>
+							<Label for="ward">Ward</Label>
 							<Input id="ward" bind:value={ward} placeholder="Ward name" />
 							{#if errors.ward}<p class="text-sm text-destructive">{errors.ward}</p>{/if}
 						</div>

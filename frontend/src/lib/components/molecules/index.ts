@@ -6,3 +6,4 @@ export { default as FilterPanel } from "./FilterPanel.svelte";
 export { default as EventStatusBadges } from "./EventStatusBadges.svelte";
 export { default as Modal } from "./Modal.svelte";
 export { default as AdminFilterBar } from "./AdminFilterBar.svelte";
+export { default as GroupCombobox } from "./GroupCombobox.svelte";

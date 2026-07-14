@@ -2,6 +2,7 @@
 	import { goto } from "$app/navigation";
 	import { getRepository } from '$lib/data';
 	import { Button } from "$lib/components/ui/button";
+	import { Select } from "$lib/components/ui/select";
 	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 	import { inferProgramFromOrgs } from "$lib/utils/organizations";
@@ -32,6 +33,15 @@
 	let toggling = $state(false);
 	let deleting = $state<string | null>(null);
 
+	// Ownership / permanent-delete (super, owner, or group admin)
+	let groupMembers: any[] = $state([]);
+	let isGroupAdmin = $state(false);
+	let deleteModalOpen = $state(false);
+	let removing = $state(false);
+	let reassignOpen = $state(false);
+	let newOwnerId = $state("");
+	let reassigning = $state(false);
+
 	const del = useDeleteConfirm<string>();
 	const pdf = usePdfPreview();
 	const repo = getRepository();
@@ -48,8 +58,31 @@
 			event = eventData;
 			submissions = subData;
 			attachments = attData;
+
+			// Load group members so an owner/admin can reassign ownership.
+			if (eventData.group_id) {
+				try {
+					const group = await repo.groups.getById(eventData.group_id);
+					groupMembers = group.members ?? [];
+					isGroupAdmin = !!group.effective_admin;
+				} catch {
+					groupMembers = [];
+				}
+			}
 		},
 	});
+
+	// Who may permanently delete / reassign: super, the owner, or a group admin.
+	const canManage = $derived(
+		!!auth.user &&
+			(auth.user.role === "super" || event?.created_by === auth.user.id || isGroupAdmin),
+	);
+	const ownerName = $derived(
+		groupMembers.find((m) => m.user_id === event?.created_by)?.name ?? null,
+	);
+	const reassignTargets = $derived(
+		groupMembers.filter((m) => m.user_id !== event?.created_by),
+	);
 
 	// Toggle active modal state
 	let toggleModalOpen = $state(false);
@@ -85,6 +118,37 @@
 		} finally {
 			toggling = false;
 			toggleModalOpen = false;
+		}
+	}
+
+	async function confirmDelete() {
+		removing = true;
+		try {
+			await repo.events.remove(data.eventId);
+			toastSuccess("Activity deleted.");
+			goto("/dashboard");
+		} catch (err: any) {
+			toastError(err?.message || "Failed to delete activity");
+			deleteModalOpen = false;
+		} finally {
+			removing = false;
+		}
+	}
+
+	async function handleReassign() {
+		if (!newOwnerId) return;
+		reassigning = true;
+		try {
+			const updated = await repo.events.reassignOwner(data.eventId, newOwnerId);
+			event = { ...event, created_by: updated.created_by };
+			const name = groupMembers.find((m) => m.user_id === newOwnerId)?.name ?? "the new owner";
+			toastSuccess(`Ownership transferred to ${name}.`);
+			reassignOpen = false;
+			newOwnerId = "";
+		} catch (err: any) {
+			toastError(err?.message || "Failed to reassign ownership");
+		} finally {
+			reassigning = false;
 		}
 	}
 
@@ -213,6 +277,21 @@
 			>
 				{toggling ? "..." : event.is_active ? "Deactivate" : "Activate"}
 			</Button>
+			{#if canManage && reassignTargets.length > 0}
+				<Button variant="outline" onclick={() => (reassignOpen = true)}>Reassign Owner</Button>
+			{/if}
+			{#if canManage}
+				<Button
+					variant="destructive"
+					onclick={() => (deleteModalOpen = true)}
+					disabled={submissions.length > 0}
+					title={submissions.length > 0
+						? "Deactivate instead — this activity has submissions."
+						: "Permanently delete this activity"}
+				>
+					Delete
+				</Button>
+			{/if}
 		{/snippet}
 		<PageHeader
 			title={event.event_name}
@@ -288,6 +367,49 @@
 	onConfirm={toggleActive}
 	loading={toggling}
 />
+
+<ConfirmModal
+	bind:open={deleteModalOpen}
+	title="Delete Activity"
+	message="Permanently delete &quot;{event.event_name}&quot;? This removes the activity and its attachments and cannot be undone."
+	confirmLabel="Delete Activity"
+	confirmVariant="destructive"
+	onConfirm={confirmDelete}
+	loading={removing}
+/>
+{/if}
+
+{#if reassignOpen}
+<div class="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="reassign-title">
+	<button
+		type="button"
+		class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+		aria-label="Close"
+		onclick={() => (reassignOpen = false)}
+	></button>
+	<div class="relative z-10 mx-4 w-full max-w-md rounded-lg bg-popover p-6 shadow-xl">
+		<h3 id="reassign-title" class="text-lg font-semibold">Reassign Owner</h3>
+		<p class="mt-2 text-sm text-muted-foreground">
+			Transfer ownership of &quot;{event?.event_name}&quot;{ownerName ? ` from ${ownerName}` : ""} to another
+			member of this group.
+		</p>
+		<div class="mt-4">
+			<label for="reassign-owner" class="mb-1.5 block text-sm font-medium">New owner</label>
+			<Select id="reassign-owner" bind:value={newOwnerId}>
+				<option value="" disabled>Select a member…</option>
+				{#each reassignTargets as m (m.user_id)}
+					<option value={m.user_id}>{m.name} ({m.email})</option>
+				{/each}
+			</Select>
+		</div>
+		<div class="mt-6 flex justify-end gap-3">
+			<Button variant="outline" onclick={() => (reassignOpen = false)}>Cancel</Button>
+			<Button variant="default" onclick={handleReassign} disabled={!newOwnerId || reassigning}>
+				{reassigning ? "Reassigning..." : "Reassign"}
+			</Button>
+		</div>
+	</div>
+</div>
 {/if}
 
 <EventQrModal

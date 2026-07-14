@@ -202,6 +202,18 @@ function createEventRepository(): EventRepository {
       await apiFetch(`/api/events/${id}`, { method: 'DELETE' });
     },
 
+    async remove(id: string): Promise<void> {
+      await apiFetch(`/api/events/${id}/permanent`, { method: 'DELETE' });
+    },
+
+    async reassignOwner(id: string, userId: string): Promise<Event> {
+      const data = await apiFetch(`/api/events/${id}/owner`, {
+        method: 'PUT',
+        body: JSON.stringify({ userId })
+      });
+      return data.event;
+    },
+
     async getSubmissions(eventId: string): Promise<Submission[]> {
       const data = await apiFetch(`/api/events/${eventId}/submissions`);
       return data.submissions;

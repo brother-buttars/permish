@@ -665,6 +665,25 @@ export function createLocalRepository(db: LocalDatabase): DataRepository {
       await db.execute('UPDATE events SET is_active = 0, updated = ? WHERE id = ?', [now(), id]);
     },
 
+    async remove(id: string): Promise<void> {
+      requireUser();
+      const [{ count = 0 } = {}] = await db.query<{ count: number }>(
+        'SELECT COUNT(*) as count FROM submissions WHERE event_id = ?',
+        [id]
+      );
+      if (count > 0) {
+        throw new Error(`This activity has ${count} submission${count === 1 ? '' : 's'}. Deactivate it instead of deleting.`);
+      }
+      await db.execute('DELETE FROM event_attachments WHERE event_id = ?', [id]);
+      await db.execute('DELETE FROM events WHERE id = ?', [id]);
+    },
+
+    async reassignOwner(id: string, userId: string): Promise<Event> {
+      requireUser();
+      await db.execute('UPDATE events SET created_by = ?, updated = ? WHERE id = ?', [userId, now(), id]);
+      return events.getById(id);
+    },
+
     async getSubmissions(eventId: string): Promise<Submission[]> {
       requireUser();
       const rows = await db.query('SELECT * FROM submissions WHERE event_id = ? ORDER BY created DESC', [

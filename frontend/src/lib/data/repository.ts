@@ -45,6 +45,10 @@ export interface EventRepository {
   getById(id: string): Promise<Event>;
   update(id: string, data: Partial<Event>): Promise<Event>;
   deactivate(id: string): Promise<void>;
+  /** Permanently remove an event. Rejected by the server if it has submissions. */
+  remove(id: string): Promise<void>;
+  /** Reassign ownership to another user (must belong to the event's group). */
+  reassignOwner(id: string, userId: string): Promise<Event>;
   getSubmissions(eventId: string): Promise<Submission[]>;
   getAllSubmissions(filter?: { groupId?: string | null; activityId?: string | null }): Promise<AllSubmission[]>;
   onSubmissionCreated?(eventId: string, callback: (submission: Submission) => void): () => void;
