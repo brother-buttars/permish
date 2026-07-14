@@ -19,7 +19,10 @@
 		placeholder?: string;
 	} = $props();
 
-	const label = (g: Group) => `${g.name}${g.ward ? ` (${g.ward})` : ""}`;
+	// Show the ward in parens only for ward-type groups (and only when it adds
+	// info) — for stake/custom groups the name already says it all.
+	const label = (g: Group) =>
+		g.type === "ward" && g.ward && g.ward !== g.name ? `${g.name} (${g.ward})` : g.name;
 
 	let query = $state("");
 	let open = $state(false);
