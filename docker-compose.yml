@@ -6,11 +6,8 @@
 # Production with HTTPS:
 #   DOMAIN=permish.app docker compose --profile production up -d
 #
-# PocketBase mode:
-#   PUBLIC_BACKEND=pocketbase docker compose --profile pocketbase up -d
-#
-# PocketBase + HTTPS:
-#   DOMAIN=permish.app PUBLIC_BACKEND=pocketbase docker compose --profile pocketbase --profile production up -d
+# One backend: the Bun + Hono + SQLite server (server/). It handles routes, auth,
+# PDF generation, email, and SMS in a single process — no PocketBase, no sidecar.
 
 services:
   # =========================================================================
@@ -30,13 +27,12 @@ services:
       - caddy_config:/config
     environment:
       - DOMAIN=${DOMAIN:-localhost}
-      - PUBLIC_BACKEND=${PUBLIC_BACKEND:-express}
 
   # =========================================================================
-  # Express Backend (default mode)
+  # Permish server — Bun + Hono + SQLite (the only backend)
   # =========================================================================
-  backend:
-    build: ./backend
+  server:
+    build: ./server
     restart: unless-stopped
     expose:
       - "3001"
@@ -49,92 +45,33 @@ services:
     env_file:
       - .env
     environment:
-      - DATA_DIR=/app/data
+      - DB_PATH=/app/data/permish.sqlite
       - PDF_DIR=/app/pdfs
       - UPLOADS_DIR=/app/uploads
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>{if(!r.ok)throw 1})"]
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3001/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 3
 
   # =========================================================================
-  # PocketBase (only with --profile pocketbase)
-  # =========================================================================
-  pocketbase:
-    image: ghcr.io/muchobien/pocketbase:latest
-    profiles: ["pocketbase"]
-    restart: unless-stopped
-    expose:
-      - "8090"
-    ports:
-      - "${PB_PORT:-8090}:8090"
-    volumes:
-      - pb-data:/pb/pb_data
-      - ./pb_migrations:/pb/pb_migrations
-    command: serve --http=0.0.0.0:8090
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8090/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # =========================================================================
-  # Node.js Sidecar — PDF, email, SMS (only with --profile pocketbase)
-  # =========================================================================
-  sidecar:
-    build: ./sidecar
-    profiles: ["pocketbase"]
-    restart: unless-stopped
-    expose:
-      - "3002"
-    ports:
-      - "${SIDECAR_PORT:-3002}:3002"
-    volumes:
-      - pdf-storage:/app/pdfs
-    depends_on:
-      pocketbase:
-        condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      - PORT=3002
-      - PB_URL=http://pocketbase:8090
-      - PB_ADMIN_EMAIL=${PB_ADMIN_EMAIL:-}
-      - PB_ADMIN_PASSWORD=${PB_ADMIN_PASSWORD:-}
-      - PDF_DIR=/app/pdfs
-      - FRONTEND_URL=${DOMAIN:+https://${DOMAIN}}
-      - DOMAIN=${DOMAIN:-}
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/health').then(r=>{if(!r.ok)throw 1})"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # =========================================================================
-  # SvelteKit Frontend (runs in all modes)
+  # SvelteKit Frontend
   # =========================================================================
   frontend:
     build:
       context: ./frontend
       args:
-        - PUBLIC_BACKEND=${PUBLIC_BACKEND:-express}
         - PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:3001}
-        - PUBLIC_PB_URL=${PUBLIC_PB_URL:-http://localhost:8090}
-        - PUBLIC_SIDECAR_URL=${PUBLIC_SIDECAR_URL:-http://localhost:3002}
     restart: unless-stopped
     expose:
       - "3000"
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
-      backend:
+      server:
         condition: service_healthy
     environment:
-      - PUBLIC_BACKEND=${PUBLIC_BACKEND:-express}
       - PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:3001}
-      - PUBLIC_PB_URL=${PUBLIC_PB_URL:-http://localhost:8090}
-      - PUBLIC_SIDECAR_URL=${PUBLIC_SIDECAR_URL:-http://localhost:3002}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>{if(!r.ok)throw 1})"]
       interval: 10s
@@ -145,6 +82,5 @@ volumes:
   db-data:
   pdf-storage:
   uploads-storage:
-  pb-data:
   caddy_data:
   caddy_config:

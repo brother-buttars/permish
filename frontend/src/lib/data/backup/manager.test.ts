@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTestDatabase, type TestDatabase } from '../test-helpers';
-import { initializeLocalSchema } from '../local/schema';
+import { initializeLocalSchema, LOCAL_SCHEMA_VERSION } from '../local/schema';
 import { BackupManager, type BackupFile } from './manager';
 import { createLocalRepository } from '../adapters/local';
 
@@ -32,7 +32,7 @@ describe('BackupManager', () => {
   /** Seed some data into the database for backup tests. */
   async function seedData(): Promise<void> {
     const repo = createLocalRepository(db);
-    await repo.auth.register('user@test.com', 'pass', 'Test User', 'planner');
+    await repo.auth.register('user@test.com', 'pass', 'Test User', 'user');
     const { event } = await repo.events.create({
       event_name: 'Camp',
       event_dates: '2026-07-15',
@@ -70,7 +70,7 @@ describe('BackupManager', () => {
       expect(blob.size).toBeGreaterThan(0);
 
       expect(metadata.version).toBe(1);
-      expect(metadata.schemaVersion).toBe(3);
+      expect(metadata.schemaVersion).toBe(LOCAL_SCHEMA_VERSION);
       expect(metadata.recordCounts.users).toBe(1);
       expect(metadata.recordCounts.events).toBe(1);
       expect(metadata.recordCounts.profiles).toBe(1);

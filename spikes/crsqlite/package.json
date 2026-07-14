@@ -1,0 +1,9 @@
+{
+  "name": "permish-crsqlite-spike",
+  "private": true,
+  "type": "module",
+  "description": "Phase 5 spike — evaluate cr-sqlite CRDT merge vs the hand-rolled last-write-wins sync.",
+  "dependencies": {
+    "@vlcn.io/crsqlite": "^0.16.3"
+  }
+}

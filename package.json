@@ -1,0 +1,9 @@
+{
+  "name": "permish",
+  "private": true,
+  "type": "module",
+  "description": "Permish — repo-root scripts. The single schema source lives in shared/schema.ts.",
+  "scripts": {
+    "gen:schema": "bun scripts/gen-schema.ts"
+  }
+}

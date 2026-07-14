@@ -65,10 +65,10 @@
 						<Input
 							id="password"
 							type="password"
-							placeholder="Choose a password"
+							placeholder="At least 8 characters"
 							bind:value={password}
 							required
-							minlength={6}
+							minlength={8}
 						/>
 					</div>
 				</div>
@@ -81,9 +81,6 @@
 					Already have an account?
 					<a href="/login" class="text-primary underline hover:no-underline">Login</a>
 				</p>
-				<a href="/server-settings" class="text-xs text-muted-foreground hover:text-foreground transition-colors">
-					Connect to a different server
-				</a>
 			</CardFooter>
 		</form>
 	</Card>

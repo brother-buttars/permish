@@ -4,7 +4,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Input } from "$lib/components/ui/input";
 	import { Label } from "$lib/components/ui/label";
-	import { Card, CardHeader, CardTitle, CardContent } from "$lib/components/ui/card";
+	import { Card, CardContent } from "$lib/components/ui/card";
 	import { Select } from "$lib/components/ui/select";
 	import { Badge } from "$lib/components/ui/badge";
 	import ConfirmModal from "$lib/components/ConfirmModal.svelte";
@@ -12,16 +12,22 @@
 	import { toastSuccess, toastError } from "$lib/stores/toast";
 	import { Modal } from "$lib/components/molecules";
 	import { adminFilter } from "$lib/stores/adminFilter";
+	import type { AdminGroupNode } from "$lib/data/types";
 
 	let users: any[] = $state([]);
 
-	let showCreateForm = $state(false);
+	let createModalOpen = $state(false);
 	let newEmail = $state("");
 	let newPassword = $state("");
 	let newName = $state("");
 	let newRole = $state("user");
 	let createError = $state("");
 	let creating = $state(false);
+
+	// Group assignments in the create modal: groupId -> 'admin' | 'member' (absent = not assigned)
+	let groupsTree: AdminGroupNode[] = $state([]);
+	let groupsLoading = $state(false);
+	let assignments: Record<string, 'admin' | 'member'> = $state({});
 
 	let deleteModalOpen = $state(false);
 	let deleteTarget: any = $state(null);
@@ -48,7 +54,6 @@
 	}
 
 	$effect(() => {
-		// reload whenever the filter changes
 		void $adminFilter.groupId;
 		void $adminFilter.activityId;
 		loadUsers();
@@ -64,18 +69,57 @@
 		);
 	});
 
+	async function openCreateModal() {
+		newEmail = "";
+		newPassword = "";
+		newName = "";
+		newRole = "user";
+		createError = "";
+		assignments = {};
+		createModalOpen = true;
+
+		// Lazy-load groups the first time we open
+		if (groupsTree.length === 0 && !groupsLoading) {
+			groupsLoading = true;
+			try {
+				groupsTree = await repo.admin.listGroupsTree();
+			} catch (err: any) {
+				toastError(err.message || "Failed to load groups");
+			} finally {
+				groupsLoading = false;
+			}
+		}
+	}
+
+	function toggleAssignment(groupId: string) {
+		const next = { ...assignments };
+		if (next[groupId]) delete next[groupId];
+		else next[groupId] = 'member';
+		assignments = next;
+	}
+
+	function setAssignmentRole(groupId: string, role: 'admin' | 'member') {
+		assignments = { ...assignments, [groupId]: role };
+	}
+
 	async function handleCreateUser() {
 		createError = "";
 		if (!newEmail || !newPassword || !newName) {
-			createError = "All fields are required.";
+			createError = "Name, email, and password are required.";
 			return;
 		}
 		creating = true;
 		try {
-			await repo.admin.createUser({ email: newEmail, password: newPassword, name: newName, role: newRole });
-			toastSuccess("User created successfully.");
-			newEmail = ""; newPassword = ""; newName = ""; newRole = "user";
-			showCreateForm = false;
+			const assignmentList = Object.entries(assignments).map(([groupId, role]) => ({ groupId, role }));
+			await repo.admin.createUser({
+				email: newEmail,
+				password: newPassword,
+				name: newName,
+				role: newRole,
+				assignments: assignmentList.length ? assignmentList : undefined,
+			});
+			toastSuccess("User created.");
+			createModalOpen = false;
 			await loadUsers();
 		} catch (err: any) {
 			createError = err.message || "Failed to create user.";
@@ -134,49 +178,8 @@
 
 <div class="mb-4 flex items-center justify-between">
 	<h2 class="text-xl font-semibold">Users</h2>
-	<Button onclick={() => { showCreateForm = !showCreateForm; }}>
-		{showCreateForm ? "Cancel" : "Create User"}
-	</Button>
+	<Button onclick={openCreateModal}>Create User</Button>
 </div>
-
-{#if showCreateForm}
-	<Card class="mb-6">
-		<CardHeader>
-			<CardTitle>Create User</CardTitle>
-		</CardHeader>
-		<CardContent>
-			<form onsubmit={(e) => { e.preventDefault(); handleCreateUser(); }} class="space-y-4">
-				{#if createError}
-					<AlertBox message={createError} />
-				{/if}
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div class="space-y-2">
-						<Label for="newName">Name</Label>
-						<Input id="newName" bind:value={newName} placeholder="Full name" />
-					</div>
-					<div class="space-y-2">
-						<Label for="newEmail">Email</Label>
-						<Input id="newEmail" type="email" bind:value={newEmail} placeholder="user@example.com" />
-					</div>
-					<div class="space-y-2">
-						<Label for="newPassword">Password</Label>
-						<Input id="newPassword" type="password" bind:value={newPassword} placeholder="Min 8 characters" />
-					</div>
-					<div class="space-y-2">
-						<Label for="newRole">Role</Label>
-						<Select id="newRole" bind:value={newRole}>
-							<option value="user">User</option>
-							<option value="super">Super Admin</option>
-						</Select>
-					</div>
-				</div>
-				<Button type="submit" disabled={creating}>
-					{creating ? "Creating..." : "Create User"}
-				</Button>
-			</form>
-		</CardContent>
-	</Card>
-{/if}
 
 <Card class="mb-6">
 	<CardContent class="pt-6">
@@ -270,6 +273,91 @@
 </div>
 
 <p class="mt-2 text-xs text-muted-foreground">{filteredUsers.length} user{filteredUsers.length === 1 ? '' : 's'}</p>
+
+<!-- Create user modal -->
+<Modal bind:open={createModalOpen} size="lg">
+	{#snippet header()}
+		<h3 class="text-lg font-semibold">Create User</h3>
+		<p class="mt-1 text-sm text-muted-foreground">Add a user and optionally assign them to stakes or wards.</p>
+	{/snippet}
+
+	<form onsubmit={(e) => { e.preventDefault(); handleCreateUser(); }} class="mt-4 space-y-4">
+		{#if createError}
+			<AlertBox message={createError} />
+		{/if}
+		<div class="grid gap-4 sm:grid-cols-2">
+			<div class="space-y-2">
+				<Label for="newName">Name</Label>
+				<Input id="newName" bind:value={newName} placeholder="Full name" />
+			</div>
+			<div class="space-y-2">
+				<Label for="newEmail">Email</Label>
+				<Input id="newEmail" type="email" bind:value={newEmail} placeholder="user@example.com" />
+			</div>
+			<div class="space-y-2">
+				<Label for="newPassword">Password</Label>
+				<Input id="newPassword" type="password" bind:value={newPassword} placeholder="Min 8 characters" />
+			</div>
+			<div class="space-y-2">
+				<Label for="newRole">System role</Label>
+				<Select id="newRole" bind:value={newRole}>
+					<option value="user">User</option>
+					<option value="super">Super Admin</option>
+				</Select>
+			</div>
+		</div>
+
+		<div class="space-y-2">
+			<Label>Stake & ward memberships</Label>
+			<p class="text-xs text-muted-foreground">
+				Pick the stakes and wards this user belongs to. Mark them as Admin to grant management access for that group.
+			</p>
+			<div class="max-h-72 overflow-y-auto rounded-md border border-border">
+				{#if groupsLoading}
+					<p class="p-3 text-sm text-muted-foreground">Loading groups…</p>
+				{:else if groupsTree.length === 0}
+					<p class="p-3 text-sm text-muted-foreground">No stakes or wards yet. Create groups first to assign users.</p>
+				{:else}
+					<ul class="divide-y divide-border text-sm">
+						{#each groupsTree as g (g.id)}
+							{@const checked = !!assignments[g.id]}
+							<li class="flex items-center gap-2 px-3 py-2" style="padding-left: {0.75 + g.depth * 1}rem;">
+								<input
+									type="checkbox"
+									id={`grp-${g.id}`}
+									{checked}
+									onchange={() => toggleAssignment(g.id)}
+									class="h-4 w-4 rounded border-border"
+								/>
+								<label for={`grp-${g.id}`} class="flex-1 cursor-pointer">
+									{g.name}
+									<span class="ml-1 text-xs text-muted-foreground">({g.type})</span>
+								</label>
+								{#if checked}
+									<Select
+										value={assignments[g.id]}
+										onchange={(e) => setAssignmentRole(g.id, e.currentTarget.value as 'admin' | 'member')}
+										class="h-7 w-24 text-xs"
+									>
+										<option value="member">Member</option>
+										<option value="admin">Admin</option>
+									</Select>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
+		</div>
+
+		<div class="flex justify-end gap-3 pt-2">
+			<Button variant="outline" onclick={() => { createModalOpen = false; }}>Cancel</Button>
+			<Button type="submit" disabled={creating}>
+				{creating ? "Creating…" : "Create User"}
+			</Button>
+		</div>
+	</form>
+</Modal>
 
 <ConfirmModal
 	bind:open={deleteModalOpen}

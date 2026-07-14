@@ -182,6 +182,17 @@
 
       <!-- Menu items -->
       <button
+        class={menuItemClass(pathname === "/profiles")}
+        onclick={() => nav("/profiles")}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-3-3.87M9 21v-2a4 4 0 0 0-3-3.87" />
+          <circle cx="12" cy="7" r="3" />
+          <path d="M5 21v-1a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v1" />
+        </svg>
+        Youth Profiles
+      </button>
+      <button
         class={menuItemClass(pathname === "/account")}
         onclick={() => nav("/account")}
       >

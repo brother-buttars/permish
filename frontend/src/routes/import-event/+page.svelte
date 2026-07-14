@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { user, authLoading } from '$lib/stores/auth';
-	import { getRepository, hasCompletedSetup } from '$lib/data';
+	import { getRepository } from '$lib/data';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';

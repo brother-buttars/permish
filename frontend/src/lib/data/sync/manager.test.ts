@@ -31,6 +31,7 @@ function createMockRemote(): DataRepository {
     events: {
       create: vi.fn().mockResolvedValue({ event: { id: 'r1' }, formUrl: '/form/r1' }),
       list: vi.fn().mockResolvedValue([]),
+      listForMe: vi.fn().mockResolvedValue([]),
       getById: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
       deactivate: vi.fn().mockResolvedValue(undefined),

@@ -9,12 +9,9 @@
 	# Frontend — all non-API traffic
 	reverse_proxy frontend:3000
 
-	# API routes — proxy to backend (Express) or PocketBase depending on mode
-	# Express mode: backend handles /api/*
-	# PocketBase mode: PocketBase handles /api/* except submit/PDF routes
-
+	# API routes — proxy to the Permish server (Bun + Hono + SQLite)
 	handle /api/* {
-		reverse_proxy backend:3001
+		reverse_proxy server:3001
 	}
 
 	# Compression
@@ -36,22 +33,3 @@
 	}
 }
 
-# PocketBase admin UI (PocketBase mode only)
-# Accessible at https://admin.{DOMAIN}/_/
-# Protected by basic auth — generate a hash with: caddy hash-password
-#
-# To enable:
-# 1. Set PB_ADMIN_HASH env var (run: caddy hash-password)
-# 2. Add DNS record for admin.permish.app → your server IP
-# 3. Uncomment the block below
-#
-# admin.{$DOMAIN:localhost} {
-# 	basicauth {
-# 		admin {$PB_ADMIN_HASH}
-# 	}
-# 	reverse_proxy pocketbase:8090
-# 	log {
-# 		output stdout
-# 		format console
-# 	}
-# }

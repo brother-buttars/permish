@@ -1,6 +1,5 @@
-import { initRepository, hasCompletedSetup } from '$lib/data';
+import { initRepository } from '$lib/data';
 import { checkAuth } from '$lib/stores/auth';
-import { redirect } from '@sveltejs/kit';
 
 // Disable SSR — this is a client-side app with cookie-based auth
 export const ssr = false;
@@ -9,14 +8,9 @@ export const ssr = false;
 let initialized = false;
 
 export async function load({ url }) {
-	// First visit: redirect to setup page to choose data mode
-	if (typeof window !== 'undefined' && !hasCompletedSetup() && url.pathname !== '/setup') {
-		redirect(302, '/setup');
-	}
-
-	// These pages don't need auth check
-	const skipAuthPaths = ['/setup', '/server-settings'];
-	if (skipAuthPaths.includes(url.pathname)) return;
+	// Storage mode defaults to 'online' silently; advanced users switch it in
+	// Account → Data. No forced onboarding gate.
+	if (url.pathname === '/server-settings') return; // self-hosting escape hatch — no auth needed
 
 	// Initialize repository + auth only once
 	if (!initialized) {

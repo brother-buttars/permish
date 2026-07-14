@@ -23,6 +23,8 @@ function readStorage(forUserId: string | null): AdminFilter {
 		return {
 			groupId: parsed.filter?.groupId || null,
 			activityId: parsed.filter?.activityId || null,
+			status: parsed.filter?.status || null,
+			orgs: Array.isArray(parsed.filter?.orgs) ? parsed.filter.orgs : [],
 		};
 	} catch {
 		return {};
@@ -65,9 +67,6 @@ export const adminFilter = writable<AdminFilter>({});
 if (browser) {
 	userStore.subscribe((u) => {
 		const newId = (u as { id?: string } | null)?.id ?? null;
-		// Only act on actual transitions: logout (current → null) or user swap (A → B).
-		// Going from null → user (initial login or first resolution) preserves whatever
-		// was just hydrated for that user.
 		if (currentUserId !== null && newId !== currentUserId) {
 			clearStorage();
 			adminFilter.set({});
@@ -84,8 +83,16 @@ if (browser) {
 export function hydrateFromUrl(searchParams: URLSearchParams): void {
 	const groupId = searchParams.get('group');
 	const activityId = searchParams.get('activity');
-	if (groupId || activityId) {
-		const next = { groupId: groupId || null, activityId: activityId || null };
+	const status = searchParams.get('status') as AdminFilter['status'] | null;
+	const orgsParam = searchParams.get('orgs');
+	const hasUrl = !!(groupId || activityId || status || orgsParam);
+	if (hasUrl) {
+		const next: AdminFilter = {
+			groupId: groupId || null,
+			activityId: activityId || null,
+			status: status || null,
+			orgs: orgsParam ? orgsParam.split(',').filter(Boolean) : [],
+		};
 		adminFilter.set(next);
 		writeStorage(next);
 	} else {
@@ -98,6 +105,8 @@ export function setFilter(next: Partial<AdminFilter>): void {
 	const merged: AdminFilter = {
 		groupId: next.groupId !== undefined ? next.groupId : current.groupId,
 		activityId: next.activityId !== undefined ? next.activityId : current.activityId,
+		status: next.status !== undefined ? next.status : current.status,
+		orgs: next.orgs !== undefined ? next.orgs : current.orgs,
 	};
 	adminFilter.set(merged);
 	writeStorage(merged);
@@ -105,7 +114,7 @@ export function setFilter(next: Partial<AdminFilter>): void {
 }
 
 export function clearFilter(): void {
-	const empty: AdminFilter = { groupId: null, activityId: null };
+	const empty: AdminFilter = { groupId: null, activityId: null, status: null, orgs: [] };
 	adminFilter.set(empty);
 	writeStorage(empty);
 	if (browser) syncToUrl(empty);
@@ -115,10 +124,10 @@ function syncToUrl(filter: AdminFilter): void {
 	const $page = get(page);
 	if (!$page?.url) return;
 	const url = new URL($page.url);
-	if (filter.groupId) url.searchParams.set('group', filter.groupId);
-	else url.searchParams.delete('group');
-	if (filter.activityId) url.searchParams.set('activity', filter.activityId);
-	else url.searchParams.delete('activity');
+	if (filter.groupId) url.searchParams.set('group', filter.groupId); else url.searchParams.delete('group');
+	if (filter.activityId) url.searchParams.set('activity', filter.activityId); else url.searchParams.delete('activity');
+	if (filter.status && filter.status !== 'all') url.searchParams.set('status', filter.status); else url.searchParams.delete('status');
+	if (filter.orgs && filter.orgs.length) url.searchParams.set('orgs', filter.orgs.join(',')); else url.searchParams.delete('orgs');
 	const target = url.pathname + (url.search ? url.search : '');
 	if (target !== $page.url.pathname + $page.url.search) {
 		goto(target, { replaceState: true, keepFocus: true, noScroll: true });
@@ -130,6 +139,8 @@ export function buildAdminUrl(path: string): string {
 	const params = new URLSearchParams();
 	if (filter.groupId) params.set('group', filter.groupId);
 	if (filter.activityId) params.set('activity', filter.activityId);
+	if (filter.status && filter.status !== 'all') params.set('status', filter.status);
+	if (filter.orgs && filter.orgs.length) params.set('orgs', filter.orgs.join(','));
 	const qs = params.toString();
 	return qs ? `${path}?${qs}` : path;
 }
